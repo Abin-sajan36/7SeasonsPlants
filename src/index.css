@@ -1,0 +1,128 @@
+@import "tailwindcss";
+@custom-variant dark (&:is(.dark, .dark *));
+
+:root {
+  --bg-botanical: #F4FAF5;
+  --forest-primary: #14532D;
+  --emerald-vibrant: #15803D;
+  --emerald-hover: #0F6830;
+  --mint-soft: #E8F5E9;
+  --mint-highlight: #ECFDF5;
+  --ink-forest: #0B291B;
+  --ink-muted: #426352;
+  --surface-card: #FFFFFF;
+  --floral-coral: #F43F5E;
+  --floral-rose: #E11D48;
+  --sun-gold: #F59E0B;
+  --sun-yellow: #FBBF24;
+  --garden-cyan: #06B6D4;
+  --border-light: rgba(20, 83, 45, 0.12);
+  --border-card: rgba(20, 83, 45, 0.08);
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: 'Playfair Display', 'Georgia', serif;
+}
+
+.dark {
+  /* Keep standard Tailwind variables but tweak backgrounds to map properly to Midnight Garden */
+  --color-emerald-50: #021a12;
+  --color-emerald-100: #032b1d;
+  --color-emerald-200: #05452f;
+  
+  --color-gray-50: #05080c;
+  --color-gray-100: #0a111a;
+}
+
+body {
+  background-color: var(--color-white, #F4FAF5);
+  color: var(--color-emerald-950, #0B291B);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Midnight Garden main background */
+.dark body {
+  background-color: #010a07 !important;
+  color: #f8fafc !important;
+}
+
+/* App-wide background color utilities */
+.dark .bg-\[\#F4FAF5\] {
+  background-color: #010a07 !important;
+}
+.dark .bg-\[\#F4FAF5\]\/40 {
+  background-color: transparent !important;
+}
+
+/* High-contrast Card Backgrounds */
+.dark .bg-white {
+  background-color: #06120e !important;
+  color: #f8fafc;
+}
+
+/* Distinct Borders */
+.dark .border-emerald-900\/10,
+.dark .border-emerald-900\/15,
+.dark .border-emerald-100,
+.dark .border-emerald-200,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #1a3628 !important;
+}
+
+/* Secondary Text & Contrast Overrides */
+.dark .text-gray-400,
+.dark .text-gray-500,
+.dark .text-gray-600 {
+  color: #94a3b8 !important;
+}
+
+.dark .text-gray-700,
+.dark .text-gray-800,
+.dark .text-gray-900,
+.dark .text-gray-950 {
+  color: #f1f5f9 !important;
+}
+
+.dark .text-emerald-700,
+.dark .text-emerald-800,
+.dark .text-emerald-900,
+.dark .text-emerald-950 {
+  color: #a7f3d0 !important;
+}
+
+.dark .text-white {
+  color: #ffffff !important;
+}
+
+/* Custom crisp scrollbars in vibrant botanical tones */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #E8F5E9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #15803D;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #0F6830;
+}
+
+/* Smooth badge pulses & shine effects */
+@keyframes softPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.92; transform: scale(1.03); }
+}
+
+.animate-soft-pulse {
+  animation: softPulse 2.5s ease-in-out infinite;
+}

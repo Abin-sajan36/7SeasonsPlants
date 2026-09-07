@@ -1,0 +1,27 @@
+--- src/context/StoreContext.tsx
++++ src/context/StoreContext.tsx
+@@ -59,2 +59,4 @@
+   isCartOpen: boolean;
++  isDarkMode: boolean;
++  toggleDarkMode: () => void;
+ 
+@@ -194,2 +196,15 @@
+ 
++  // Theme state
++  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
++    const savedTheme = localStorage.getItem(`${STORAGE_KEY}_theme`);
++    return savedTheme === 'dark';
++  });
++
++  const toggleDarkMode = () => {
++    setIsDarkMode((prev) => {
++      const newVal = !prev;
++      localStorage.setItem(`${STORAGE_KEY}_theme`, newVal ? 'dark' : 'light');
++      return newVal;
++    });
++  };
++
+@@ -1569,2 +1584,4 @@
+         isCartOpen,
++        isDarkMode,
++        toggleDarkMode,

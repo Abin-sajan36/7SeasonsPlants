@@ -1,0 +1,12 @@
+--- src/components/common/Header.tsx
++++ src/components/common/Header.tsx
+@@ -16,2 +16,4 @@
+   LogOut,
+   ShieldCheck,
++  Package,
++  Clock,
+ } from 'lucide-react';
+@@ -41,2 +43,3 @@
+     categories,
++    orders,
+   } = useStore();

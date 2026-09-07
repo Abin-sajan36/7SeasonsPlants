@@ -1,0 +1,36 @@
+--- src/components/common/Header.tsx
++++ src/components/common/Header.tsx
+@@ -42,6 +42,7 @@
+ 
+   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+   const [searchQuery, setSearchQuery] = useState('');
++  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+   const [isSearchFocused, setIsSearchFocused] = useState(false);
+   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+   const [plantsDropdownOpen, setPlantsDropdownOpen] = useState(false);
+@@ -51,6 +52,11 @@
+   // Close search suggestions on outside click
+   useEffect(() => {
++    const savedHistory = localStorage.getItem('searchHistory');
++    if (savedHistory) {
++      setSearchHistory(JSON.parse(savedHistory));
++    }
++
+     const handleClickOutside = (event: MouseEvent) => {
+       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+         setIsSearchFocused(false);
+@@ -91,6 +97,13 @@
+     if (searchQuery.trim()) {
+       setIsSearchFocused(false);
++      const newHistory = [searchQuery.trim(), ...searchHistory.filter(q => q.toLowerCase() !== searchQuery.trim().toLowerCase())].slice(0, 5);
++      setSearchHistory(newHistory);
++      localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+       onNavigate('plants', `search:${encodeURIComponent(searchQuery.trim())}`);
+     }
+   };
++
++  const handleSearchHistoryClick = (query: string) => {
++    setSearchQuery(query);
++    setIsSearchFocused(false);
++    onNavigate('plants', `search:${encodeURIComponent(query)}`);
++  };

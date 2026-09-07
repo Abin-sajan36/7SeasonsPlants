@@ -1,0 +1,53 @@
+--- src/index.css
++++ src/index.css
+@@ -23,32 +23,31 @@
+ 
+ .dark {
+   /* Emeralds - inverted for high contrast */
+   --color-emerald-50: #021a12;
+   --color-emerald-100: #032b1d;
+   --color-emerald-200: #05452f;
+   --color-emerald-300: #065f46;
+   --color-emerald-400: #047857;
+-  --color-emerald-500: #059669;
+-  --color-emerald-600: #10b981;
+-  --color-emerald-700: #34d399;
+-  --color-emerald-800: #6ee7b7;
+-  --color-emerald-900: #a7f3d0;
+-  --color-emerald-950: #ecfdf5;
++  --color-emerald-500: #10b981;
++  --color-emerald-600: #34d399;
++  --color-emerald-700: #6ee7b7;
++  --color-emerald-800: #a7f3d0;
++  --color-emerald-900: #d1fae5;
++  --color-emerald-950: #ffffff;
+   
+-  --color-white: #010f0a;
+-  --color-black: #F8FAFC;
++  --color-white: #010a07;
++  --color-black: #f8fafc;
+   
+-  --color-gray-50: #06090e;
+-  --color-gray-100: #0a111a;
+-  --color-gray-200: #121c29;
+-  --color-gray-300: #1e293b;
+-  --color-gray-400: #334155;
+-  --color-gray-500: #475569;
+-  --color-gray-600: #64748b;
+-  --color-gray-700: #94a3b8;
+-  --color-gray-800: #cbd5e1;
+-  --color-gray-900: #e2e8f0;
+-  --color-gray-950: #f8fafc;
++  /* Grays - perfectly inverted for legibility */
++  --color-gray-50: #05080c;
++  --color-gray-100: #0a111a;
++  --color-gray-200: #121c29;
++  --color-gray-300: #1e293b;
++  --color-gray-400: #94a3b8;
++  --color-gray-500: #cbd5e1;
++  --color-gray-600: #e2e8f0;
++  --color-gray-700: #f1f5f9;
++  --color-gray-800: #f8fafc;
++  --color-gray-900: #ffffff;
++  --color-gray-950: #ffffff;
+ }

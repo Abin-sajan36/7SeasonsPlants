@@ -1,0 +1,39 @@
+--- src/components/common/Header.tsx
++++ src/components/common/Header.tsx
+@@ -301,23 +301,31 @@
+ 
+             {/* Account / Login Dropdown */}
+-            <div ref={accountRef} className="relative">
++            <div ref={accountRef} className="relative flex items-center gap-0.5">
++              {/* Quick Link Profile Icon */}
++              {currentUser ? (
++                <button
++                  onClick={() => onNavigate('account')}
++                  className="w-8 h-8 rounded-full bg-emerald-700 hover:bg-emerald-800 flex items-center justify-center text-white font-bold text-xs shadow-xs transition-colors cursor-pointer shrink-0"
++                  title="My Account"
++                >
++                  {currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
++                </button>
++              ) : (
++                <button
++                  onClick={() => onNavigate('account', 'login')}
++                  className="w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 flex items-center justify-center text-emerald-800 transition-colors cursor-pointer shrink-0"
++                  title="Sign In"
++                >
++                  <UserIcon className="w-4 h-4" />
++                </button>
++              )}
++
++              {/* Account Dropdown Toggle */}
+               <button
+                 onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+-                className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-full text-emerald-950 hover:bg-emerald-50 transition-colors cursor-pointer"
++                className="flex items-center gap-1 px-1.5 py-2 sm:py-2 rounded-full text-emerald-950 hover:bg-emerald-50 transition-colors cursor-pointer"
+                 aria-label="Account menu"
+               >
+-                <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold text-xs">
+-                  {currentUser ? currentUser.name.charAt(0).toUpperCase() : <UserIcon className="w-4 h-4 text-emerald-800" />}
+-                </div>
+                 <span className="hidden sm:inline-block text-xs font-medium text-emerald-950 max-w-[90px] truncate">
+                   {currentUser ? currentUser.name.split(' ')[0] : 'Account'}
+                 </span>

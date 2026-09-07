@@ -1,0 +1,179 @@
+{
+  "collections": [
+    {
+      "name": "users",
+      "description": "User accounts and profiles",
+      "auth_dependency": "true",
+      "fields": [
+        { "name": "name", "type": "string" },
+        { "name": "email", "type": "string" },
+        { "name": "role", "type": "string" },
+        { "name": "phone", "type": "string", "optional": true },
+        { "name": "profileImage", "type": "string", "optional": true },
+        { "name": "emailVerified", "type": "boolean", "optional": true },
+        { "name": "addresses", "type": "array", "optional": true },
+        { "name": "wishlist", "type": "array", "optional": true },
+        { "name": "createdAt", "type": "timestamp" }
+      ],
+      "access_patterns": [
+        "Users can read and update their own document",
+        "Admins can read all users"
+      ]
+    },
+    {
+      "name": "products",
+      "description": "Store products inventory",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "name", "type": "string" },
+        { "name": "slug", "type": "string" },
+        { "name": "shortDescription", "type": "string" },
+        { "name": "description", "type": "string" },
+        { "name": "category", "type": "string" },
+        { "name": "price", "type": "number" },
+        { "name": "stock", "type": "number" },
+        { "name": "images", "type": "array" }
+      ],
+      "access_patterns": [
+        "Anyone can read products",
+        "Only admins can create, update, or delete products"
+      ]
+    },
+    {
+      "name": "combos",
+      "description": "Plant combos inventory",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "name", "type": "string" },
+        { "name": "slug", "type": "string" },
+        { "name": "description", "type": "string" },
+        { "name": "price", "type": "number" }
+      ],
+      "access_patterns": [
+        "Anyone can read combos",
+        "Only admins can create, update, or delete combos"
+      ]
+    },
+    {
+      "name": "categories",
+      "description": "Product categories",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "name", "type": "string" },
+        { "name": "slug", "type": "string" },
+        { "name": "description", "type": "string" }
+      ],
+      "access_patterns": [
+        "Anyone can read categories",
+        "Only admins can create, update, or delete categories"
+      ]
+    },
+    {
+      "name": "orders",
+      "description": "Customer orders",
+      "auth_dependency": "true",
+      "fields": [
+        { "name": "orderNumber", "type": "string" },
+        { "name": "customerId", "type": "string" },
+        { "name": "customer", "type": "map" },
+        { "name": "items", "type": "array" },
+        { "name": "total", "type": "number" },
+        { "name": "paymentStatus", "type": "string" },
+        { "name": "orderStatus", "type": "string" },
+        { "name": "createdAt", "type": "timestamp" }
+      ],
+      "access_patterns": [
+        "Users can read and create their own orders (customerId matches uid)",
+        "Admins can read, update, and delete all orders"
+      ]
+    },
+    {
+      "name": "dailyDeals",
+      "description": "Promotional deals",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "title", "type": "string" }
+      ],
+      "access_patterns": [
+        "Anyone can read deals",
+        "Only admins can write deals"
+      ]
+    },
+    {
+      "name": "coupons",
+      "description": "Discount coupons",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "code", "type": "string" }
+      ],
+      "access_patterns": [
+        "Anyone can read coupons",
+        "Only admins can write coupons"
+      ]
+    },
+    {
+      "name": "banners",
+      "description": "Hero banners",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "title", "type": "string" }
+      ],
+      "access_patterns": [
+        "Anyone can read banners",
+        "Only admins can write banners"
+      ]
+    },
+    {
+      "name": "blogs",
+      "description": "Blog posts",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "title", "type": "string" }
+      ],
+      "access_patterns": [
+        "Anyone can read blogs",
+        "Only admins can write blogs"
+      ]
+    },
+    {
+      "name": "reviews",
+      "description": "Product reviews",
+      "auth_dependency": "true",
+      "fields": [
+        { "name": "targetId", "type": "string" },
+        { "name": "rating", "type": "number" },
+        { "name": "comment", "type": "string" },
+        { "name": "status", "type": "string" }
+      ],
+      "access_patterns": [
+        "Anyone can read approved reviews",
+        "Users can create reviews for products they purchased",
+        "Admins can read, update, and delete all reviews"
+      ]
+    },
+    {
+      "name": "plantCareGuides",
+      "description": "Guides for plant care",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "plantName", "type": "string" }
+      ],
+      "access_patterns": [
+        "Anyone can read guides",
+        "Only admins can write guides"
+      ]
+    },
+    {
+      "name": "storeSettings",
+      "description": "Global store settings",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "businessName", "type": "string" }
+      ],
+      "access_patterns": [
+        "Anyone can read storeSettings",
+        "Only admins can write storeSettings"
+      ]
+    }
+  ]
+}

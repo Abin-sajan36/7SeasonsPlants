@@ -1,0 +1,8 @@
+{
+  "name": " 7Seasonsplants",
+  "description": "Online Plants \u0026 Gardening Store by Mannarathayil Nursery delivering vibrant plants and curated plant combos across Kerala and Tamil Nadu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
