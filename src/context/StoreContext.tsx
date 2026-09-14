@@ -159,7 +159,7 @@ interface StoreContextType {
   updateAdminPassword: (oldPass: string, newPass: string) => { success: boolean; message: string };
 
   // Reviews
-  addReview: (review: Omit<Review, 'id' | 'createdAt' | 'status'>) => void;
+  addReview: (review: Omit<Review, 'id' | 'createdAt' | 'status'> & { status?: Review['status'] }) => void;
   approveReview: (id: string) => void;
   deleteReview: (id: string) => void;
 
@@ -656,6 +656,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (!found) {
       return { success: false, message: 'Invalid or inactive coupon code.' };
+    }
+
+    if (found.perUserLimit) {
+      if (!currentUser) {
+        return {
+          success: false,
+          message: `Please log in to use the ${trimmed} coupon.`,
+        };
+      }
+      
+      const userUsageCount = orders.filter(
+        o => o.customer?.email === currentUser.email && o.couponCode === trimmed
+      ).length;
+      
+      if (userUsageCount >= found.perUserLimit) {
+        return {
+          success: false,
+          message: `You have already used the ${trimmed} coupon on a previous order.`,
+        };
+      }
     }
 
     if (cartSubtotal < found.minOrderValue) {
@@ -1163,13 +1183,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return true;
   };
 
-  const updateUserProfile = async (profile: Partial<User>) => {
+      const updateUserProfile = async (profile: Partial<User>) => {
     if (!currentUser) return;
     const updatedUser = { ...currentUser, ...profile };
     setCurrentUser(updatedUser);
-    
+      
     try {
-      await setDoc(doc(db, 'users', currentUser.id), updatedUser, { merge: true });
+      const removeUndefined = (obj: any): any => {
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefined);
+        } else if (obj !== null && typeof obj === 'object') {
+          return Object.fromEntries(
+            Object.entries(obj)
+              .filter(([_, v]) => v !== undefined)
+              .map(([k, v]) => [k, removeUndefined(v)])
+          );
+        }
+        return obj;
+      };
+      
+      const cleanData = removeUndefined(updatedUser);
+      await setDoc(doc(db, 'users', currentUser.id), cleanData, { merge: true });
     } catch (e) {
       console.error('Failed to sync profile to Firestore:', e);
     }

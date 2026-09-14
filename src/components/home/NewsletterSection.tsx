@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { Mail, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react';
+import { Mail, CheckCircle2, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
+import { collection, addDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 export const NewsletterSection: React.FC = () => {
   const { addToast } = useStore();
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !email.includes('@')) {
       addToast({
@@ -18,13 +21,50 @@ export const NewsletterSection: React.FC = () => {
       return;
     }
 
-    setIsSubscribed(true);
-    addToast({
-      title: 'Welcome to the 7Seasons Family!',
-      message: 'Use coupon WELCOME10 at checkout for 10% off your first nursery order.',
-      type: 'success',
-    });
-    setEmail('');
+    setIsLoading(true);
+
+    try {
+      // Check if email already exists
+      const subscribersRef = collection(db, 'newsletter_subscribers');
+      const q = query(subscribersRef, where('email', '==', email.trim().toLowerCase()));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        setIsSubscribed(true);
+        addToast({
+          title: 'Welcome back!',
+          message: 'You are already subscribed. Use coupon WELCOME10 at checkout.',
+          type: 'success',
+        });
+        setEmail('');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Add new subscriber
+      await addDoc(subscribersRef, {
+        email: email.trim().toLowerCase(),
+        subscribedAt: serverTimestamp(),
+        source: 'homepage_footer'
+      });
+      
+      setIsSubscribed(true);
+      addToast({
+        title: 'Welcome to the 7Seasons Family!',
+        message: 'Use coupon WELCOME10 at checkout for 10% off your first nursery order.',
+        type: 'success',
+      });
+      setEmail('');
+    } catch (error) {
+      console.error('Error subscribing to newsletter:', error);
+      addToast({
+        title: 'Subscription Failed',
+        message: 'There was a problem subscribing. Please try again later.',
+        type: 'error',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,10 +105,20 @@ export const NewsletterSection: React.FC = () => {
               </div>
               <button
                 type="submit"
-                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-full font-black text-xs shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                disabled={isLoading}
+                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-full font-black text-xs shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                <span>Subscribe</span>
-                <ArrowRight className="w-4 h-4" />
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Subscribing...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Subscribe</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </form>
           )}

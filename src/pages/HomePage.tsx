@@ -4,11 +4,13 @@ import { TrustBenefits } from '../components/home/TrustBenefits';
 import { CategorySection } from '../components/home/CategorySection';
 import { DailyDealsSection } from '../components/home/DailyDealsSection';
 import { FeaturedCombosSection } from '../components/home/FeaturedCombosSection';
+import { PlantQuiz } from '../components/home/PlantQuiz';
 import { BestSellersSection } from '../components/home/BestSellersSection';
 import { PlantCarePreview } from '../components/home/PlantCarePreview';
 import { ReviewsSection } from '../components/home/ReviewsSection';
 import { InstagramSection } from '../components/home/InstagramSection';
 import { NewsletterSection } from '../components/home/NewsletterSection';
+import { FAQSection } from '../components/home/FAQSection';
 
 interface HomePageProps {
   onNavigate: (view: string, param?: string) => void;
@@ -32,19 +34,25 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       {/* 5. Signature Plant Combos Spotlight */}
       <FeaturedCombosSection onNavigate={onNavigate} />
 
-      {/* 6. Best Selling Plants Grid */}
+      {/* 6. Plant Finder Quiz */}
+      <PlantQuiz />
+
+      {/* 7. Best Selling Plants Grid */}
       <BestSellersSection onNavigate={onNavigate} />
 
-      {/* 7. Plant Doctor AI & Care Guidance */}
+      {/* 8. Plant Doctor AI & Care Guidance */}
       <PlantCarePreview onNavigate={onNavigate} />
 
-      {/* 8. Verified Customer Reviews */}
+      {/* 9. Verified Customer Reviews */}
       <ReviewsSection />
 
-      {/* 9. Instagram Nursery Feed */}
+      {/* 10. Instagram Nursery Feed */}
       <InstagramSection />
 
-      {/* 10. Botanical VIP Newsletter */}
+      {/* 11. FAQ Section */}
+      <FAQSection />
+
+      {/* 12. Botanical VIP Newsletter */}
       <NewsletterSection />
     </div>
   );

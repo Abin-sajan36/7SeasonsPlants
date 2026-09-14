@@ -70,6 +70,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    
+    match /newsletter_subscribers/{subscriberId} {
+      allow read, create: if true;
+      allow update, delete: if isAdmin();
+    }
+
     match /storeSettings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();

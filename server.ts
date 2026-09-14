@@ -74,7 +74,7 @@ app.post("/api/orders/send-status-update", async (req, res) => {
     const transporter = getMailTransporter();
     
     if (!transporter) {
-      console.log(`[7Seasons Notifications] ✉️ Order ${orderNumber} status updated to ${status}. (No SMTP config, skipping email)`);
+      console.log(`[7Seasons Notifications] ✉️ Order ${orderNumber} status updated to ${status}. Tracking: ${trackingNumber} (${courierPartner}). (No SMTP config, skipping email)`);
       return res.json({ success: true, message: "Status logged, no email sent (SMTP not configured)" });
     }
 
@@ -84,10 +84,12 @@ app.post("/api/orders/send-status-update", async (req, res) => {
     let trackingInfo = "";
     
     switch (status) {
-      case 'processing':
-        statusMessage = "is now being processed by our nursery team.";
+      case 'Processing':
+      case 'Packed':
+        statusMessage = "is now being processed and packed by our nursery team.";
         break;
-      case 'dispatched':
+      case 'Shipped':
+      case 'Dispatched':
         statusMessage = "has been dispatched and is on its way to you!";
         if (trackingNumber) {
           trackingInfo = `
@@ -99,11 +101,14 @@ app.post("/api/orders/send-status-update", async (req, res) => {
           `;
         }
         break;
-      case 'delivered':
+      case 'Delivered':
         statusMessage = "has been successfully delivered. Happy growing!";
         break;
-      case 'cancelled':
+      case 'Cancelled':
         statusMessage = "has been cancelled.";
+        break;
+      default:
+        statusMessage = `has been updated to: ${status}`;
         break;
     }
 

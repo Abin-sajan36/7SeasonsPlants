@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Link as LinkIcon
 } from 'lucide-react';
+import { ReviewSection } from '../components/product/ReviewSection';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/common/ProductCard';
 import { ComboCard } from '../components/common/ComboCard';
@@ -129,6 +130,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onNa
         <meta name="description" content={product.description.substring(0, 155) + '...'} />
         <meta property="og:title" content={`${product.name} | 7Seasonsplants`} />
         <meta property="og:description" content={product.description.substring(0, 155) + '...'} />
+        <meta property="og:image" content={product.images[0]} />
       </Helmet>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         {/* Breadcrumbs */}
@@ -419,16 +421,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onNa
             >
               Plant Care Schedule
             </button>
-            <button
-              onClick={() => setActiveTab('reviews')}
-              className={`pb-3 text-sm font-bold transition-colors cursor-pointer ${
-                activeTab === 'reviews'
-                  ? 'text-emerald-950 border-b-2 border-emerald-700'
-                  : 'text-gray-500 hover:text-emerald-950'
-              }`}
-            >
-              Customer Reviews ({product.reviewCount})
-            </button>
+            
           </div>
 
           {/* Tab 1: Overview Specs */}
@@ -547,6 +540,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onNa
             </div>
           )}
         </div>
+
+        {/* Reviews Section */}
+        <ReviewSection targetId={product.id} targetType="product" targetName={product.name} />
 
         {/* 3. Featured Plant Combos Containing/Complementing this plant */}
         {relatedCombos.length > 0 && (

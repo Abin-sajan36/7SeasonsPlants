@@ -17,6 +17,8 @@ import {
   MapPin,
   Calendar,
 } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
+import { ReviewSection } from '../components/product/ReviewSection';
 import { useStore } from '../context/StoreContext';
 import { ComboCard } from '../components/common/ComboCard';
 
@@ -105,6 +107,13 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
 
   return (
     <div className="bg-[#F4FAF5] min-h-screen py-8">
+      <Helmet>
+        <title>{combo.name} - Buy Online | 7Seasonsplants</title>
+        <meta name="description" content={combo.shortDescription} />
+        <meta property="og:title" content={`${combo.name} | 7Seasonsplants`} />
+        <meta property="og:description" content={combo.shortDescription} />
+        <meta property="og:image" content={combo.images[0]} />
+      </Helmet>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -434,6 +443,9 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
             </div>
           </div>
         </div>
+
+        {/* Reviews Section */}
+        <ReviewSection targetId={combo.id} targetType="combo" targetName={combo.name} />
 
         {/* 4. More Plant Combos */}
         {otherCombos.length > 0 && (

@@ -25,6 +25,8 @@ import {
   RotateCw,
   ArrowLeft,
   KeyRound,
+  Clock,
+  Box,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { CustomerAddress } from '../types';
@@ -142,6 +144,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
   useEffect(() => {
     if (initialParam === 'register') {
       setAuthMode('register');
+    } else if (initialParam === 'orders') {
+      setActiveTab('orders');
     } else if (initialParam === 'login' || initialParam === 'auth') {
       setAuthMode('login');
     }
@@ -186,6 +190,16 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
   ];
 
   // Filter orders related to current user
+  
+  const getOrderProgress = (status: string) => {
+    const s = (status || '').toLowerCase();
+    if (s.includes('delivered')) return 4;
+    if (s.includes('shipped') || s.includes('out for delivery')) return 3;
+    if (s.includes('packed')) return 2;
+    if (s.includes('cancelled') || s.includes('failed')) return 0;
+    return 1;
+  };
+
   const customerOrders = orders.filter((o) => {
     if (!currentUser) return false;
     const userEmail = (currentUser.email || '').toLowerCase();
@@ -1228,7 +1242,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
             }`}
           >
             <Package className="w-3.5 h-3.5" />
-            <span>My Orders ({customerOrders.length})</span>
+            <span>Order History ({customerOrders.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('addresses')}
@@ -1328,9 +1342,60 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                         ₹{order.total || (order as any).totalAmount}
                       </span>
                     </div>
+                  
                   </div>
 
+                  {/* Progress Tracker */}
+                  {getOrderProgress(order.orderStatus) > 0 && (
+                    <div className="py-4">
+                      <div className="relative">
+                        {/* Connecting Line */}
+                        <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 rounded-full hidden sm:block"></div>
+                        <div 
+                          className="absolute top-1/2 left-0 h-1 bg-emerald-500 -translate-y-1/2 rounded-full transition-all duration-500 hidden sm:block"
+                          style={{ width: `${(getOrderProgress(order.orderStatus) - 1) * 33.33}%` }}
+                        ></div>
+                        
+                        <div className="relative z-10 flex justify-between items-center text-center sm:text-left">
+                          {[
+                            { step: 1, label: 'Processing', icon: Clock },
+                            { step: 2, label: 'Packed', icon: Box },
+                            { step: 3, label: 'Shipped', icon: Truck },
+                            { step: 4, label: 'Delivered', icon: CheckCircle2 }
+                          ].map((stage) => {
+                            const progress = getOrderProgress(order.orderStatus);
+                            const isCompleted = stage.step < progress;
+                            const isCurrent = stage.step === progress;
+                            const isPending = stage.step > progress;
+                            
+                            const Icon = stage.icon;
+                            
+                            return (
+                              <div key={stage.step} className="flex flex-col items-center gap-2 flex-1">
+                                <div 
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 transition-all duration-300 ${
+                                    isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : 
+                                    isCurrent ? 'bg-white border-emerald-500 text-emerald-600 shadow-sm ring-4 ring-emerald-50' : 
+                                    'bg-white border-gray-200 text-gray-300'
+                                  }`}
+                                >
+                                  <Icon className="w-4 h-4" />
+                                </div>
+                                <span className={`text-[10px] font-bold uppercase tracking-wider hidden sm:block ${
+                                  isCompleted || isCurrent ? 'text-emerald-950' : 'text-gray-400'
+                                }`}>
+                                  {stage.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Items list */}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {order.items.map((item, idx) => (
                       <div

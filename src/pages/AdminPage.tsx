@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  BarChart3,
   Package,
   Sparkles,
   ShoppingBag,
@@ -36,6 +37,7 @@ import {
   Filter,
   Download,
 } from 'lucide-react';
+import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
 import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus } from '../types';
 import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
@@ -73,7 +75,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     updateAdminPassword,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'products' | 'combos' | 'orders' | 'accounts' | 'ai-tools' | 'settings'>('products');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'orders' | 'accounts' | 'settings' | 'ai-tools'>('analytics');
   const [productSearch, setProductSearch] = useState('');
   const [comboSearch, setComboSearch] = useState('');
   const [orderSearch, setOrderSearch] = useState('');
@@ -620,6 +622,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         {/* Navigation Tabs */}
         <div className="flex gap-2 border-b border-emerald-900/10 pb-2 overflow-x-auto">
           {[
+                        { id: 'analytics', label: 'Analytics Dashboard', icon: BarChart3 },
             { id: 'products', label: `Plant Catalog (${products.length})`, icon: Package },
             { id: 'combos', label: `Combo Bundles (${combos.length})`, icon: Layers },
             { id: 'orders', label: `Orders & Dispatch (${orders.length})`, icon: Truck },
@@ -644,6 +647,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             );
           })}
         </div>
+
+        {/* TAB 0: ANALYTICS */}
+        {activeTab === 'analytics' && <AnalyticsDashboard />}
 
         {/* TAB 1: PRODUCTS INVENTORY */}
         {activeTab === 'products' && (

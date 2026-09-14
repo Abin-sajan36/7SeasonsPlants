@@ -181,7 +181,8 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
   ];
 
   return (
-    <header className={`sticky top-0 z-40 bg-white dark:bg-[#06120e] shadow-xs border-b border-emerald-900/10 dark:border-emerald-900/40 transition-all duration-300 ease-in-out transform ${scrollDirection === "down" && isScrolled ? "-translate-y-full" : "translate-y-0"}`}>
+    <>
+      <header className={`sticky top-0 z-40 bg-white dark:bg-[#06120e] shadow-xs border-b border-emerald-900/10 dark:border-emerald-900/40 transition-all duration-300 ease-in-out transform ${scrollDirection === "down" && isScrolled ? "-translate-y-full" : "translate-y-0"}`}>
       {/* 1. TOP ANNOUNCEMENT BAR */}
       {storeSettings.announcementBarActive && (
         <div className="overflow-hidden">
@@ -480,6 +481,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                     </div>
                   )}
                   <div className="py-1">
+                    
                     <button
                       onClick={() => {
                         setAccountMenuOpen(false);
@@ -488,9 +490,22 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                       className="w-full text-left px-4 py-2 hover:bg-emerald-50 dark:bg-[#0a1f18]/70 flex items-center gap-2.5 text-emerald-950 dark:text-emerald-50 cursor-pointer"
                     >
                       <UserIcon className="w-4 h-4 text-emerald-700" />
-                      <span>My Profile & Orders</span>
+                      <span>My Profile</span>
                     </button>
                     {currentUser && (
+                      <button
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          onNavigate('account', 'orders');
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-emerald-50 dark:bg-[#0a1f18]/70 flex items-center gap-2.5 text-emerald-950 dark:text-emerald-50 cursor-pointer"
+                      >
+                        <Package className="w-4 h-4 text-emerald-700" />
+                        <span>Order History</span>
+                      </button>
+                    )}
+                    {currentUser && (
+
                       <button
                         onClick={() => {
                           setAccountMenuOpen(false);
@@ -684,6 +699,8 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
         </div>
       </nav>
 
+      </header>
+
       {/* 4. MOBILE DRAWER NAVIGATION */}
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex">
@@ -835,6 +852,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 };
