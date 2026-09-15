@@ -9,7 +9,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import {
   Product,
   PlantCombo,
@@ -438,6 +438,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(storeSettings));
   }, [storeSettings]);
+
+  // Sync store settings with Firebase
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      doc(db, 'storeSettings', 'global'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as StoreSettings;
+          setStoreSettings((prev) => ({ ...prev, ...data }));
+        }
+      },
+      (error) => {
+        console.error('Failed to listen to global settings:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(categories));
@@ -1773,13 +1791,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Settings
-  const updateStoreSettings = (newSettings: Partial<StoreSettings>) => {
-    setStoreSettings((prev) => ({ ...prev, ...newSettings }));
-    addToast({
-      type: 'success',
-      title: 'Store Settings Saved',
-      message: 'Store configurations updated.',
-    });
+  const updateStoreSettings = async (newSettings: Partial<StoreSettings>) => {
+    try {
+      const mergedSettings = { ...storeSettings, ...newSettings };
+      setStoreSettings(mergedSettings);
+
+      await setDoc(doc(db, 'storeSettings', 'global'), mergedSettings, { merge: true });
+
+      addToast({
+        type: 'success',
+        title: 'Store Settings Saved',
+        message: 'Store configurations updated globally.',
+      });
+    } catch (err) {
+      console.error('Error updating store settings:', err);
+      addToast({
+        type: 'error',
+        title: 'Save Failed',
+        message: 'Could not update store settings.',
+      });
+    }
   };
 
   const resetToSampleData = () => {
