@@ -130,7 +130,7 @@ export const PlantCarePage: React.FC<PlantCarePageProps> = ({ initialParam, onNa
         <div className="text-center max-w-2xl mx-auto space-y-3">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider border border-emerald-200">
             <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Mannarathayil Nursery Plant Clinic</span>
+            <span>Mannaratharayil Gardens LLP Plant Clinic</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight">
@@ -341,7 +341,7 @@ export const PlantCarePage: React.FC<PlantCarePageProps> = ({ initialParam, onNa
                   {/* WhatsApp Support CTA */}
                   <div className="pt-2">
                     <a
-                      href="https://wa.me/919567274176?text=Hi%207Seasonsplants,%20I'm%20diagnosing%20my%20plant%20and%20would%20like%20expert%20human%20advice."
+                      href="https://wa.me/918848276403?text=Hi%207Seasonsplants,%20I'm%20diagnosing%20my%20plant%20and%20would%20like%20expert%20human%20advice."
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full py-2.5 bg-[#25D366] text-white rounded-full text-xs font-bold flex items-center justify-center gap-2 hover:bg-[#20bd5a] transition-colors shadow-sm"

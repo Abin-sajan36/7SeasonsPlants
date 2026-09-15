@@ -18,7 +18,7 @@ export const ReviewsSection: React.FC = () => {
             Loved by Plant Parents Across Kerala & Tamil Nadu
           </h2>
           <p className="text-xs sm:text-sm text-gray-600 mt-1">
-            Read authentic feedback from customers who received healthy, fresh plants from Mannarathayil Nursery.
+            Read authentic feedback from customers who received healthy, fresh plants from Mannaratharayil Gardens LLP.
           </p>
         </div>
 

@@ -20,6 +20,7 @@ import {
   Package,
   Clock,
   History,
+  MapPin,
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Logo } from './Logo';
@@ -46,6 +47,8 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
     orders,
     isDarkMode,
     toggleDarkMode,
+    selectedDeliveryState,
+    setSelectedDeliveryState,
   } = useStore();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -54,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
   const [showRecentOrderModal, setShowRecentOrderModal] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
   const [plantsDropdownOpen, setPlantsDropdownOpen] = useState(false);
   
   const [isScrolled, setIsScrolled] = useState(false);
@@ -87,6 +91,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
 
   const searchRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
+  const stateDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close search suggestions on outside click
   useEffect(() => {
@@ -101,6 +106,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
       }
       if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
         setAccountMenuOpen(false);
+      }
+      if (stateDropdownRef.current && !stateDropdownRef.current.contains(event.target as Node)) {
+        setIsStateDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -153,32 +161,38 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
     onNavigate('plants', `search:${encodeURIComponent(query)}`);
   };
 
-  const navLinks = [
-    { label: 'Home', view: 'home' },
+      const navLinks = [
+    { label: 'Home', view: 'home', key: 'home' },
     {
       label: 'Plants',
       view: 'plants',
       hasDropdown: true,
+      key: 'plants'
     },
     {
       label: 'Plant Combos',
       view: 'combos',
       badge: 'Save 35%',
       badgeColor: 'bg-rose-500 text-white shadow-xs',
+      key: 'combos'
     },
-    { label: 'Best Sellers', view: 'plants', param: 'filter:bestseller' },
-    { label: 'New Arrivals', view: 'plants', param: 'filter:new' },
+    { label: 'Best Sellers', view: 'plants', param: 'filter:bestseller', key: 'bestSellers' },
+    { label: 'New Arrivals', view: 'plants', param: 'filter:new', key: 'newArrivals' },
     {
       label: 'Deals',
       view: 'home',
       param: 'section:deals',
       icon: Flame,
       iconColor: 'text-amber-500',
+      key: 'deals'
     },
-    { label: 'Plant Care', view: 'plant-care' },
-    { label: 'Blog', view: 'blog' },
-    { label: 'Track Order', view: 'track-order', icon: Truck },
-  ];
+    { label: 'Plant Care', view: 'plant-care', key: 'plantCare' },
+    { label: 'Blog', view: 'blog', key: 'blog' },
+    { label: 'Track Order', view: 'track-order', icon: Truck, key: 'trackOrder' },
+  ].filter(link => {
+    const visibility = storeSettings.menuVisibility || {};
+    return visibility[link.key] !== false;
+  });
 
   return (
     <>
@@ -212,7 +226,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
               {mobileMenuOpen ? <X className="w-5 h-5 sm:w-6 sm:h-6" /> : <Menu className="w-5 h-5 sm:w-6 sm:h-6" />}
             </button>
 
-            <div className="py-1 transform scale-[0.75] md:scale-100 origin-left -ml-2 md:ml-0">
+            <div className="py-1 origin-left">
               <Logo size="md" onClick={() => onNavigate('home')} />
             </div>
           </div>
@@ -291,7 +305,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                         className="w-full text-left flex items-center gap-3 p-2 hover:bg-emerald-50 dark:bg-[#0a1f18]/70 focus:bg-emerald-50 dark:bg-[#0a1f18]/70 rounded-xl cursor-pointer transition-colors outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                       >
                         <img
-                          src={combo.images[0]}
+                          src={combo.images?.[0]}
                           alt={combo.name}
                           className="w-10 h-10 rounded-lg object-cover bg-emerald-50 dark:bg-[#0a1f18] shrink-0"
                         />
@@ -324,7 +338,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                         className="w-full text-left flex items-center gap-3 p-2 hover:bg-emerald-50 dark:bg-[#0a1f18]/70 focus:bg-emerald-50 dark:bg-[#0a1f18]/70 rounded-xl cursor-pointer transition-colors outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                       >
                         <img
-                          src={product.images[0]}
+                          src={product.images?.[0]}
                           alt={product.name}
                           className="w-10 h-10 rounded-lg object-cover bg-emerald-50 dark:bg-[#0a1f18] shrink-0"
                         />
@@ -365,13 +379,13 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
           <div className="flex items-center gap-1.5 sm:gap-3">
             {/* Direct WhatsApp / Phone Contact Link */}
             <a
-              href="https://wa.me/919567274176?text=Hi%207Seasonsplants%20Team,%20I%20have%20an%20inquiry%20about%20your%20plants"
+              href="https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team,%20I%20have%20an%20inquiry%20about%20your%20plants"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden xl:flex items-center gap-2 text-xs font-medium text-emerald-950 dark:text-emerald-50 bg-emerald-50 dark:bg-[#0a1f18] hover:bg-emerald-100 px-3.5 py-1.5 rounded-full border border-emerald-900/10 dark:border-emerald-900/40 transition-colors"
             >
               <Phone className="w-3.5 h-3.5 text-emerald-700" />
-              <span>+91 95672 74176</span>
+              <span>+91 88482 76403</span>
             </a>
 
             {/* Theme Toggle Button */}
@@ -388,20 +402,22 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
               )}
             </button>
 
-            {/* Wishlist Button */}
-            <button
-              onClick={() => onNavigate('wishlist')}
-              className="hidden md:block relative p-2.5 rounded-full text-emerald-950 dark:text-emerald-50 hover:bg-emerald-50 dark:bg-[#0a1f18] transition-colors cursor-pointer"
-              aria-label="Wishlist"
-              title="Saved Wishlist"
-            >
-              <Heart className="w-5 h-5 text-emerald-900" />
-              {wishlist.length > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-xs">
-                  {wishlist.length}
-                </span>
-              )}
-            </button>
+            {storeSettings.menuVisibility?.wishlist !== false && (
+            
+                        <button
+                          onClick={() => onNavigate('wishlist')}
+                          className="hidden md:block relative p-2.5 rounded-full text-emerald-950 dark:text-emerald-50 hover:bg-emerald-50 dark:bg-[#0a1f18] transition-colors cursor-pointer"
+                          aria-label="Wishlist"
+                          title="Saved Wishlist"
+                        >
+                          <Heart className="w-5 h-5 text-emerald-900" />
+                          {wishlist.length > 0 && (
+                            <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-xs">
+                              {wishlist.length}
+                            </span>
+                          )}
+                        </button>
+          )}
 
             {/* Account / Login Dropdown */}
             <div ref={accountRef} className="relative flex items-center gap-0.5">
@@ -417,7 +433,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                     {currentUser.profileImage ? (
                       <img src={currentUser.profileImage} alt={currentUser.name} className="w-full h-full object-cover" />
                     ) : (
-                      currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                      (currentUser?.name || '').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
                     )}
                   </button>
                   {/* Online Status Dot */}
@@ -441,7 +457,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                 aria-label="Account menu"
               >
                 <span className="hidden sm:inline-block text-xs font-medium text-emerald-950 dark:text-emerald-50 max-w-[90px] truncate">
-                  {currentUser ? currentUser.name.split(' ')[0] : 'Account'}
+                  {currentUser ? (currentUser?.name || '').split(' ')[0] : 'Account'}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-emerald-700 hidden sm:inline-block" />
               </button>
@@ -527,16 +543,18 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                       <Truck className="w-4 h-4 text-emerald-700" />
                       <span>Track Order</span>
                     </button>
+                    {storeSettings.menuVisibility?.wishlist !== false && (
                     <button
-                      onClick={() => {
-                        setAccountMenuOpen(false);
-                        onNavigate('wishlist');
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-emerald-50 dark:bg-[#0a1f18]/70 flex items-center gap-2.5 text-emerald-950 dark:text-emerald-50 cursor-pointer"
-                    >
-                      <Heart className="w-4 h-4 text-emerald-700" />
-                      <span>Saved Wishlist ({wishlist.length})</span>
-                    </button>
+                                          onClick={() => {
+                                            setAccountMenuOpen(false);
+                                            onNavigate('wishlist');
+                                          }}
+                                          className="w-full text-left px-4 py-2 hover:bg-emerald-50 dark:bg-[#0a1f18]/70 flex items-center gap-2.5 text-emerald-950 dark:text-emerald-50 cursor-pointer"
+                                        >
+                                          <Heart className="w-4 h-4 text-emerald-700" />
+                                          <span>Saved Wishlist ({wishlist.length})</span>
+                                        </button>
+                  )}
                     <button
                       onClick={() => {
                         setAccountMenuOpen(false);
@@ -567,22 +585,24 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                 </div>
               )}
             </div>
-            {/* Cart Button */}
-            <button
-              onClick={() => setIsCartOpen(true)}
-              className="hidden md:flex items-center gap-2 bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white px-4 py-2.5 rounded-full shadow-sm transition-all hover:shadow-md cursor-pointer group"
-              aria-label="Shopping Cart"
-            >
-              <div className="relative">
-                <ShoppingBag className="w-5 h-5 text-white group-hover:scale-105 transition-transform" />
-                {cartCount > 0 && (
-                  <span className="absolute -top-2 -right-2 w-4 h-4 bg-rose-500 text-white font-black text-[10px] rounded-full flex items-center justify-center shadow-xs">
-                    {cartCount}
-                  </span>
-                )}
-              </div>
-              <span className="hidden sm:inline-block font-bold text-xs text-white">Cart</span>
-            </button>
+            {storeSettings.menuVisibility?.cart !== false && (
+            
+                        <button
+                          onClick={() => setIsCartOpen(true)}
+                          className="hidden md:flex items-center gap-2 bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white px-4 py-2.5 rounded-full shadow-sm transition-all hover:shadow-md cursor-pointer group"
+                          aria-label="Shopping Cart"
+                        >
+                          <div className="relative">
+                            <ShoppingBag className="w-5 h-5 text-white group-hover:scale-105 transition-transform" />
+                            {cartCount > 0 && (
+                              <span className="absolute -top-2 -right-2 w-4 h-4 bg-rose-500 text-white font-black text-[10px] rounded-full flex items-center justify-center shadow-xs">
+                                {cartCount}
+                              </span>
+                            )}
+                          </div>
+                          <span className="hidden sm:inline-block font-bold text-xs text-white">Cart</span>
+                        </button>
+          )}
           </div>
         </div>
 
@@ -772,13 +792,13 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
             {/* Mobile Footer with contact */}
             <div className="border-t border-gray-100 dark:border-gray-800 pt-4 mt-6 space-y-2 text-xs">
               <a
-                href="https://wa.me/919567274176"
+                href="https://wa.me/918848276403"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-700 text-white rounded-full font-bold shadow-xs hover:bg-emerald-800 transition-colors"
               >
                 <Phone className="w-3.5 h-3.5" />
-                WhatsApp Support (+91 95672 74176)
+                WhatsApp Support (+91 88482 76403)
               </a>
             </div>
           </div>

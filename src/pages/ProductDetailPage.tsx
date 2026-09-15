@@ -130,7 +130,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onNa
         <meta name="description" content={product.description.substring(0, 155) + '...'} />
         <meta property="og:title" content={`${product.name} | 7Seasonsplants`} />
         <meta property="og:description" content={product.description.substring(0, 155) + '...'} />
-        <meta property="og:image" content={product.images[0]} />
+        <meta property="og:image" content={product.images?.[0]} />
       </Helmet>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         {/* Breadcrumbs */}
@@ -161,7 +161,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onNa
           <div className="lg:col-span-6 space-y-4">
             <div className="relative aspect-square w-full rounded-3xl overflow-hidden bg-emerald-50/50 border border-emerald-900/10">
               <img
-                src={product.images[selectedImageIdx] || product.images[0]}
+                src={product.images?.[selectedImageIdx] || product.images?.[0]}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />
@@ -460,7 +460,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onNa
               <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-start gap-3">
                 <Sparkles className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
                 <div className="text-xs">
-                  <h4 className="font-bold text-emerald-950">Mannarathayil Nursery Care Rhythm</h4>
+                  <h4 className="font-bold text-emerald-950">Mannaratharayil Gardens LLP Care Rhythm</h4>
                   <p className="text-gray-700 mt-1 leading-relaxed">
                     {typeof product.careInstructions === 'string'
                       ? product.careInstructions

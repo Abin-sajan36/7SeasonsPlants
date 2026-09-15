@@ -72,8 +72,7 @@ service cloud.firestore {
 
     
     match /newsletter_subscribers/{subscriberId} {
-      allow read, create: if true;
-      allow update, delete: if isAdmin();
+      allow read, write: if true;
     }
 
     match /storeSettings/{settingId} {

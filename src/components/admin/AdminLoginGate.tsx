@@ -59,7 +59,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
         {/* Nursery Brand Header */}
         <div className="text-center space-y-3">
           <div className="inline-flex p-3 rounded-2xl bg-white shadow-md mx-auto border border-emerald-100">
-            <Logo variant="dark" size="md" />
+            <Logo isLight={false} size="md" />
           </div>
 
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold">
@@ -71,7 +71,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
             Admin Account Login
           </h2>
           <p className="text-xs text-gray-600 max-w-sm mx-auto">
-            Restricted access for Mannarathayil Nursery staff. Sign in with your dedicated administrator credentials.
+            Restricted access for Mannaratharayil Gardens LLP staff. Sign in with your dedicated administrator credentials.
           </p>
         </div>
 

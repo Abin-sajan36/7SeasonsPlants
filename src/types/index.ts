@@ -93,6 +93,7 @@ export interface PlantCombo {
   isFeatured?: boolean;
   tags: string[];
   items: ComboItem[];
+  sellableStates?: string[];
   careSummary: string;
   benefits: string[];
   deliveryInfo?: string;
@@ -178,7 +179,7 @@ export interface CustomerAddress {
   nearbyLandmark?: string;
   city: string;
   district: string;
-  state: 'Kerala' | 'Tamil Nadu';
+  state: 'Kerala' | 'Tamil Nadu' | 'Karnataka' | string;
   pincode: string;
   isDefault?: boolean;
 }
@@ -229,9 +230,10 @@ export interface Order {
   total: number;
   totalAmount?: number;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
-  paymentMethod: 'razorpay' | 'razorpay_test' | 'UPI QR' | 'UPI ID' | 'Net Banking';
+  paymentMethod: 'razorpay' | 'razorpay_test' | 'UPI QR' | 'UPI ID' | 'Net Banking' | 'offline';
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
+  source?: 'online' | 'offline';
   orderStatus: OrderStatus;
   statusHistory: OrderStatusHistoryItem[];
   trackingNumber?: string;
@@ -358,7 +360,7 @@ export interface StoreSettings {
   whatsappNumber?: string;
   instagram: string;
   address: string;
-  supportedStates: Array<'Kerala' | 'Tamil Nadu'>;
+  supportedStates: string[];
   deliveryCharge: number;
   freeShippingThreshold: number;
   freeDeliveryThreshold?: number;
@@ -368,6 +370,7 @@ export interface StoreSettings {
   announcementLink?: string;
   razorpayKeyId: string;
   razorpayEnabled: boolean;
+  menuVisibility?: Record<string, boolean>;
 }
 
 export interface ToastMessage {

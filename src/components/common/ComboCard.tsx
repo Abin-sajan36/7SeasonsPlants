@@ -26,7 +26,7 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
       {/* 1. Combo Image Header */}
       <div className="relative aspect-4/3 sm:aspect-16/10 w-full bg-emerald-50/40 overflow-hidden">
         <img
-          src={combo.images[0] || 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=800&q=80'}
+          src={combo.images?.[0] || 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=800&q=80'}
           alt={combo.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"

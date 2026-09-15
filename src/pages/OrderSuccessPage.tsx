@@ -28,7 +28,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderId, onN
               Thank You for Your Botanical Order!
             </h1>
             <p className="text-xs sm:text-sm text-gray-600 mt-2 max-w-lg mx-auto leading-relaxed">
-              Your order <strong className="text-emerald-950">#{order?.id || orderId}</strong> has been placed with Mannarathayil Nursery. We are preparing fresh, healthy plants with our signature 5-ply protective packaging.
+              Your order <strong className="text-emerald-950">#{order?.id || orderId}</strong> has been placed with Mannaratharayil Gardens LLP. We are preparing fresh, healthy plants with our signature 5-ply protective packaging.
             </p>
           </div>
 
@@ -97,13 +97,13 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderId, onN
             </button>
 
             <a
-              href={`https://wa.me/919567274176?text=Hi%207Seasonsplants!%20I%20just%20placed%20order%20%23${order?.id || orderId}%20and%20would%20like%20updates.`}
+              href={`https://wa.me/918848276403?text=Hi%207Seasonsplants!%20I%20just%20placed%20order%20%23${order?.id || orderId}%20and%20would%20like%20updates.`}
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-3.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full text-xs font-bold shadow-sm transition-colors flex items-center justify-center gap-2"
             >
               <Phone className="w-4 h-4" />
-              <span>WhatsApp Nursery Dispatch (+91 95672 74176)</span>
+              <span>WhatsApp Nursery Dispatch (+91 88482 76403)</span>
             </a>
           </div>
 

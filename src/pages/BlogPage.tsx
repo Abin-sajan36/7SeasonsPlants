@@ -94,7 +94,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
     <div className="bg-[#F4FAF5] min-h-screen py-10">
       <Helmet>
         <title>Gardening Blog & Guides | 7Seasonsplants</title>
-        <meta name="description" content="Insights on tropical gardening, monsoon plant protection, and balcony sanctuary design by Mannarathayil Nursery horticulturists." />
+        <meta name="description" content="Insights on tropical gardening, monsoon plant protection, and balcony sanctuary design by Mannaratharayil Gardens LLP horticulturists." />
       </Helmet>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
         {/* Header */}
@@ -107,7 +107,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
             7Seasons Gardening Blog & Guides
           </h1>
           <p className="text-xs sm:text-sm text-gray-600">
-            Insights on tropical gardening, monsoon plant protection, and balcony sanctuary design by Mannarathayil Nursery horticulturists.
+            Insights on tropical gardening, monsoon plant protection, and balcony sanctuary design by Mannaratharayil Gardens LLP horticulturists.
           </p>
         </div>
 

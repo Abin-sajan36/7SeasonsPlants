@@ -72,11 +72,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           {/* Col 1: Brand & Bio */}
           <div className="lg:col-span-2 space-y-4">
             <div className="bg-white/95 p-3 rounded-2xl inline-block shadow-md">
-              <Logo variant="dark" size="md" />
+              <Logo isLight={false} size="md" />
             </div>
             <p className="text-xs text-[#D1FAE5]/80 leading-relaxed max-w-sm">
               7Seasons is an online plant nursery delivering vibrant, fresh, nursery-grown tropical plants
-              and curated plant combinations directly from Mannarathayil Nursery across Kerala and Tamil Nadu.
+              and curated plant combinations directly from Mannaratharayil Gardens LLP across Kerala and Tamil Nadu.
             </p>
             <div className="pt-2">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-900/60 border border-emerald-700/40 text-xs text-[#A7F3D0]">
@@ -198,7 +198,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   onClick={() => onNavigate('about')}
                   className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
                 >
-                  About Mannarathayil Nursery
+                  About Mannaratharayil Gardens LLP
                 </button>
               </li>
               <li>
@@ -227,13 +227,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </a>
 
               <a
-                href="https://wa.me/919567274176"
+                href="https://wa.me/918848276403"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-start gap-2.5 hover:text-white transition-colors"
               >
                 <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>+91 95672 74176 (WhatsApp)</span>
+                <span>+91 88482 76403 (WhatsApp)</span>
               </a>
 
               <a
@@ -256,7 +256,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
               <div className="flex items-start gap-2.5 pt-1 text-[11px] text-emerald-300/70">
                 <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>Mannarathayil Nursery, Kerala & Tamil Nadu Delivery Hub</span>
+                <span>Mannaratharayil Gardens LLP, Kerala & Tamil Nadu Delivery Hub</span>
               </div>
             </div>
           </div>

@@ -97,7 +97,7 @@ export const PlantQuiz = () => {
             {matches.map(plant => (
               <div key={plant.id} className="bg-white rounded-2xl p-4 border border-emerald-900/10 shadow-sm hover:shadow-md transition-shadow">
                 <div className="aspect-square rounded-xl overflow-hidden mb-4 bg-emerald-50">
-                  <img src={plant.images[0]} alt={plant.name} className="w-full h-full object-cover" />
+                  <img src={plant.images?.[0]} alt={plant.name} className="w-full h-full object-cover" />
                 </div>
                 <h3 className="font-bold text-emerald-950 mb-1">{plant.name}</h3>
                 <p className="text-emerald-600 font-bold mb-3">₹{plant.price}</p>

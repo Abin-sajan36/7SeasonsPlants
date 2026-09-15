@@ -9,7 +9,7 @@ interface CombosPageProps {
 }
 
 export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCategory }) => {
-  const { combos } = useStore();
+  const { combos, selectedDeliveryState } = useStore();
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'All');
 
   const comboCategories = [
@@ -24,6 +24,18 @@ export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCateg
 
   const filteredCombos = combos.filter((combo) => {
     if (combo.status !== 'published') return false;
+    
+    // Filter by delivery state
+    if (selectedDeliveryState) {
+      if (!combo.sellableStates || combo.sellableStates.length === 0) {
+        // If combo has no sellableStates defined, assume available everywhere
+        // Or if you want strict: return false; 
+        // We'll assume available everywhere to not break existing data
+      } else if (!combo.sellableStates.includes(selectedDeliveryState)) {
+        return false;
+      }
+    }
+
     if (selectedCategory === 'All') return true;
     return combo.category === selectedCategory;
   });
@@ -44,7 +56,7 @@ export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCateg
             </h1>
 
             <p className="text-xs sm:text-sm text-[#D1FAE5]/90 leading-relaxed font-normal">
-              Designed by Mannarathayil Nursery horticulturists. Each combination brings together plants
+              Designed by Mannaratharayil Gardens LLP horticulturists. Each combination brings together plants
               with matching sunlight and watering rhythms, complete with self-draining nursery planters and
               up to 35% bundled savings.
             </p>
@@ -126,19 +138,19 @@ export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCateg
               Personalized Balcony & Indoor Combo Consultation
             </h3>
             <p className="text-xs text-gray-600 leading-relaxed">
-              Tell our Mannarathayil Nursery team your balcony orientation, light conditions, and budget.
+              Tell our Mannaratharayil Gardens LLP team your balcony orientation, light conditions, and budget.
               We will assemble a personalized combo bundle with special pricing just for you!
             </p>
           </div>
 
           <a
-            href="https://wa.me/919567274176?text=Hi%207Seasonsplants%20Team!%20I%20want%20to%20create%20a%20custom%20plant%20combo%20for%20my%20home."
+            href="https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team!%20I%20want%20to%20create%20a%20custom%20plant%20combo%20for%20my%20home."
             target="_blank"
             rel="noopener noreferrer"
             className="px-6 py-3.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full font-bold text-xs shadow-md transition-all flex items-center gap-2 shrink-0 cursor-pointer"
           >
             <MessageCircle className="w-4 h-4 fill-white" />
-            <span>Chat on WhatsApp (+91 95672 74176)</span>
+            <span>Chat on WhatsApp (+91 88482 76403)</span>
           </a>
         </div>
       </div>

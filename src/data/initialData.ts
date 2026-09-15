@@ -17,12 +17,12 @@ import {
 export const initialStoreSettings: StoreSettings = {
   businessName: '7Seasonsplants',
   tagline: 'Vibrant Plants & Curated Green Combos',
-  parentNursery: '7Seasons By Mannarathayil Nursery',
+  parentNursery: '7Seasons By Mannaratharayil Gardens LLP',
   phone: '08848276403',
   email: '7seasonsplants@gmail.com',
-  whatsapp: '+91 95672 74176',
+  whatsapp: '+91 88482 76403',
   instagram: '@7seasonsplants',
-  address: 'Mannarathayil Nursery, Calicut-Palakkad Highway, Kerala, India',
+  address: 'Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India',
   supportedStates: ['Kerala', 'Tamil Nadu'],
   deliveryCharge: 80,
   freeShippingThreshold: 899,
@@ -31,6 +31,15 @@ export const initialStoreSettings: StoreSettings = {
   announcementLink: '/combos',
   razorpayKeyId: 'rzp_test_7seasons_demo',
   razorpayEnabled: true,
+  menuVisibility: {
+    home: true,
+    plants: true,
+    combos: true,
+    plantCare: true,
+    blog: true,
+    trackOrder: true,
+    wishlist: true,
+  },
 };
 
 export const initialCategories: Category[] = [
@@ -751,7 +760,7 @@ export const initialBlogPosts: BlogPost[] = [
     excerpt: 'How to safeguard your indoor and balcony plants from waterlogging, root rot, and fungal issues during the South Indian monsoon.',
     content: `The South Indian monsoon brings refreshing rains and a burst of natural growth across Kerala and Tamil Nadu. However, prolonged rain and high humidity also introduce specific gardening challenges like waterlogged pots, slow soil drying, and fungal leaf spots.
 
-Here are the top practical steps recommended by our senior horticulturists at Mannarathayil Nursery:
+Here are the top practical steps recommended by our senior horticulturists at Mannaratharayil Gardens LLP:
 
 ### 1. Check Pot Drainage Holes
 Ensure that drainage holes at the bottom of all outdoor and balcony planters are completely clear. Clear out accumulated mud or roots so excess rainwater drains out in seconds.
@@ -765,7 +774,7 @@ Grouped plants look beautiful, but stagnant wet air invites fungal spores. Space
 ### 4. Reduce Indoor Plant Watering by Half
 Because ambient air humidity is naturally 80-90% during monsoons, indoor potting soil takes twice as long to dry. Check the soil 2 inches deep before adding any water.`,
     author: {
-      name: 'Vipin Mannarathayil',
+      name: 'Vipin Mannaratharayil',
       role: 'Head Nurseryman & Botanist',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
     },
@@ -789,7 +798,7 @@ At 7Seasons, our core specialty is **Curated Plant Combos**. Here is why bundles
 Our combos pair plants that share matching care rhythms. For example, our *Hard-to-Kill Trio* contains Snake Plant, ZZ Plant, and Golden Pothos—all of which thrive under the exact same watering schedule.
 
 ### 2. Built-in Cost Savings (25% to 35% OFF)
-Because we package complementary plants together from Mannarathayil Nursery with customized pots and organic fertilizers, we pass substantial savings directly to customers compared to buying individual items.
+Because we package complementary plants together from Mannaratharayil Gardens LLP with customized pots and organic fertilizers, we pass substantial savings directly to customers compared to buying individual items.
 
 ### 3. Balanced Aesthetic Heights and Textures
 A great combo features contrasting leaf shapes—the broad upright blades of Sansevieria, the cascading vines of Pothos, and the delicate blossoms of Peace Lily—creating instant professional interior styling.`,
@@ -820,7 +829,7 @@ If you are looking to purify your living room or bedroom naturally, these are th
 4. **ZZ Plant (Zamioculcas)**: Exceptional tolerance to low-light indoor environments while purifying air.
 5. **Variegated Spider Plant**: Safe for pets, non-toxic, and filters xylene and carbon monoxide.`,
     author: {
-      name: 'Vipin Mannarathayil',
+      name: 'Vipin Mannaratharayil',
       role: 'Head Nurseryman & Botanist',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
     },
@@ -872,7 +881,7 @@ export const initialReviews: Review[] = [
     customerLocation: 'Calicut, Kerala',
     rating: 5,
     title: 'Lush golden leaves and fast growth',
-    comment: 'Came fresh from Mannarathayil Nursery with moist soil. Already has 3 new leaves sprouting after 2 weeks on my study table.',
+    comment: 'Came fresh from Mannaratharayil Gardens LLP with moist soil. Already has 3 new leaves sprouting after 2 weeks on my study table.',
     verifiedPurchase: true,
     status: 'approved',
     createdAt: new Date().toISOString(),
@@ -953,7 +962,7 @@ export const sampleInstagramPosts = [
   {
     id: 'ig-1',
     image: 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=600&q=80',
-    caption: 'Freshly packed Beginner Combos leaving Mannarathayil Nursery for Ernakulam & Coimbatore! 🌿📦 #7Seasonsplants',
+    caption: 'Freshly packed Beginner Combos leaving Mannaratharayil Gardens LLP for Ernakulam & Coimbatore! 🌿📦 #7Seasonsplants',
     likes: 248,
     comments: 19,
     url: 'https://instagram.com/7seasonsplants',
@@ -993,7 +1002,7 @@ export const sampleInstagramPosts = [
   {
     id: 'ig-6',
     image: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80',
-    caption: 'Mannarathayil Nursery greenhouses at golden hour! Acclimating hardy plants for South Indian homes 🌿🏡',
+    caption: 'Mannaratharayil Gardens LLP greenhouses at golden hour! Acclimating hardy plants for South Indian homes 🌿🏡',
     likes: 534,
     comments: 42,
     url: 'https://instagram.com/7seasonsplants',

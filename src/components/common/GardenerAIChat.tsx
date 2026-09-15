@@ -97,7 +97,7 @@ export const GardenerAIChat: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-sm">Gardener AI</h3>
-                  <p className="text-[10px] text-emerald-100/90 font-medium">Mannarathayil Nursery Assistant</p>
+                  <p className="text-[10px] text-emerald-100/90 font-medium">Mannaratharayil Gardens LLP Assistant</p>
                 </div>
               </div>
               <button 

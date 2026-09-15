@@ -71,6 +71,8 @@ interface StoreContextType {
   toggleDarkMode: () => void;
   isSearchOpen: boolean;
   searchQuery: string;
+  selectedDeliveryState: string | null;
+  setSelectedDeliveryState: (state: string | null) => void;
 
   // Cart getters
   cartCount: number;
@@ -108,6 +110,7 @@ interface StoreContextType {
 
   // Orders
   createOrder: (orderPayload: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'statusHistory'>) => Promise<Order>;
+  importOrders: (newOrders: Order[]) => void;
   updateOrderStatus: (
     orderId: string,
     status: OrderStatus,
@@ -380,6 +383,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDeliveryState, setSelectedDeliveryState] = useState<string | null>(() => {
+    return localStorage.getItem(`${STORAGE_KEY}_deliveryState`);
+  });
 
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -409,6 +415,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+  useEffect(() => {
+    if (selectedDeliveryState) {
+      localStorage.setItem(`${STORAGE_KEY}_deliveryState`, selectedDeliveryState);
+    } else {
+      localStorage.removeItem(`${STORAGE_KEY}_deliveryState`);
+    }
+  }, [selectedDeliveryState]);
 
   // Persist states to local storage
   useEffect(() => {
@@ -603,7 +617,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           slug: item.slug,
           price: item.price,
           originalPrice: item.originalPrice,
-          image: item.images[0] || '',
+          image: item.images?.[0] || '',
           quantity: Math.min(quantity, item.stock),
           stock: item.stock,
           comboItems: type === 'combo' ? (item as PlantCombo).items : undefined,
@@ -759,6 +773,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Order Actions & Inventory Sync
+  const importOrders = (newOrders: Order[]) => {
+    setOrders(prev => [...newOrders, ...prev]);
+  };
+
   const createOrder = async (
     orderPayload: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'statusHistory'>
   ): Promise<Order> => {
@@ -1400,7 +1418,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const removeAdminAccount = (id: string) => {
     const target = adminAccounts.find((a) => a.id === id);
-    if (target?.email.toLowerCase() === 'admin@7seasonsplant.com' || target?.role === 'super_admin') {
+    if (target?.email?.toLowerCase() === 'admin@7seasonsplant.com' || target?.role === 'super_admin') {
       addToast({
         type: 'error',
         title: 'Action Prohibited',
@@ -1786,6 +1804,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toggleDarkMode,
         isSearchOpen,
         searchQuery,
+        selectedDeliveryState,
+        setSelectedDeliveryState,
 
         cartCount,
         cartSubtotal,
@@ -1813,6 +1833,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         closeQuickView,
 
         createOrder,
+        importOrders,
         updateOrderStatus,
         getOrderById,
         getOrderByNumber,

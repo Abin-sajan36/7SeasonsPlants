@@ -70,7 +70,7 @@ export const DailyDealsSection: React.FC<DailyDealsSectionProps> = ({ onNavigate
                   <img
                     src={
                       deal.bannerImage ||
-                      targetItem.images[0] ||
+                      targetItem.images?.[0] ||
                       'https://images.unsplash.com/photo-1508610048659-a06b669e3321?auto=format&fit=crop&w=600&q=80'
                     }
                     alt={deal.title}

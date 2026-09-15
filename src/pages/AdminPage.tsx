@@ -73,9 +73,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     addAdminAccount,
     removeAdminAccount,
     updateAdminPassword,
+    importOrders,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'orders' | 'accounts' | 'settings' | 'ai-tools'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'orders' | 'offline-orders' | 'accounts' | 'settings' | 'ai-tools'>('analytics');
+  
+  const onlineOrders = orders.filter(o => o.source !== 'offline');
+  const offlineOrdersList = orders.filter(o => o.source === 'offline');
   const [productSearch, setProductSearch] = useState('');
   const [comboSearch, setComboSearch] = useState('');
   const [orderSearch, setOrderSearch] = useState('');
@@ -199,7 +203,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   };
 
   const handleExportOrdersCSV = () => {
-    let filteredExportOrders = orders;
+    let filteredExportOrders = activeTab === 'offline-orders' ? offlineOrdersList : onlineOrders;
 
     if (exportStatus !== 'all') {
       filteredExportOrders = filteredExportOrders.filter(o => o.orderStatus === exportStatus);
@@ -246,7 +250,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       c.items.some((it) => it.productName.toLowerCase().includes(comboSearch.toLowerCase()))
   );
 
-  const filteredOrders = orders.filter((o) => {
+  const filteredOrders = onlineOrders.filter((o) => {
+    // Status filter
+    if (orderStatusFilter !== 'all' && o.orderStatus !== orderStatusFilter) {
+      return false;
+    }
+
+    const q = orderSearch.toLowerCase().trim();
+    if (!q) return true;
+    const orderIdMatch = (o.id || '').toLowerCase().includes(q) || (o.orderNumber || '').toLowerCase().includes(q);
+    const customerNameMatch = (o.customer?.name || o.customer?.shippingAddress?.fullName || '').toLowerCase().includes(q);
+    const phoneMatch = (o.customer?.phone || o.customer?.shippingAddress?.phoneNumber || '').includes(q);
+    const trackingMatch = (o.trackingNumber || '').toLowerCase().includes(q);
+    const stateMatch = (o.customer?.shippingAddress?.state || '').toLowerCase().includes(q);
+    const districtMatch = (o.customer?.shippingAddress?.district || o.customer?.shippingAddress?.city || '').toLowerCase().includes(q);
+    return orderIdMatch || customerNameMatch || phoneMatch || trackingMatch || stateMatch || districtMatch;
+  });
+
+  const filteredOfflineOrders = offlineOrdersList.filter((o) => {
     // Status filter
     if (orderStatusFilter !== 'all' && o.orderStatus !== orderStatusFilter) {
       return false;
@@ -375,7 +396,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         name: productForm.name!,
         botanicalName: productForm.botanicalName || '',
         shortDescription: productForm.shortDescription || 'Fresh tropical nursery specimen.',
-        description: productForm.description || 'Grown at Mannarathayil Nursery.',
+        description: productForm.description || 'Grown at Mannaratharayil Gardens LLP.',
         category: productForm.category || 'Air Purifying',
         price: Number(productForm.price),
         originalPrice: Number(productForm.originalPrice || productForm.price),
@@ -386,7 +407,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         rating: 4.9,
         reviewCount: 12,
         isBestseller: Boolean(productForm.isBestseller),
-        tags: ['Indoor', 'Mannarathayil'],
+        tags: ['Indoor', 'Mannaratharayil'],
         attributes: (productForm.attributes as any) || {
           light: 'Bright Indirect',
           water: 'Moderate (Twice a week)',
@@ -548,10 +569,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       // Offline fallback
       setAiGeneratedOutput({
         title: `${aiPlantName} (Nursery Specimen)`,
-        shortDescription: `A resilient tropical specimen from Mannarathayil Nursery. Features lush foliage and effortless indoor care routines.`,
+        shortDescription: `A resilient tropical specimen from Mannaratharayil Gardens LLP. Features lush foliage and effortless indoor care routines.`,
         longDescription: `Carefully cultivated in Kerala soil mix, this ${aiPlantName} is naturally adapted to high humidity and warm temperatures. Shipped in a sturdy 5-ply carton directly to your doorstep.`,
         careSchedule: `Place in bright indirect light. Water thoroughly when the top 2 inches of soil are dry. Feed organic fertilizer monthly.`,
-        tags: ['Indoor', 'KeralaNursery', 'TropicalPlants', 'Mannarathayil'],
+        tags: ['Indoor', 'KeralaNursery', 'TropicalPlants', 'Mannaratharayil'],
       });
     } finally {
       setIsGeneratingAi(false);
@@ -571,7 +592,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-1">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Mannarathayil Nursery Operations Control Center</span>
+              <span>Mannaratharayil Gardens LLP Operations Control Center</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">7Seasons Admin Portal</h1>
             <p className="text-xs text-[#D1FAE5]/80 max-w-xl">
@@ -625,7 +646,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         { id: 'analytics', label: 'Analytics Dashboard', icon: BarChart3 },
             { id: 'products', label: `Plant Catalog (${products.length})`, icon: Package },
             { id: 'combos', label: `Combo Bundles (${combos.length})`, icon: Layers },
-            { id: 'orders', label: `Orders & Dispatch (${orders.length})`, icon: Truck },
+            { id: 'orders', label: `Online Orders (${onlineOrders.length})`, icon: Truck },
+            { id: 'offline-orders', label: `Offline Orders (${offlineOrdersList.length})`, icon: Download },
             { id: 'accounts', label: `Admin Accounts & Security (${adminAccounts.length})`, icon: Users },
             { id: 'ai-tools', label: 'Gemini AI Assistant', icon: Sparkles },
             { id: 'settings', label: 'Nursery Settings', icon: Settings },
@@ -728,7 +750,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         </td>
                         <td className="py-3 px-4 flex items-center gap-3">
                           <img
-                            src={p.images[0]}
+                            src={p.images?.[0]}
                             alt={p.name}
                             className="w-10 h-10 rounded-xl object-cover bg-emerald-50 shrink-0"
                           />
@@ -900,7 +922,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       {/* Combo Cover Image with Badges */}
                       <div className="relative mb-3">
                         <img
-                          src={combo.images[0]}
+                          src={combo.images?.[0]}
                           alt={combo.name}
                           className="w-full h-44 object-cover rounded-2xl bg-emerald-50 border border-gray-100"
                         />
@@ -1051,11 +1073,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </span>
                   {(
                     [
-                      { id: 'all', label: `All (${orders.length})` },
-                      { id: 'Order Placed', label: `Placed (${orders.filter((o) => o.orderStatus === 'Order Placed').length})` },
-                      { id: 'Processing', label: `Packing (${orders.filter((o) => o.orderStatus === 'Processing').length})` },
-                      { id: 'Shipped', label: `Shipped (${orders.filter((o) => o.orderStatus === 'Shipped').length})` },
-                      { id: 'Delivered', label: `Delivered (${orders.filter((o) => o.orderStatus === 'Delivered').length})` },
+                      { id: 'all', label: `All (${onlineOrders.length})` },
+                      { id: 'Order Placed', label: `Placed (${onlineOrders.filter((o) => o.orderStatus === 'Order Placed').length})` },
+                      { id: 'Processing', label: `Packing (${onlineOrders.filter((o) => o.orderStatus === 'Processing').length})` },
+                      { id: 'Shipped', label: `Shipped (${onlineOrders.filter((o) => o.orderStatus === 'Shipped').length})` },
+                      { id: 'Delivered', label: `Delivered (${onlineOrders.filter((o) => o.orderStatus === 'Delivered').length})` },
                     ] as const
                   ).map((st) => (
                     <button
@@ -1289,6 +1311,190 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           </div>
         )}
 
+        
+        {/* OFFLINE ORDERS TAB */}
+        {activeTab === 'offline-orders' && (
+          <div className="space-y-6">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-gray-200 shadow-2xs flex flex-col md:flex-row justify-between items-center gap-4">
+              <div>
+                <h3 className="text-lg font-black text-emerald-950">Offline Orders</h3>
+                <p className="text-xs text-gray-500">Import and manage orders placed outside the website.</p>
+              </div>
+              <div className="flex gap-3">
+                <input
+                  type="file"
+                  accept=".csv"
+                  id="import-offline-csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      try {
+                        const text = ev.target?.result;
+                        if (typeof text !== 'string') return;
+                        const lines = text.split('\n');
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                        
+                        const newOrders = [];
+                        for (let i = 1; i < lines.length; i++) {
+                          if (!lines[i].trim()) continue;
+                          const values = lines[i].split(',').map(v => v.trim());
+                          
+                          // Very basic mapping
+                          const order = {
+                            id: 'OFF-' + Date.now() + '-' + i,
+                            orderNumber: 'OFF-' + Math.floor(100000 + Math.random() * 900000),
+                            customer: {
+                              name: values[headers.indexOf('name')] || 'Unknown',
+                              email: values[headers.indexOf('email')] || '',
+                              phone: values[headers.indexOf('phone')] || '',
+                              shippingAddress: {
+                                fullName: values[headers.indexOf('name')] || 'Unknown',
+                                phoneNumber: values[headers.indexOf('phone')] || '',
+                                addressLine1: values[headers.indexOf('address')] || '',
+                                city: values[headers.indexOf('city')] || '',
+                                state: values[headers.indexOf('state')] || '',
+                                pincode: values[headers.indexOf('pincode')] || '',
+                                type: 'home'
+                              }
+                            },
+                            items: [
+                              {
+                                id: 'offline-item',
+                                type: 'product',
+                                name: values[headers.indexOf('product')] || 'Offline Product',
+                                slug: 'offline-product',
+                                price: Number(values[headers.indexOf('price')]) || 0,
+                                quantity: Number(values[headers.indexOf('quantity')]) || 1,
+                                image: ''
+                              }
+                            ],
+                            subtotal: Number(values[headers.indexOf('price')]) || 0,
+                            discount: 0,
+                            deliveryFee: 0,
+                            total: (Number(values[headers.indexOf('price')]) || 0) * (Number(values[headers.indexOf('quantity')]) || 1),
+                            paymentStatus: 'paid',
+                            paymentMethod: 'offline',
+                            source: 'offline',
+                            orderStatus: 'Order Placed',
+                            statusHistory: [
+                              {
+                                status: 'Order Placed',
+                                timestamp: new Date().toISOString(),
+                                note: 'Imported via CSV'
+                              }
+                            ],
+                            createdAt: new Date().toISOString()
+                          };
+                          newOrders.push(order);
+                        }
+                        
+                        importOrders(newOrders);
+                        addToast({ title: 'Import Successful', message: `Imported ${newOrders.length} offline orders.`, type: 'success' });
+                      } catch (err) {
+                        console.error(err);
+                        addToast({ title: 'Import Failed', message: 'Could not parse CSV file.', type: 'error' });
+                      }
+                      e.target.value = ''; // Reset
+                    };
+                    reader.readAsText(file);
+                  }}
+                />
+                <button
+                  onClick={() => document.getElementById('import-offline-csv')?.click()}
+                  className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold transition-colors shadow-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" /> Import CSV</button>
+                <button onClick={() => setIsExportModalOpen(true)} className="px-5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer shrink-0"><Download className="w-4 h-4" /> Export CSV
+                </button>
+              </div>
+            </div>
+            
+            {/* Offline Orders List */}
+            {filteredOfflineOrders.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 shadow-2xs space-y-3">
+                <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <Package className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-bold text-emerald-950">No offline orders</h3>
+                <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                  Import a CSV file to add offline orders. Required columns: name, phone, address, city, state, pincode, product, price, quantity.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredOfflineOrders.map((ord) => {
+                  const customerName = ord.customer?.name || ord.customer?.shippingAddress?.fullName || 'Customer';
+                  const customerPhone = ord.customer?.phone || ord.customer?.shippingAddress?.phoneNumber || 'N/A';
+                  const shippingAddr = ord.customer?.shippingAddress;
+                  const formattedDate = ord.createdAt ? new Date(ord.createdAt).toLocaleDateString() : 'Recent';
+
+                  return (
+                    <div key={ord.id} className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200 shadow-2xs space-y-4">
+                      <div className="flex flex-col sm:flex-row justify-between pb-3 border-b border-gray-100 gap-3">
+                        <div>
+                          <span className="text-xs font-black text-emerald-950">Order #{ord.orderNumber || ord.id}</span>
+                          <span className="ml-3 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border bg-purple-100 text-purple-900 border-purple-300">
+                            {ord.orderStatus}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-emerald-950">₹{ord.total.toLocaleString('en-IN')}</p>
+                          <p className="text-[11px] text-gray-500">{formattedDate} • Offline</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-bold text-gray-500 uppercase">Customer Info</p>
+                          <p className="text-xs font-bold text-emerald-950">{customerName}</p>
+                          <p className="text-xs text-gray-600">{customerPhone}</p>
+                        </div>
+                        {shippingAddr && (
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-bold text-gray-500 uppercase">Delivery Address</p>
+                            <p className="text-xs text-gray-600">
+                              {shippingAddr.addressLine1}, {shippingAddr.city}<br />
+                              {shippingAddr.state} {shippingAddr.pincode}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="pt-3 border-t border-gray-100 space-y-2">
+                         <p className="text-[11px] font-bold text-gray-500 uppercase">Items</p>
+                         {ord.items.map((it, idx) => (
+                           <div key={idx} className="flex justify-between text-xs text-gray-700">
+                             <span>{it.quantity}x {it.name}</span>
+                             <span>₹{(it.price * it.quantity).toLocaleString('en-IN')}</span>
+                           </div>
+                         ))}
+                      </div>
+                      
+                      <div className="pt-4 flex flex-wrap gap-2">
+                          <select
+                            value={ord.orderStatus}
+                            onChange={(e) => updateOrderStatus(ord.id, e.target.value as any)}
+                            className="bg-gray-50 border border-gray-200 text-gray-900 text-xs rounded-full focus:ring-emerald-500 focus:border-emerald-500 block px-3 py-1.5 outline-hidden"
+                          >
+                            <option value="Order Placed">Order Placed</option>
+                            <option value="Processing">Processing</option>
+                            <option value="Shipped">Shipped</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+
         {/* TAB 4: ADMIN ACCOUNTS & SECURITY */}
         {activeTab === 'accounts' && (
           <div className="space-y-8">
@@ -1351,7 +1557,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </button>
                 </div>
                 <p className="text-[11px] text-gray-600">
-                  Only verified staff can access the Mannarathayil Nursery control room.
+                  Only verified staff can access the Mannaratharayil Gardens LLP control room.
                 </p>
               </div>
             </div>
@@ -1601,7 +1807,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               </div>
               <p className="text-xs text-gray-600">
                 Generate high-converting product descriptions, care schedules, and SEO tags tailored
-                for Mannarathayil Nursery plants.
+                for Mannaratharayil Gardens LLP plants.
               </p>
 
               <div className="space-y-3 text-xs">
@@ -1704,7 +1910,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-full border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold"
                 />
               </div>
-
               <div>
                 <label className="font-bold text-emerald-950 block mb-1">
                   Free Delivery Threshold (₹)
@@ -1727,6 +1932,39 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   onChange={(e) => updateStoreSettings({ announcementText: e.target.value })}
                   className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-full border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold"
                 />
+              </div>
+
+              <div className="pt-6 mt-6 border-t border-gray-100">
+                <h4 className="text-sm font-bold text-emerald-950 mb-4">Menu Visibility Configuration</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: 'home', label: 'Home' },
+                    { id: 'plants', label: 'Plants' },
+                    { id: 'combos', label: 'Plant Combos' },
+                    { id: 'bestSellers', label: 'Best Sellers' },
+                    { id: 'newArrivals', label: 'New Arrivals' },
+                    { id: 'deals', label: 'Deals' },
+                    { id: 'plantCare', label: 'Plant Care' },
+                    { id: 'blog', label: 'Blog' },
+                    { id: 'trackOrder', label: 'Track Order' },
+                    { id: 'wishlist', label: 'Wishlist' },
+                    { id: 'cart', label: 'Cart' },
+                  ].map((menu) => (
+                    <label key={menu.id} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded-lg">
+                      <input
+                        type="checkbox"
+                        checked={storeSettings.menuVisibility?.[menu.id] !== false}
+                        onChange={(e) => {
+                          const newVis = { ...(storeSettings.menuVisibility || {}) };
+                          newVis[menu.id] = e.target.checked;
+                          updateStoreSettings({ menuVisibility: newVis });
+                        }}
+                        className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 border-gray-300"
+                      />
+                      <span className="text-xs font-semibold text-gray-700">{menu.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

@@ -67,7 +67,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ onNavigate }) =>
         <div className="md:w-1/2 p-6 bg-emerald-50 dark:bg-[#0a1f18]/50 dark:bg-[#021a12] transition-colors duration-300 flex flex-col justify-between">
           <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-white dark:bg-[#06120e] shadow-xs border border-emerald-900/10 dark:border-emerald-900/40">
             <img
-              src={item.images[selectedImageIdx] || item.images[0]}
+              src={item.images?.[selectedImageIdx] || item.images?.[0]}
               alt={item.name}
               className="w-full h-full object-cover"
             />

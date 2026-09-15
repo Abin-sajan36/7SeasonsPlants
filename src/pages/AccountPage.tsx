@@ -1193,7 +1193,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 {currentUser.email} • {currentUser.phone || 'No phone set'}
               </p>
               <p className="text-[11px] text-emerald-700 font-medium mt-1">
-                Mannarathayil Nursery Delivery Network (Kerala & Tamil Nadu)
+                Mannaratharayil Gardens LLP Delivery Network (Kerala & Tamil Nadu)
               </p>
             </div>
           </div>
@@ -1565,7 +1565,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                   >
                     <div className="flex gap-3">
                       <img
-                        src={(item as any).images ? (item as any).images[0] : (item as any).image}
+                        src={(item as any).images ? (item as any).images?.[0] : (item as any).image}
                         alt={item.name}
                         className="w-16 h-16 rounded-xl object-cover bg-emerald-50 shrink-0 border border-emerald-900/10"
                       />
@@ -1626,7 +1626,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                   {profileForm.profileImage ? (
                     <img src={profileForm.profileImage} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    currentUser?.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
+                    (currentUser?.name || '').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
                   )}
                   
                   {/* Hidden file input overlay */}

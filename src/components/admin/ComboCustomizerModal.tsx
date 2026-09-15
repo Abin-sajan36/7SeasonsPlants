@@ -102,7 +102,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
   );
   const [description, setDescription] = useState(
     comboToEdit?.description ||
-      'Carefully paired at Mannarathayil Nursery for synchronized care rhythms, lush greenery, and effortless indoor styling. Shipped in sturdy 5-ply cartons directly across Kerala & Tamil Nadu.'
+      'Carefully paired at Mannaratharayil Gardens LLP for synchronized care rhythms, lush greenery, and effortless indoor styling. Shipped in sturdy 5-ply cartons directly across Kerala & Tamil Nadu.'
   );
   const [price, setPrice] = useState<number>(comboToEdit?.price || 599);
   const [originalPrice, setOriginalPrice] = useState<number>(comboToEdit?.originalPrice || 899);
@@ -136,7 +136,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
             productName: products[0]?.name || 'Golden Pothos (Money Plant)',
             productSlug: products[0]?.slug || 'golden-pothos',
             quantity: 1,
-            image: products[0]?.images[0] || 'https://images.unsplash.com/photo-1596724855577-62a225a07c06?auto=format&fit=crop&w=400&q=80',
+            image: products[0]?.images?.[0] || 'https://images.unsplash.com/photo-1596724855577-62a225a07c06?auto=format&fit=crop&w=400&q=80',
             itemType: 'plant',
             priceShare: products[0]?.price || 249,
             notes: 'Lush tropical potted specimen',
@@ -159,6 +159,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
 
   // UI Tabs & Modals within customizer
   const [activeSubTab, setActiveSubTab] = useState<'items' | 'general' | 'images' | 'pricing' | 'benefits'>('items');
+  const [sellableStates, setSellableStates] = useState<string[]>(comboToEdit?.sellableStates || ['Kerala', 'Tamil Nadu', 'Karnataka']);
   const [plantSearchQuery, setPlantSearchQuery] = useState('');
   const [isAddPlantDropdownOpen, setIsAddPlantDropdownOpen] = useState(false);
 
@@ -221,7 +222,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
         productName: prod.name,
         productSlug: prod.slug,
         quantity: 1,
-        image: prod.images[0] || 'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=400&q=80',
+        image: prod.images?.[0] || 'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=400&q=80',
         itemType: 'plant',
         priceShare: prod.price,
         notes: prod.botanicalName ? `Botanical: ${prod.botanicalName}` : 'Nursery specimen',
@@ -360,6 +361,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
       isFeatured,
       tags: comboToEdit?.tags || ['combo', 'bundle', 'nursery', 'kerala'],
       items,
+      sellableStates,
       careSummary: careSummary.trim(),
       benefits: benefits.length > 0 ? benefits : ['High air purification', 'Specialized safe packing'],
       deliveryInfo: deliveryInfo.trim(),
@@ -518,7 +520,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                             >
                               <div className="flex items-center gap-2.5">
                                 <img
-                                  src={prod.images[0]}
+                                  src={prod.images?.[0]}
                                   alt={prod.name}
                                   className="w-9 h-9 rounded-lg object-cover bg-[#FAF9F6] shrink-0"
                                 />
@@ -919,6 +921,30 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                   placeholder="Describe the aesthetic, plant varieties, suitability, and grower notes..."
                   className="w-full p-4 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-2xl border border-[#4A3E31]/15 focus:bg-white outline-hidden leading-relaxed"
                 />
+              </div>
+
+              <div>
+                <label className="font-bold text-[#4A3E31] block mb-2">Sellable States</label>
+                <div className="flex flex-wrap gap-3">
+                  {['Kerala', 'Tamil Nadu', 'Karnataka'].map((stateName) => (
+                    <label key={stateName} className="flex items-center gap-2 cursor-pointer font-bold text-[#4A3E31] bg-[#EAE6DB]/30 px-3 py-1.5 rounded-full">
+                      <input
+                        type="checkbox"
+                        checked={sellableStates.includes(stateName)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSellableStates([...sellableStates, stateName]);
+                          } else {
+                            setSellableStates(sellableStates.filter(s => s !== stateName));
+                          }
+                        }}
+                        className="rounded text-[#7D8F69]"
+                      />
+                      <span>{stateName}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[#4A3E31]/60 text-[10px] mt-1 italic">Select which states this combo is available for delivery.</p>
               </div>
 
               <div className="flex gap-4 pt-2">

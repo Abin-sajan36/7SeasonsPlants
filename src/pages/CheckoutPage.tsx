@@ -11,7 +11,6 @@ import {
 import { useStore } from '../context/StoreContext';
 import { CustomerAddress, OrderItem } from '../types';
 
-
 // --- PAYMENT MODAL COMPONENT ---
 const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; total: number; onConfirm: (method: string) => void; }> = ({ isOpen, onClose, total, onConfirm }) => {
   const [method, setMethod] = useState('qr');
@@ -102,6 +101,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     currentUser,
     createOrder,
     addToast,
+    storeSettings,
+    combos,
   } = useStore();
 
   // Form State
@@ -113,18 +114,28 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     apartment: '',
     city: 'Ernakulam',
     district: 'Ernakulam',
-    state: 'Kerala' as 'Kerala' | 'Tamil Nadu',
+    state: 'Kerala',
     pincode: '',
     notes: '',
   });
 
+  const invalidCartItems = React.useMemo(() => {
+    return cart.filter(item => {
+      if (item.type !== 'combo') return false;
+      const combo = combos.find(c => c.id === item.id);
+      if (!combo || !combo.sellableStates || combo.sellableStates.length === 0) return false;
+      return !combo.sellableStates.includes(formData.state);
+    });
+  }, [cart, combos, formData.state]);
+
+
+  // Form State
 
   const [couponCodeInput, setCouponCodeInput] = useState('');
   const [couponError, setCouponError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [formError, setFormError] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-
 
   // Auto-populate from logged-in customer and default address
   useEffect(() => {
@@ -233,25 +244,40 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     e.preventDefault();
     setFormError('');
 
+    const scrollToError = () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     // Form Validations
     if (!formData.fullName.trim()) {
       setFormError('Please enter your full name.');
+      scrollToError();
       return;
     }
-    if (!formData.phone.trim() || formData.phone.length < 10) {
+    const numericPhone = formData.phone.replace(/\D/g, '');
+    if (!numericPhone || numericPhone.length < 10) {
       setFormError('Please enter a valid 10-digit mobile number for dispatch updates.');
+      scrollToError();
       return;
     }
     if (!formData.email.trim() || !formData.email.includes('@')) {
       setFormError('Please enter a valid email address for your order invoice.');
+      scrollToError();
       return;
     }
-    if (!formData.street.trim()) {
-      setFormError('Please enter your delivery street address / house name.');
+    if (!formData.street.trim() || formData.street.trim().length < 5) {
+      setFormError('Please enter your complete delivery street address / house name.');
+      scrollToError();
+      return;
+    }
+    if (!formData.apartment.trim()) {
+      setFormError('Please enter a landmark or nearby location (mandatory).');
+      scrollToError();
       return;
     }
     if (!formData.pincode.trim() || formData.pincode.length !== 6) {
       setFormError('Please enter a valid 6-digit postal PIN code.');
+      scrollToError();
       return;
     }
 
@@ -345,7 +371,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
 
       addToast({
         title: 'Order Placed Successfully! 🌿',
-        message: `Order #${createdOrder.orderNumber} confirmed. Mannarathayil Nursery is preparing your plants.`,
+        message: `Order #${createdOrder.orderNumber} confirmed. Mannaratharayil Gardens LLP is preparing your plants.`,
         type: 'success',
       });
 
@@ -386,7 +412,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               <div className="text-xs">
                 <h4 className="font-bold text-emerald-950">Direct Shipping to Kerala & Tamil Nadu</h4>
                 <p className="text-gray-600 mt-0.5 leading-relaxed">
-                  Carefully packed in 5-ply cartons from Mannarathayil Nursery and dispatched directly to your doorstep.
+                  Carefully packed in 5-ply cartons from Mannaratharayil Gardens LLP and dispatched directly to your doorstep.
                 </p>
               </div>
             </div>
@@ -473,7 +499,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                       required
                       maxLength={10}
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
                       placeholder="10-digit mobile number"
                       className="w-full px-4 py-2.5 bg-[#F4FAF5] text-xs text-emerald-950 font-medium rounded-full border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden"
                     />
@@ -509,13 +535,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                   />
                 </div>
 
-                {/* Landmark / Apartment (Optional) */}
+                {/* Landmark / Apartment (Mandatory) */}
                 <div>
                   <label className="font-bold text-emerald-950 block mb-1.5">
-                    Landmark / Nearby Location (Optional)
+                    Landmark / Nearby Location *
                   </label>
                   <input
                     type="text"
+                    required
                     value={formData.apartment}
                     onChange={(e) => setFormData({ ...formData, apartment: e.target.value })}
                     placeholder="e.g. Near Temple / Metro Station"
@@ -529,11 +556,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                     <label className="font-bold text-emerald-950 block mb-1.5">State *</label>
                     <select
                       value={formData.state}
-                      onChange={(e) => handleStateChange(e.target.value as any)}
+                      onChange={(e) => handleStateChange(e.target.value)}
                       className="w-full px-3 py-2.5 bg-[#F4FAF5] text-xs font-semibold text-emerald-950 rounded-full border border-emerald-900/15 focus:bg-white outline-hidden"
                     >
-                      <option value="Kerala">Kerala</option>
-                      <option value="Tamil Nadu">Tamil Nadu</option>
+                      {storeSettings.supportedStates?.map(st => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -725,7 +753,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
 
               <div className="flex items-center justify-center gap-2 text-[10px] text-gray-500">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                <span>100% Safe Checkout Guarantee • Mannarathayil Nursery</span>
+                <span>100% Safe Checkout Guarantee • Mannaratharayil Gardens LLP</span>
               </div>
             </div>
           </div>

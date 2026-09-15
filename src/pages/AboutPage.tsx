@@ -14,7 +14,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
           <div className="max-w-2xl relative z-10 space-y-4">
             <span className="text-xs font-bold uppercase tracking-wider text-[#A7F3D0] bg-white/10 px-3 py-1 rounded-full border border-white/20 inline-flex items-center gap-1.5 backdrop-blur-xs">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              Grown With Love at Mannarathayil Nursery
+              Grown With Love at Mannaratharayil Gardens LLP
             </span>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight text-white">
@@ -22,7 +22,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
             </h1>
 
             <p className="text-xs sm:text-sm text-[#D1FAE5]/90 leading-relaxed font-normal">
-              7Seasonsplants is the dedicated online e-commerce destination of <strong>Mannarathayil Nursery</strong>, bringing over decades of horticultural mastery directly to plant parents across Kerala and Tamil Nadu.
+              7Seasonsplants is the dedicated online e-commerce destination of <strong>Mannaratharayil Gardens LLP</strong>, bringing over decades of horticultural mastery directly to plant parents across Kerala and Tamil Nadu.
             </p>
           </div>
         </div>
@@ -32,7 +32,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
           <div className="space-y-4">
             <h2 className="text-2xl font-black text-emerald-950">Our Story & Heritage</h2>
             <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
-              Founded on the belief that every living space thrives with green companionship, Mannarathayil Nursery cultivates over 150+ varieties of exotic, indoor, and tropical foliage plants.
+              Founded on the belief that every living space thrives with green companionship, Mannaratharayil Gardens LLP cultivates over 150+ varieties of exotic, indoor, and tropical foliage plants.
             </p>
             <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
               Each plant is acclimatized to South Indian weather patterns, potted in nutrient-rich organic soil blends, and inspected thoroughly for strong root systems before dispatch.
@@ -96,7 +96,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 uppercase tracking-wider">
               <MapPin className="w-4 h-4 text-emerald-700" />
-              <span>Mannarathayil Nursery Hub</span>
+              <span>Mannaratharayil Gardens LLP Hub</span>
             </div>
             <h3 className="text-xl font-bold text-emerald-950">Visit Our Greenhouses</h3>
             <p className="text-xs text-gray-600 leading-relaxed max-w-lg">

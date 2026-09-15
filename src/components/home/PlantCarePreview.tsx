@@ -103,7 +103,7 @@ export const PlantCarePreview: React.FC<PlantCarePreviewProps> = ({ onNavigate }
                   <Activity className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
                     <strong className="text-white block font-semibold">Free WhatsApp Consultations</strong>
-                    <span>Chat directly with Mannarathayil Nursery horticulturists via +91 95672 74176.</span>
+                    <span>Chat directly with Mannaratharayil Gardens LLP horticulturists via +91 88482 76403.</span>
                   </div>
                 </div>
               </div>

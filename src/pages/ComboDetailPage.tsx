@@ -36,9 +36,16 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
     isInWishlist,
     setIsCartOpen,
     addToast,
+    selectedDeliveryState,
   } = useStore();
 
   const combo = combos.find((c) => c.slug === slug) || combos[0];
+  
+  const isAvailableInState = React.useMemo(() => {
+    if (!selectedDeliveryState) return true;
+    if (!combo.sellableStates || combo.sellableStates.length === 0) return true;
+    return combo.sellableStates.includes(selectedDeliveryState);
+  }, [combo, selectedDeliveryState]);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [pincodeInput, setPincodeInput] = useState('');
@@ -112,7 +119,7 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
         <meta name="description" content={combo.shortDescription} />
         <meta property="og:title" content={`${combo.name} | 7Seasonsplants`} />
         <meta property="og:description" content={combo.shortDescription} />
-        <meta property="og:image" content={combo.images[0]} />
+        <meta property="og:image" content={combo.images?.[0]} />
       </Helmet>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         {/* Breadcrumb */}
@@ -136,7 +143,7 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
           <div className="lg:col-span-6 space-y-4">
             <div className="relative aspect-4/3 sm:aspect-square w-full rounded-3xl overflow-hidden bg-emerald-50/50 border border-emerald-900/10">
               <img
-                src={combo.images[selectedImageIdx] || combo.images[0]}
+                src={combo.images?.[selectedImageIdx] || combo.images?.[0]}
                 alt={combo.name}
                 className="w-full h-full object-cover"
               />
@@ -303,33 +310,41 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
                   </button>
                 </div>
 
-                {/* Add to Bag */}
-                <button
-                  onClick={handleAddToCart}
-                  disabled={isOutOfStock}
-                  className={`w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    isOutOfStock
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 shadow-xs'
-                  }`}
-                >
-                  <ShoppingBag className="w-4 h-4 text-emerald-700" />
-                  <span>{isOutOfStock ? 'Combo Sold Out' : 'Add Bundle to Bag'}</span>
-                </button>
+                {!isAvailableInState ? (
+                  <div className="w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-bold flex items-center justify-center gap-2 transition-all bg-amber-50 text-amber-900 border border-amber-200">
+                    Not Deliverable to {selectedDeliveryState}
+                  </div>
+                ) : (
+                  <>
+                    {/* Add to Bag */}
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={isOutOfStock}
+                      className={`w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        isOutOfStock
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 shadow-xs'
+                      }`}
+                    >
+                      <ShoppingBag className="w-4 h-4 text-emerald-700" />
+                      <span>{isOutOfStock ? 'Combo Sold Out' : 'Add Bundle to Bag'}</span>
+                    </button>
 
-                {/* Buy Now */}
-                <button
-                  onClick={handleBuyNow}
-                  disabled={isOutOfStock}
-                  className={`w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    isOutOfStock
-                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white shadow-md hover:shadow-lg'
-                  }`}
-                >
-                  <span>Buy Bundle Now</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+                    {/* Buy Now */}
+                    <button
+                      onClick={handleBuyNow}
+                      disabled={isOutOfStock}
+                      className={`w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        isOutOfStock
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white shadow-md hover:shadow-lg'
+                      }`}
+                    >
+                      <span>Buy Bundle Now</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* PIN Code Check */}
@@ -393,7 +408,7 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
                   <div className="flex items-start gap-3">
                     <img
                       src={
-                        matchedProd?.images[0] ||
+                        matchedProd?.images?.[0] ||
                         'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=300&q=80'
                       }
                       alt={item.productName}
@@ -436,9 +451,9 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
           <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-950 flex items-start gap-3">
             <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
             <div>
-              <strong className="block font-bold">Mannarathayil Nursery Safe Delivery Guarantee</strong>
+              <strong className="block font-bold">Mannaratharayil Gardens LLP Safe Delivery Guarantee</strong>
               <span>
-                All plants in this combo are watered, treated with organic neem shield, and individually packed inside ventilated compartments. If any plant arrives damaged, our WhatsApp support (+91 95672 74176) provides instant replacement.
+                All plants in this combo are watered, treated with organic neem shield, and individually packed inside ventilated compartments. If any plant arrives damaged, our WhatsApp support (+91 88482 76403) provides instant replacement.
               </span>
             </div>
           </div>

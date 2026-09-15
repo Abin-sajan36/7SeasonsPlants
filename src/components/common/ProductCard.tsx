@@ -21,7 +21,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
       {/* 1. Image Container & Overlay Badges */}
       <div className="relative aspect-square w-full bg-emerald-50/40 overflow-hidden">
         <img
-          src={product.images[0] || 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=600&q=80'}
+          src={product.images?.[0] || 'https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=600&q=80'}
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"

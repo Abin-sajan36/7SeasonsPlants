@@ -6,7 +6,7 @@ export const TrustBenefits: React.FC = () => {
     {
       icon: ShieldCheck,
       title: 'Carefully Selected Plants',
-      description: 'Healthy, acclimated specimens nurtured at Mannarathayil Nursery with robust root systems.',
+      description: 'Healthy, acclimated specimens nurtured at Mannaratharayil Gardens LLP with robust root systems.',
       color: 'text-emerald-700 bg-emerald-50 border border-emerald-100',
     },
     {
@@ -30,7 +30,7 @@ export const TrustBenefits: React.FC = () => {
     {
       icon: BookOpen,
       title: 'Expert Care Guidance',
-      description: 'Free WhatsApp support (+91 95672 74176) and our 7Seasons Plant Doctor AI tool.',
+      description: 'Free WhatsApp support (+91 88482 76403) and our 7Seasons Plant Doctor AI tool.',
       color: 'text-rose-600 bg-rose-50 border border-rose-100',
     },
   ];

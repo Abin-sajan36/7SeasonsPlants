@@ -10,7 +10,7 @@ export const InstagramSection: React.FC = () => {
     },
     {
       image: 'https://images.unsplash.com/photo-1509423350716-97f9360b4e09?auto=format&fit=crop&w=500&q=80',
-      caption: 'Tropical flowering Hibiscus blooming bright in our Mannarathayil Nursery beds 🌸',
+      caption: 'Tropical flowering Hibiscus blooming bright in our Mannaratharayil Gardens LLP beds 🌸',
       likes: 210,
     },
     {
