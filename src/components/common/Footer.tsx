@@ -1,4 +1,5 @@
 import React from 'react';
+import { useStore } from '../../context/StoreContext';
 import {
   Phone,
   Mail,
@@ -19,6 +20,8 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
+  const { storeSettings } = useStore();
+  const visibility = storeSettings?.menuVisibility || {};
   return (
     <footer className="bg-[#0A2618] text-[#E2F5EA] border-t border-emerald-800/40">
       {/* Top Value Banner */}
@@ -92,6 +95,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               Shop Greenery
             </h3>
             <ul className="space-y-2.5 text-xs">
+              {visibility.combos !== false && (
               <li>
                 <button
                   onClick={() => onNavigate('combos')}
@@ -103,6 +107,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   </span>
                 </button>
               </li>
+            )}
+              {visibility.plants !== false && (
               <li>
                 <button
                   onClick={() => onNavigate('plants')}
@@ -111,6 +117,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   All Nursery Plants
                 </button>
               </li>
+            )}
               <li>
                 <button
                   onClick={() => onNavigate('plants', 'category:Indoor Plants')}
@@ -143,6 +150,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   Succulents & Desert Rose
                 </button>
               </li>
+              {visibility.deals !== false && (
               <li>
                 <button
                   onClick={() => onNavigate('home', 'section:deals')}
@@ -151,6 +159,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   Today's Daily Deals 🔥
                 </button>
               </li>
+            )}
             </ul>
           </div>
 
@@ -160,6 +169,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               Plant Care & Help
             </h3>
             <ul className="space-y-2.5 text-xs">
+              {visibility.trackOrder !== false && (
               <li>
                 <button
                   onClick={() => onNavigate('track-order')}
@@ -168,6 +178,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   Track Your Order
                 </button>
               </li>
+            )}
+              {visibility.plantCare !== false && (
               <li>
                 <button
                   onClick={() => onNavigate('plant-care')}
@@ -176,6 +188,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   Plant Care Guides
                 </button>
               </li>
+            )}
+              {visibility.plantCare !== false && (
               <li>
                 <button
                   onClick={() => onNavigate('plant-care', 'tool:doctor')}
@@ -185,6 +199,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   <span className="text-[9px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded-md">AI</span>
                 </button>
               </li>
+            )}
+              {visibility.blog !== false && (
               <li>
                 <button
                   onClick={() => onNavigate('blog')}
@@ -193,6 +209,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   Gardening Blog
                 </button>
               </li>
+            )}
               <li>
                 <button
                   onClick={() => onNavigate('about')}

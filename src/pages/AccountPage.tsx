@@ -290,7 +290,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
       if (success) {
         setEmailInput('');
         setPasswordInput('');
-        if (cleanEmail === 'admin@7seasonsplant.com' || cleanEmail === 'admin@7seasonsplants.com') {
+        if (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'abinsajan36@gmail.com') {
           onNavigate('admin');
         }
       }
@@ -1178,8 +1178,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 <h1 className="text-xl sm:text-2xl font-black text-emerald-950">{currentUser.name}</h1>
                 {isAdminAuthenticated &&
                 currentAdmin &&
-                (currentUser.email?.toLowerCase() === 'admin@7seasonsplant.com' ||
-                  currentUser.email?.toLowerCase() === 'admin@7seasonsplants.com') ? (
+                (currentUser.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
+                  currentUser.email?.toLowerCase() === 'abinsajan36@gmail.com') ? (
                   <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-2.5 py-0.5 rounded-full border border-amber-300">
                     🛡️ Nursery Admin Account
                   </span>
@@ -1201,8 +1201,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
           <div className="flex items-center gap-2 flex-wrap">
             {isAdminAuthenticated &&
               currentAdmin &&
-              (currentUser.email?.toLowerCase() === 'admin@7seasonsplant.com' ||
-                currentUser.email?.toLowerCase() === 'admin@7seasonsplants.com') && (
+              (currentUser.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
+                currentUser.email?.toLowerCase() === 'abinsajan36@gmail.com') && (
                 <button
                   onClick={() => onNavigate('admin')}
                   className="px-4 py-2 bg-[#7D8F69] text-white rounded-full text-xs font-bold hover:bg-[#627252] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"

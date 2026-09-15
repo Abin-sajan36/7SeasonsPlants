@@ -156,6 +156,7 @@ interface StoreContextType {
   deleteUserAddress: (addressId: string) => void;
   setDefaultUserAddress: (addressId: string) => void;
   loginAdmin: (email: string, password?: string) => Promise<{ success: boolean; message?: string }>;
+  verifyAdminCredentials: (email: string, password?: string) => Promise<{ success: boolean; message?: string }>;
   logoutAdmin: () => void;
   addAdminAccount: (account: Omit<AdminAccount, 'id' | 'createdAt'>) => void;
   removeAdminAccount: (id: string) => void;
@@ -312,14 +313,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         const parsed: AdminAccount[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Keep only admin@7seasonsplant.com as super_admin, remove any other super admins
+          // Keep only abinsajan36@gmail.com as super_admin, remove any other super admins
           const sanitized = parsed.filter(
             (a) =>
-              (a.email.toLowerCase() === 'admin@7seasonsplant.com' && a.role === 'super_admin') ||
+              (a.email.toLowerCase() === 'abinsajan36@gmail.com' && a.role === 'super_admin') ||
               (a.role !== 'super_admin' && a.email.toLowerCase() !== 'annanvasu36@gmail.com')
           );
-          // Ensure admin@7seasonsplant.com is always present as the primary root super admin
-          if (!sanitized.some((a) => a.email.toLowerCase() === 'admin@7seasonsplant.com')) {
+          // Ensure abinsajan36@gmail.com is always present as the primary root super admin
+          if (!sanitized.some((a) => a.email.toLowerCase() === 'abinsajan36@gmail.com')) {
             sanitized.unshift(initialAdminAccounts[0]);
           }
           return sanitized;
@@ -342,8 +343,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const parsed: AdminAccount = JSON.parse(saved);
         if (
           parsed &&
-          (parsed.email?.toLowerCase() === 'admin@7seasonsplant.com' ||
-            parsed.email?.toLowerCase() === 'admin@7seasonsplants.com')
+          (parsed.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
+            parsed.email?.toLowerCase() === 'abinsajan36@gmail.com')
         ) {
           return parsed;
         }
@@ -362,8 +363,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const parsed: AdminAccount = JSON.parse(saved);
         if (
           parsed &&
-          (parsed.email?.toLowerCase() === 'admin@7seasonsplant.com' ||
-            parsed.email?.toLowerCase() === 'admin@7seasonsplants.com')
+          (parsed.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
+            parsed.email?.toLowerCase() === 'abinsajan36@gmail.com')
         ) {
           return true;
         }
@@ -965,7 +966,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     // Check if this is the dedicated admin account
-    if (cleanEmail === 'admin@7seasonsplant.com' || cleanEmail === 'admin@7seasonsplants.com') {
+    if (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'abinsajan36@gmail.com') {
       const isPasswordValid =
         cleanPass === adminMasterPassword ||
         cleanPass === 'Admin@123' ||
@@ -1284,6 +1285,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  
+  const verifyAdminCredentials = async (email: string, password?: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = (password || '').trim();
+
+    if (!cleanEmail) return { success: false, message: 'Email address is required.' };
+    if (!cleanPass) return { success: false, message: 'Admin password is required.' };
+
+    const isPasswordValid =
+      cleanPass === adminMasterPassword ||
+      cleanPass === 'Admin@123' ||
+      cleanPass === 'admin123' ||
+      cleanPass === 'mannarathayil2026';
+
+    if (!isPasswordValid) return { success: false, message: 'Invalid admin credentials.' };
+
+    let matchingAccount = adminAccounts.find(a => a.email.toLowerCase() === cleanEmail);
+    if (!matchingAccount && (cleanEmail === 'abinsajan36@gmail.com')) {
+      return { success: true }; // Master admin
+    }
+    if (!matchingAccount) return { success: false, message: 'Not an authorized admin account.' };
+
+    return { success: true };
+  };
+
   const loginAdmin = async (
     email: string,
     password?: string
@@ -1333,20 +1359,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // If matching registered user with admin role or owner email
     if (!matchingAccount) {
       if (
-        cleanEmail === 'admin@7seasonsplant.com' ||
-        cleanEmail === 'admin@7seasonsplants.com'
+        cleanEmail === 'abinsajan36@gmail.com' ||
+        cleanEmail === 'abinsajan36@gmail.com'
       ) {
         matchingAccount = {
           id: 'adm-01',
           name: '7Seasons Nursery Admin',
-          email: 'admin@7seasonsplant.com',
+          email: 'abinsajan36@gmail.com',
           role: 'super_admin',
           avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
           phone: '08848276403',
           lastLogin: new Date().toISOString(),
           createdAt: new Date().toISOString(),
         };
-        setAdminAccounts((prev) => [matchingAccount!, ...prev.filter((a) => a.email.toLowerCase() !== 'admin@7seasonsplant.com')]);
+        setAdminAccounts((prev) => [matchingAccount!, ...prev.filter((a) => a.email.toLowerCase() !== 'abinsajan36@gmail.com')]);
       } else {
         addToast({
           type: 'error',
@@ -1399,7 +1425,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addAdminAccount = (newAcc: Omit<AdminAccount, 'id' | 'createdAt'>) => {
-    // Only admin@7seasonsplant.com is permitted to hold super_admin role
+    // Only abinsajan36@gmail.com is permitted to hold super_admin role
     const assignedRole = newAcc.role === 'super_admin' ? 'nursery_manager' : newAcc.role;
 
     const newAdmin: AdminAccount = {
@@ -1418,11 +1444,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const removeAdminAccount = (id: string) => {
     const target = adminAccounts.find((a) => a.id === id);
-    if (target?.email?.toLowerCase() === 'admin@7seasonsplant.com' || target?.role === 'super_admin') {
+    if (target?.email?.toLowerCase() === 'abinsajan36@gmail.com' || target?.role === 'super_admin') {
       addToast({
         type: 'error',
         title: 'Action Prohibited',
-        message: 'Cannot delete the Super Administrator (admin@7seasonsplant.com).',
+        message: 'Cannot delete the Super Administrator (abinsajan36@gmail.com).',
       });
       return;
     }
@@ -1852,6 +1878,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteUserAddress,
         setDefaultUserAddress,
         loginAdmin,
+        verifyAdminCredentials,
         logoutAdmin,
         addAdminAccount,
         removeAdminAccount,

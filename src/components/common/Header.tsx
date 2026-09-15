@@ -533,6 +533,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                         <span>Recent Order Status</span>
                       </button>
                     )}
+                    {storeSettings.menuVisibility?.trackOrder !== false && (
                     <button
                       onClick={() => {
                         setAccountMenuOpen(false);
@@ -543,6 +544,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                       <Truck className="w-4 h-4 text-emerald-700" />
                       <span>Track Order</span>
                     </button>
+                    )}
                     {storeSettings.menuVisibility?.wishlist !== false && (
                     <button
                                           onClick={() => {
@@ -555,6 +557,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                                           <span>Saved Wishlist ({wishlist.length})</span>
                                         </button>
                   )}
+                    {storeSettings.menuVisibility?.plantCare !== false && (
                     <button
                       onClick={() => {
                         setAccountMenuOpen(false);
@@ -565,6 +568,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                       <BookOpen className="w-4 h-4 text-emerald-700" />
                       <span>Plant Care Doctor</span>
                     </button>
+                    )}
                   </div>
 
                   {currentUser && (

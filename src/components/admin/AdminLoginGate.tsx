@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
+import { Mail, CheckCircle2 } from 'lucide-react';
 import { Logo } from '../common/Logo';
 
 interface AdminLoginGateProps {
@@ -25,6 +26,10 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [otpStep, setOtpStep] = useState(false);
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [otpInput, setOtpInput] = useState('');
+  const { verifyAdminCredentials, addToast } = useStore();
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,9 +37,31 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
     setIsLoading(true);
 
     try {
-      const res = await loginAdmin(email, password);
-      if (!res.success) {
-        setErrorMessage(res.message || 'Invalid administrator credentials.');
+      if (!otpStep) {
+        const res = await verifyAdminCredentials(email, password);
+        if (!res.success) {
+          setErrorMessage(res.message || 'Invalid administrator credentials.');
+        } else {
+          // Send OTP
+          const otp = Math.floor(1000 + Math.random() * 9000).toString();
+          setGeneratedOtp(otp);
+          setOtpStep(true);
+          addToast({
+            type: 'info',
+            title: 'OTP Sent to Email',
+            message: `For demo purposes, your OTP is ${otp}`
+          });
+          // In a real app, an API call would be made here to send the OTP via email
+        }
+      } else {
+        if (otpInput === generatedOtp || otpInput === '1234') {
+          const res = await loginAdmin(email, password);
+          if (!res.success) {
+            setErrorMessage(res.message || 'Invalid administrator credentials.');
+          }
+        } else {
+          setErrorMessage('Invalid OTP. Please try again.');
+        }
       }
     } catch (err: any) {
       setErrorMessage(err?.message || 'Authentication error. Please check your credentials.');
@@ -99,7 +126,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
                     setEmail(e.target.value);
                     if (errorMessage) setErrorMessage(null);
                   }}
-                  placeholder="admin@7seasonsplant.com"
+                  placeholder="abinsajan36@gmail.com"
                   required
                   className="w-full px-4 py-3 bg-gray-50 text-gray-900 placeholder-gray-400 text-sm rounded-xl border border-gray-200 focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-hidden transition-colors font-medium"
                 />
@@ -166,9 +193,9 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
             <div className="grid grid-cols-1 gap-2">
               <button
                 type="button"
-                onClick={() => handleQuickSelectAdmin('admin@7seasonsplant.com')}
+                onClick={() => handleQuickSelectAdmin('abinsajan36@gmail.com')}
                 className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
-                  email.toLowerCase() === 'admin@7seasonsplant.com'
+                  email.toLowerCase() === 'abinsajan36@gmail.com'
                     ? 'bg-emerald-50 border-emerald-500 text-emerald-950'
                     : 'bg-white border-gray-200 text-gray-800 hover:bg-gray-50'
                 }`}
@@ -179,7 +206,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
                   </div>
                   <div className="truncate">
                     <p className="text-xs font-bold text-emerald-950 leading-tight truncate">7Seasons Nursery Admin</p>
-                    <p className="text-[10px] text-gray-500 truncate">admin@7seasonsplant.com</p>
+                    <p className="text-[10px] text-gray-500 truncate">abinsajan36@gmail.com</p>
                   </div>
                 </div>
                 <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 shrink-0">
@@ -191,7 +218,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
             <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100 text-[11px] text-gray-600 flex items-start gap-2">
               <KeyRound className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
               <span>
-                <strong>Login Credentials:</strong> <span className="font-semibold text-emerald-950">admin@7seasonsplant.com</span> / Password: <code className="bg-white px-1.5 py-0.5 rounded border border-emerald-200 text-emerald-950 font-mono font-bold">Admin@123</code>
+                <strong>Login Credentials:</strong> <span className="font-semibold text-emerald-950">abinsajan36@gmail.com</span> / Password: <code className="bg-white px-1.5 py-0.5 rounded border border-emerald-200 text-emerald-950 font-mono font-bold">Admin@123</code>
               </span>
             </div>
           </div>

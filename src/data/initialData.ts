@@ -949,7 +949,7 @@ export const initialAdminAccounts: AdminAccount[] = [
   {
     id: 'adm-01',
     name: '7Seasons Nursery Admin',
-    email: 'admin@7seasonsplant.com',
+    email: 'abinsajan36@gmail.com',
     role: 'super_admin',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
     phone: '08848276403',
