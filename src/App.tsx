@@ -32,11 +32,18 @@ import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 
 const AppContent: React.FC = () => {
-  const { currentUser, isAdminAuthenticated } = useStore();
+  const { currentUser, isAdminAuthenticated, logoutAdmin } = useStore();
   const isAuthenticated = !!currentUser || isAdminAuthenticated;
 
   const [currentView, setCurrentView] = useState<string>('home');
   const [viewParam, setViewParam] = useState<string | undefined>(undefined);
+
+  // Logout admin if they navigate away from the admin panel
+  useEffect(() => {
+    if (currentView !== 'admin' && isAdminAuthenticated) {
+      logoutAdmin();
+    }
+  }, [currentView, isAdminAuthenticated, logoutAdmin]);
 
   // Scroll to top on view change
   useEffect(() => {
@@ -49,7 +56,7 @@ const AppContent: React.FC = () => {
   };
 
   const renderCurrentView = () => {
-    const protectedViews = ['checkout', 'order-success', 'track-order', 'wishlist', 'account', 'admin'];
+    const protectedViews = ['checkout', 'order-success', 'track-order', 'wishlist', 'account'];
 
     if (!isAuthenticated && protectedViews.includes(currentView)) {
       return <AccountPage initialParam={viewParam === 'register' ? 'register' : 'login'} onNavigate={handleNavigate} />;

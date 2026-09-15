@@ -355,25 +355,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return null;
   });
 
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
-    const sessionAuth = sessionStorage.getItem(`${STORAGE_KEY}_admin_auth`) === 'true';
-    const saved = sessionStorage.getItem(`${STORAGE_KEY}_current_admin`) || localStorage.getItem(`${STORAGE_KEY}_current_admin`);
-    if (sessionAuth && saved) {
-      try {
-        const parsed: AdminAccount = JSON.parse(saved);
-        if (
-          parsed &&
-          (parsed.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
-            parsed.email?.toLowerCase() === 'abinsajan36@gmail.com')
-        ) {
-          return true;
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return false;
-  });
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
 
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);

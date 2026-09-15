@@ -42,25 +42,49 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
         if (!res.success) {
           setErrorMessage(res.message || 'Invalid administrator credentials.');
         } else {
-          // Send OTP
-          const otp = Math.floor(1000 + Math.random() * 9000).toString();
-          setGeneratedOtp(otp);
-          setOtpStep(true);
-          addToast({
-            type: 'info',
-            title: 'OTP Sent to Email',
-            message: `For demo purposes, your OTP is ${otp}`
-          });
-          // In a real app, an API call would be made here to send the OTP via email
+          // Trigger OTP via email
+          try {
+            const response = await fetch('/api/auth/send-registration-otp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: email, name: 'Admin User' }),
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+              setOtpStep(true);
+              addToast({
+                type: 'info',
+                title: 'OTP Sent to Email',
+                message: `Check your inbox at ${email} for the 6-digit code.`
+              });
+            } else {
+              setErrorMessage(data.error || 'Failed to send OTP.');
+            }
+          } catch (err) {
+            setErrorMessage('Network error while requesting OTP.');
+          }
         }
       } else {
-        if (otpInput === generatedOtp || otpInput === '1234') {
-          const res = await loginAdmin(email, password);
-          if (!res.success) {
-            setErrorMessage(res.message || 'Invalid administrator credentials.');
+        // Verify OTP with backend
+        try {
+          const response = await fetch('/api/auth/verify-registration-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, otp: otpInput }),
+          });
+          const data = await response.json();
+          
+          if (data.success) {
+            const res = await loginAdmin(email, password);
+            if (!res.success) {
+              setErrorMessage(res.message || 'Invalid administrator credentials.');
+            }
+          } else {
+            setErrorMessage(data.error || 'Invalid OTP. Please try again.');
           }
-        } else {
-          setErrorMessage('Invalid OTP. Please try again.');
+        } catch (err) {
+          setErrorMessage('Network error while verifying OTP.');
         }
       }
     } catch (err: any) {
@@ -170,7 +194,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
                   <Mail className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <h4 className="text-sm font-bold text-emerald-950">Verification Code Sent</h4>
-                    <p className="text-xs text-gray-600 mt-1">We've sent a 4-digit code to <strong>{email}</strong>. Please enter it below to verify your identity.</p>
+                    <p className="text-xs text-gray-600 mt-1">We've sent a 6-digit code to <strong>{email}</strong>. Please enter it below to verify your identity.</p>
                   </div>
                 </div>
                 <div>
@@ -182,11 +206,11 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
                     <input
                       type="text"
                       required
-                      maxLength={4}
+                      maxLength={6}
                       value={otpInput}
                       onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
                       className="w-full pl-11 pr-4 py-3 bg-[#F4FAF5] text-emerald-950 font-bold tracking-widest text-lg rounded-xl border border-emerald-900/15 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none transition-all text-center"
-                      placeholder="••••"
+                      placeholder="••••••"
                     />
                   </div>
                 </div>
