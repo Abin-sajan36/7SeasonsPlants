@@ -107,6 +107,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
   const [price, setPrice] = useState<number>(comboToEdit?.price || 599);
   const [originalPrice, setOriginalPrice] = useState<number>(comboToEdit?.originalPrice || 899);
   const [stock, setStock] = useState<number>(comboToEdit?.stock ?? 25);
+  const [weight, setWeight] = useState<number>(comboToEdit?.weight ?? 1);
   const [sku, setSku] = useState(comboToEdit?.sku || `7S-CMB-${Math.floor(1000 + Math.random() * 9000)}`);
   const [status, setStatus] = useState<'published' | 'draft' | 'scheduled'>(
     comboToEdit?.status || 'published'
@@ -354,6 +355,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
       savings: Math.max(0, (Number(originalPrice) || Number(price)) - Number(price)),
       discountPercentage: discountPercent,
       stock: Number(stock),
+      weight: Number(weight) || 1,
       sku: sku.trim() || `7S-CMB-${Math.floor(1000 + Math.random() * 9000)}`,
       images: images.length > 0 ? images : ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80'],
       rating: comboToEdit?.rating || 4.9,
@@ -1012,6 +1014,20 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                     min="0"
                     value={stock}
                     onChange={(e) => setStock(Number(e.target.value))}
+                    className="w-full px-4 py-2.5 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-full border border-[#4A3E31]/15 focus:bg-white outline-hidden font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-[#4A3E31] block mb-1 flex items-center gap-1">
+                    Total Weight (Kg)
+                    <Info size={14} className="text-[#7D8F69]" title="Hidden from customers. Used for calculating delivery fees." />
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={weight}
+                    onChange={(e) => setWeight(Number(e.target.value))}
                     className="w-full px-4 py-2.5 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-full border border-[#4A3E31]/15 focus:bg-white outline-hidden font-semibold"
                   />
                 </div>

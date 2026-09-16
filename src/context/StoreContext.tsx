@@ -463,6 +463,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem(`${STORAGE_KEY}_banners`, JSON.stringify(banners));
   }, [banners]);
 
+  // Fix spelling mistake in banners that were already loaded into localStorage
+  useEffect(() => {
+    setBanners((prev) => 
+      prev.map(b => 
+        b.id === 'banner-hero-1'
+          ? { ...b, badge: 'FRESH FROM MANNARATHARAYIL GARDENS LLP' }
+          : b
+      )
+    );
+  }, []);
+
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_guides`, JSON.stringify(plantCareGuides));
   }, [plantCareGuides]);
@@ -557,8 +568,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const cartDeliveryFee = useMemo(() => {
     if (cartSubtotal === 0) return 0;
     if (cartSubtotal >= storeSettings.freeShippingThreshold) return 0;
-    return storeSettings.deliveryCharge;
-  }, [cartSubtotal, storeSettings]);
+    
+    // Calculate total weight in kg (defaulting to 1kg if weight is not specified)
+    const totalWeight = cart.reduce((total, item) => total + ((item.weight || 1) * item.quantity), 0);
+    
+    // Delivery charge is per kg
+    return storeSettings.deliveryCharge * Math.ceil(totalWeight);
+  }, [cartSubtotal, storeSettings, cart]);
 
   const cartTotal = useMemo(() => {
     return Math.max(0, cartSubtotal - cartDiscount + cartDeliveryFee);
@@ -621,6 +637,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           image: item.images?.[0] || '',
           quantity: Math.min(quantity, item.stock),
           stock: item.stock,
+          weight: item.weight,
           comboItems: type === 'combo' ? (item as PlantCombo).items : undefined,
           selectedPotColor: options?.potColor,
         };
@@ -971,7 +988,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         cleanPass === adminMasterPassword ||
         cleanPass === 'Admin@123' ||
         cleanPass === 'admin123' ||
-        cleanPass === 'mannarathayil2026';
+        cleanPass === 'mannaratharayil2026';
 
       if (!isPasswordValid) {
         addToast({
@@ -1297,7 +1314,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cleanPass === adminMasterPassword ||
       cleanPass === 'Admin@123' ||
       cleanPass === 'admin123' ||
-      cleanPass === 'mannarathayil2026';
+      cleanPass === 'mannaratharayil2026';
 
     if (!isPasswordValid) return { success: false, message: 'Invalid admin credentials.' };
 
@@ -1340,7 +1357,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cleanPass === adminMasterPassword ||
       cleanPass === 'Admin@123' ||
       cleanPass === 'admin123' ||
-      cleanPass === 'mannarathayil2026';
+      cleanPass === 'mannaratharayil2026';
 
     if (!isPasswordValid) {
       addToast({

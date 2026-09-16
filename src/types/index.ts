@@ -46,6 +46,7 @@ export interface Product {
   originalPrice: number;
   discountPercentage: number;
   stock: number;
+  weight?: number;
   sku: string;
   images: string[];
   rating: number;
@@ -86,6 +87,7 @@ export interface PlantCombo {
   savings: number;
   discountPercentage: number;
   stock: number;
+  weight?: number;
   sku: string;
   images: string[];
   rating: number;
@@ -163,6 +165,7 @@ export interface CartItem {
   image: string;
   quantity: number;
   stock: number;
+  weight?: number;
   comboItems?: ComboItem[];
   selectedPotColor?: string;
 }

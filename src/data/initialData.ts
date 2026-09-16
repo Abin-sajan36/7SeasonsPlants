@@ -604,7 +604,7 @@ export const initialBanners: HeroBanner[] = [
     id: 'banner-hero-1',
     title: 'Bring Nature Home with 7Seasons',
     subtitle: 'Beautiful plants and thoughtfully curated combos, delivered to your doorstep across Kerala & Tamil Nadu.',
-    badge: 'FRESH FROM MANNARATHAYIL NURSERY',
+    badge: 'FRESH FROM MANNARATHARAYIL GARDENS LLP',
     ctaText: 'Shop Plants',
     ctaLink: '/plants',
     secondaryCtaText: 'Explore Plant Combos',

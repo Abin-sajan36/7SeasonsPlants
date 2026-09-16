@@ -127,6 +127,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     price: 399,
     originalPrice: 499,
     stock: 25,
+    weight: 1,
     images: ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80'],
     description: '',
     careInstructions: 'Water once every 4-5 days when topsoil feels dry.',
@@ -293,6 +294,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       price: 399,
       originalPrice: 499,
       stock: 25,
+      weight: 1,
       images: ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80'],
       description: '',
       careInstructions: 'Water once every 4-5 days when topsoil feels dry.',
@@ -402,6 +404,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         originalPrice: Number(productForm.originalPrice || productForm.price),
         discountPercentage: discount,
         stock: Number(productForm.stock || 20),
+        weight: Number(productForm.weight || 1),
         sku: `7SP-${Math.floor(1000 + Math.random() * 9000)}`,
         images: productForm.images?.length ? productForm.images : ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80'],
         rating: 4.9,
@@ -2051,6 +2054,34 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     value={productForm.originalPrice}
                     onChange={(e) =>
                       setProductForm({ ...productForm, originalPrice: Number(e.target.value) })
+                    }
+                    className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-full border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-emerald-950 block mb-1">Stock Quantity</label>
+                  <input
+                    type="number"
+                    value={productForm.stock}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, stock: Number(e.target.value) })
+                    }
+                    className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-full border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-emerald-950 block mb-1 flex items-center gap-1">
+                    Total Weight (Kg)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={productForm.weight}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, weight: Number(e.target.value) })
                     }
                     className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-full border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden"
                   />
