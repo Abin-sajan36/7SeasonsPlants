@@ -118,6 +118,7 @@ interface StoreContextType {
     trackingNumber?: string,
     courierPartner?: string
   ) => void;
+  deleteOrder: (orderId: string) => void;
   getOrderById: (id: string) => Order | undefined;
   getOrderByNumber: (orderNumber: string) => Order | undefined;
 
@@ -856,6 +857,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   
+  const deleteOrder = (orderId: string) => {
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+  };
+
   const updateOrderStatus = async (
     orderId: string,
     status: OrderStatus,
@@ -1891,6 +1896,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         createOrder,
         importOrders,
         updateOrderStatus,
+        deleteOrder,
         getOrderById,
         getOrderByNumber,
 
