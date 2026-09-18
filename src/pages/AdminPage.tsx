@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
+import { UserManagementTab } from '../components/admin/UserManagementTab';
 import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus } from '../types';
 import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
 import { ImageUploadPicker } from '../components/admin/ImageUploadPicker';
@@ -77,7 +78,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     importOrders,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'orders' | 'offline-orders' | 'accounts' | 'settings' | 'ai-tools'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'orders' | 'offline-orders' | 'accounts' | 'users' | 'settings' | 'ai-tools'>('analytics');
   
   const onlineOrders = orders.filter(o => o.source !== 'offline');
   const offlineOrdersList = orders.filter(o => o.source === 'offline');
@@ -702,7 +703,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             { id: 'combos', label: `Combo Bundles (${combos.length})`, icon: Layers },
             { id: 'orders', label: `Online Orders (${onlineOrders.length})`, icon: Truck },
             { id: 'offline-orders', label: `Offline Orders (${offlineOrdersList.length})`, icon: Download },
-            { id: 'accounts', label: `Admin Accounts & Security (${adminAccounts.length})`, icon: Users },
+            { id: 'accounts', label: `Admin Accounts & Security (${adminAccounts.length})`, icon: ShieldCheck },
+            { id: 'users', label: 'User Management', icon: Users },
             { id: 'ai-tools', label: 'Gemini AI Assistant', icon: Sparkles },
             { id: 'settings', label: 'Nursery Settings', icon: Settings },
           ].map((tab) => {
@@ -1700,6 +1702,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           </div>
         )}
 
+
+        {/* TAB: USER MANAGEMENT */}
+        {activeTab === 'users' && (
+          <UserManagementTab />
+        )}
 
         {/* TAB 4: ADMIN ACCOUNTS & SECURITY */}
         {activeTab === 'accounts' && (
