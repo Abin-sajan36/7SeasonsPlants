@@ -58,7 +58,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
             } else {
               setErrorMessage(data.error || 'Failed to send OTP.');
             }
-          } catch (err) {
+          } catch (err: any) { console.error("Login error:", err); 
             setErrorMessage('Network error while requesting OTP.');
           }
         }
@@ -79,12 +79,12 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
           } else {
             setErrorMessage(data.error || 'Invalid OTP. Please try again.');
           }
-        } catch (err) {
+        } catch (err: any) { console.error("Login error:", err); 
           setErrorMessage('Network error while verifying OTP.');
         }
       }
-    } catch (err) {
-      setErrorMessage('An unexpected error occurred during login.');
+    } catch (err: any) { console.error("Login error:", err); 
+      setErrorMessage(err?.message || 'An unexpected error occurred during login.');
     } finally {
       setIsLoading(false);
     }
@@ -126,7 +126,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
             </div>
           )}
 
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
+          <form method="POST" action="/api/login" onSubmit={handleLoginSubmit} className="space-y-4">
             {!otpStep ? (
               <>
             {/* Email Address */}
@@ -137,7 +137,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
               </label>
               <div className="relative">
                 <input
-                  type="email"
+                  type="email" name="email" id="email"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
@@ -158,7 +158,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
               </label>
               <div className="relative">
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? 'text' : 'password'} name="password" id="password"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -194,7 +194,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
                     6-Digit OTP
                   </label>
                   <input
-                    type="text"
+                    type="text" name="otp" id="otp"
                     value={otpInput}
                     onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="000000"
