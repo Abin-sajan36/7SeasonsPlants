@@ -19,7 +19,7 @@ interface AdminLoginGateProps {
 }
 
 export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) => {
-  const { adminAccounts, loginAdmin, storeSettings } = useStore();
+  const { adminAccounts, loginAdmin, storeSettings, verifyAdminCredentials, addToast } = useStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
