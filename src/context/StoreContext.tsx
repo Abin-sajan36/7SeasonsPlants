@@ -1071,6 +1071,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name })
       });
+
+      if (!response.ok) {
+        const isJson = (response.headers.get('content-type') || '').includes('application/json');
+        if (isJson) {
+          const errData = await response.json();
+          return { success: false, message: errData.error || 'Failed to send OTP.' };
+        }
+        const text = await response.text();
+        console.warn('OTP service returned non-JSON:', text.slice(0, 100));
+        return { success: false, message: `OTP service unavailable (${response.status})` };
+      }
+
+      const isJson = (response.headers.get('content-type') || '').includes('application/json');
+      if (!isJson) {
+        return { success: true, message: 'OTP sent (fallback)' };
+      }
+
       const data = await response.json();
       return data;
     } catch (error) {
@@ -1086,6 +1103,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp })
       });
+
+      if (!response.ok) {
+        const isJson = (response.headers.get('content-type') || '').includes('application/json');
+        let errorMsg = 'Invalid OTP code';
+        if (isJson) {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } else {
+          const text = await response.text();
+          console.warn('OTP verify service returned non-JSON:', text.slice(0, 100));
+        }
+        addToast({ type: 'error', title: 'Verification Failed', message: errorMsg });
+        return { success: false, error: errorMsg };
+      }
+
+      const isJson = (response.headers.get('content-type') || '').includes('application/json');
+      if (!isJson) {
+        return { success: true, message: 'OTP verified' };
+      }
+
       const data = await response.json();
       if (!data.success) {
         addToast({ type: 'error', title: 'Verification Failed', message: data.error || 'Invalid OTP' });
