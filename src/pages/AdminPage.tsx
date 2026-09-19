@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart3,
   Package,
@@ -37,6 +37,7 @@ import {
   Filter,
   Download,
   Upload,
+  Crown,
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
@@ -81,6 +82,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'orders' | 'offline-orders' | 'accounts' | 'users' | 'settings' | 'ai-tools'>('analytics');
+  
+  // Guard restricted tabs: Non-super administrators cannot access accounts or user management tabs
+  useEffect(() => {
+    if (!isCurrentSuperAdmin && (activeTab === 'accounts' || activeTab === 'users')) {
+      setActiveTab('analytics');
+    }
+  }, [isCurrentSuperAdmin, activeTab]);
   
   const onlineOrders = orders.filter(o => o.source !== 'offline');
   const offlineOrdersList = orders.filter(o => o.source === 'offline');
@@ -700,29 +708,59 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         {/* Navigation Tabs */}
         <div className="flex gap-2 border-b border-emerald-900/10 pb-2 overflow-x-auto">
           {[
-                        { id: 'analytics', label: 'Analytics Dashboard', icon: BarChart3 },
+            { id: 'analytics', label: 'Analytics Dashboard', icon: BarChart3 },
             { id: 'products', label: `Plant Catalog (${products.length})`, icon: Package },
             { id: 'combos', label: `Combo Bundles (${combos.length})`, icon: Layers },
             { id: 'orders', label: `Online Orders (${onlineOrders.length})`, icon: Truck },
             { id: 'offline-orders', label: `Offline Orders (${offlineOrdersList.length})`, icon: Download },
-            { id: 'accounts', label: `Admin Accounts & Security (${adminAccounts.length})`, icon: ShieldCheck },
-            { id: 'users', label: 'User Management', icon: Users },
+            ...(isCurrentSuperAdmin
+              ? [
+                  {
+                    id: 'accounts',
+                    label: `Admin Accounts & Security (${adminAccounts.length})`,
+                    icon: ShieldCheck,
+                    isSuperAdminOnly: true,
+                  },
+                  {
+                    id: 'users',
+                    label: 'User Management',
+                    icon: Users,
+                    isSuperAdminOnly: true,
+                  },
+                ]
+              : []),
             { id: 'ai-tools', label: 'Gemini AI Assistant', icon: Sparkles },
             { id: 'settings', label: 'Nursery Settings', icon: Settings },
           ].map((tab) => {
             const Icon = tab.icon;
+            const isRestricted = (tab as any).isSuperAdminOnly;
             return (
               <button
                 key={tab.id}
+                id={`admin-tab-${tab.id}`}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                   activeTab === tab.id
-                    ? 'bg-emerald-800 text-white shadow-xs'
-                    : 'bg-white text-gray-700 hover:bg-emerald-50 hover:text-emerald-900 border border-gray-200'
+                    ? isRestricted
+                      ? 'bg-gradient-to-r from-emerald-950 via-[#062416] to-emerald-900 text-amber-300 shadow-md ring-2 ring-amber-400/50'
+                      : 'bg-emerald-800 text-white shadow-xs'
+                    : isRestricted
+                      ? 'bg-amber-50/90 text-emerald-950 hover:bg-amber-100 hover:text-emerald-900 border border-amber-300/80 shadow-2xs'
+                      : 'bg-white text-gray-700 hover:bg-emerald-50 hover:text-emerald-900 border border-gray-200'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className={`w-4 h-4 ${isRestricted ? (activeTab === tab.id ? 'text-amber-400' : 'text-amber-700') : ''}`} />
                 <span>{tab.label}</span>
+                {isRestricted && (
+                  <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider ${
+                    activeTab === tab.id
+                      ? 'bg-amber-400 text-amber-950 shadow-2xs'
+                      : 'bg-amber-200/90 text-amber-950 border border-amber-300/80'
+                  }`}>
+                    <Crown className="w-2.5 h-2.5" />
+                    Super Admin
+                  </span>
+                )}
               </button>
             );
           })}
@@ -1705,13 +1743,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         )}
 
 
-        {/* TAB: USER MANAGEMENT */}
-        {activeTab === 'users' && (
+        {/* TAB: USER MANAGEMENT (Restricted to Super Admin) */}
+        {activeTab === 'users' && isCurrentSuperAdmin && (
           <UserManagementTab onNavigateToAccounts={() => setActiveTab('accounts')} />
         )}
 
-        {/* TAB 4: ADMIN ACCOUNTS & SECURITY */}
-        {activeTab === 'accounts' && (
+        {/* TAB 4: ADMIN ACCOUNTS & SECURITY (Restricted to Super Admin) */}
+        {activeTab === 'accounts' && isCurrentSuperAdmin && (
           <div className="space-y-8">
             {/* Active Session & Privilege Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
