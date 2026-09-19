@@ -9,7 +9,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, collection, getDocs } from 'firebase/firestore';
 import {
   Product,
   PlantCombo,
@@ -24,6 +24,7 @@ import {
   Order,
   User,
   AdminAccount,
+  AdminRole,
   CartItem,
   ToastMessage,
   OrderStatus,
@@ -64,6 +65,8 @@ interface StoreContextType {
   currentAdmin: AdminAccount | null;
   adminAccounts: AdminAccount[];
   isAdminAuthenticated: boolean;
+  registeredUsers: User[];
+  isCurrentSuperAdmin: boolean;
   toasts: ToastMessage[];
   quickViewItem: { item: Product | PlantCombo; type: 'product' | 'combo' } | null;
   isCartOpen: boolean;
@@ -162,6 +165,14 @@ interface StoreContextType {
   addAdminAccount: (account: Omit<AdminAccount, 'id' | 'createdAt'>) => void;
   removeAdminAccount: (id: string) => void;
   updateAdminPassword: (oldPass: string, newPass: string) => { success: boolean; message: string };
+  grantAdminRoleToUser: (
+    userIdOrEmail: string,
+    adminRole?: AdminRole
+  ) => Promise<{ success: boolean; message: string }>;
+  revokeAdminRoleFromUser: (
+    userIdOrEmail: string
+  ) => Promise<{ success: boolean; message: string }>;
+  refreshRegisteredUsers: () => Promise<User[]>;
 
   // Reviews
   addReview: (review: Omit<Review, 'id' | 'createdAt' | 'status'> & { status?: Review['status'] }) => void;
@@ -283,14 +294,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_user`);
-    if (saved !== null) {
+    if (saved !== null && saved !== 'null' && saved !== 'undefined') {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.email || parsed.id)) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error('Failed to parse saved user:', e);
+      }
+    }
+    // Check if an admin was saved in storage
+    const savedAdmin = sessionStorage.getItem(`${STORAGE_KEY}_current_admin`) || localStorage.getItem(`${STORAGE_KEY}_current_admin`);
+    if (savedAdmin && savedAdmin !== 'null' && savedAdmin !== 'undefined') {
+      try {
+        const parsedAdmin = JSON.parse(savedAdmin);
+        if (parsedAdmin && parsedAdmin.email) {
+          return {
+            id: parsedAdmin.id || 'usr-admin-7seasons',
+            name: parsedAdmin.name || '7Seasons Nursery Admin',
+            email: parsedAdmin.email,
+            phone: parsedAdmin.phone || '08848276403',
+            role: 'admin',
+            addresses: [],
+            wishlist: [],
+            createdAt: parsedAdmin.createdAt || new Date().toISOString(),
+          };
+        }
       } catch (e) {
         console.error(e);
       }
     }
-    return initialUser;
+    return null;
   });
 
   const [registeredUsers, setRegisteredUsers] = useState<User[]>(() => {
@@ -339,24 +374,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [currentAdmin, setCurrentAdmin] = useState<AdminAccount | null>(() => {
     const saved = sessionStorage.getItem(`${STORAGE_KEY}_current_admin`) || localStorage.getItem(`${STORAGE_KEY}_current_admin`);
-    if (saved) {
+    if (saved && saved !== 'null' && saved !== 'undefined') {
       try {
         const parsed: AdminAccount = JSON.parse(saved);
-        if (
-          parsed &&
-          (parsed.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
-            parsed.email?.toLowerCase() === 'abinsajan36@gmail.com')
-        ) {
+        if (parsed && (parsed.email || parsed.id)) {
           return parsed;
         }
       } catch (e) {
-        console.error(e);
+        console.error('Failed to parse saved admin:', e);
       }
     }
     return null;
   });
 
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    const sessionAuth = sessionStorage.getItem(`${STORAGE_KEY}_admin_auth`);
+    const localAuth = localStorage.getItem(`${STORAGE_KEY}_admin_auth`);
+    if (sessionAuth === 'true' || localAuth === 'true') return true;
+    const saved = sessionStorage.getItem(`${STORAGE_KEY}_current_admin`) || localStorage.getItem(`${STORAGE_KEY}_current_admin`);
+    if (saved && saved !== 'null' && saved !== 'undefined') {
+      try {
+        const parsed = JSON.parse(saved);
+        return !!(parsed && parsed.email);
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
 
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -433,7 +478,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       (error) => {
-        console.error('Failed to listen to global settings:', error);
+        console.warn('Firestore storeSettings sync note:', error.message || error);
       }
     );
 
@@ -497,26 +542,104 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(currentUser));
+    if (currentUser) {
+      localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(currentUser));
+    }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (isAdminAuthenticated) {
+      sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+      localStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+    }
+  }, [isAdminAuthenticated]);
+
+  useEffect(() => {
+    if (currentAdmin) {
+      sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(currentAdmin));
+      localStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(currentAdmin));
+    }
+  }, [currentAdmin]);
+
+  const isCurrentSuperAdmin = useMemo(() => {
+    const isSuperByAdmin = Boolean(
+      currentAdmin &&
+      (currentAdmin.role === 'super_admin' || currentAdmin.email.toLowerCase() === 'abinsajan36@gmail.com')
+    );
+    const isSuperByUser = Boolean(
+      currentUser &&
+      (currentUser.role === 'super_admin' || currentUser.email.toLowerCase() === 'abinsajan36@gmail.com')
+    );
+    return isSuperByAdmin || isSuperByUser;
+  }, [currentAdmin, currentUser]);
+
+  // Sync users from Firestore on initial mount
+  useEffect(() => {
+    const syncFirestoreUsers = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        if (!snap.empty) {
+          const fetched: User[] = [];
+          snap.forEach((d) => {
+            fetched.push({ ...(d.data() as User), id: d.id });
+          });
+          setRegisteredUsers((prev) => {
+            const map = new Map<string, User>();
+            prev.forEach((u) => map.set(u.email.toLowerCase(), u));
+            fetched.forEach((fu) => {
+              const existing = map.get(fu.email.toLowerCase());
+              map.set(fu.email.toLowerCase(), { ...(existing || {}), ...fu });
+            });
+            const merged = Array.from(map.values());
+            localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(merged));
+            return merged;
+          });
+        }
+      } catch (err) {
+        console.warn('Firestore initial users sync skipped:', err);
+      }
+    };
+    syncFirestoreUsers();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Fetch fresh profile from Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data() as User;
-          setCurrentUser({ ...userData, id: firebaseUser.uid });
-          setIsAdminAuthenticated(userData.role === 'admin');
-          if (userData.role === 'admin') setCurrentAdmin(userData as any);
+        try {
+          // Fetch fresh profile from Firestore if available
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as User;
+            const fullUser = { ...userData, id: firebaseUser.uid };
+            setCurrentUser(fullUser);
+            localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(fullUser));
+            if (userData.role === 'admin' || userData.role === 'super_admin' || userData.email.toLowerCase() === 'abinsajan36@gmail.com') {
+              setIsAdminAuthenticated(true);
+              const adm: AdminAccount = {
+                id: `adm-${userData.id || firebaseUser.uid}`,
+                name: userData.name || 'Nursery Admin',
+                email: userData.email,
+                role: userData.role === 'super_admin' || userData.email.toLowerCase() === 'abinsajan36@gmail.com' ? 'super_admin' : 'admin',
+                avatar: userData.profileImage,
+                phone: userData.phone,
+                createdAt: userData.createdAt || new Date().toISOString(),
+                lastLogin: new Date().toISOString(),
+                sourceUserAccountId: firebaseUser.uid,
+              };
+              setCurrentAdmin(adm);
+              sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+              localStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+              sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
+              localStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
+            }
+          }
+        } catch (err) {
+          console.warn('Could not sync profile from Firestore:', err);
         }
-      } else {
-        // User logged out from Firebase or session expired
-        setCurrentUser(null);
-        setIsAdminAuthenticated(false);
-        setCurrentAdmin(null);
       }
+      // Note: Do NOT clear currentUser or admin credentials if firebaseUser is null.
+      // The application supports local, OTP, and admin credentials authentication
+      // which must remain persistent across page reloads without requiring Firebase Auth.
     });
     return () => unsubscribe();
   }, []);
@@ -1032,14 +1155,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         return false;
       }
-      setIsAdminAuthenticated(false);
-      setCurrentAdmin(null);
+      if (matched.role === 'admin' || matched.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com') {
+        setIsAdminAuthenticated(true);
+        const admAcc: AdminAccount = {
+          id: `adm-${matched.id}`,
+          name: matched.name,
+          email: matched.email,
+          role: matched.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' ? 'super_admin' : 'admin',
+          avatar: matched.profileImage,
+          phone: matched.phone,
+          createdAt: matched.createdAt,
+          sourceUserAccountId: matched.id,
+          lastLogin: new Date().toISOString(),
+        };
+        setCurrentAdmin(admAcc);
+        sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+        localStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+        sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(admAcc));
+        localStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(admAcc));
+      } else {
+        setIsAdminAuthenticated(false);
+        setCurrentAdmin(null);
+      }
       setCurrentUser(matched);
       localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(matched));
       addToast({
         type: 'success',
         title: 'Welcome Back! 🌿',
-        message: `Signed in as ${matched.name}`,
+        message: `Signed in as ${matched.name}${matched.role === 'admin' ? ' (Nursery Administrator)' : ''}`,
       });
       return true;
     }
@@ -1212,6 +1355,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentUser(createdOrUpdatedUser);
     localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(createdOrUpdatedUser));
 
+    // Sync user record to Firestore users collection
+    try {
+      await setDoc(doc(db, 'users', createdOrUpdatedUser.id), createdOrUpdatedUser, { merge: true });
+    } catch (fsErr) {
+      console.warn('Could not sync new user to Firestore users collection:', fsErr);
+    }
+
     addToast({
       type: 'success',
       title: 'Account Created 🎉',
@@ -1223,18 +1373,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const logoutCustomer = async () => {
     try {
       await signOut(auth);
-      setCurrentUser(null);
-      setIsAdminAuthenticated(false);
-      setCurrentAdmin(null);
-      localStorage.removeItem(`${STORAGE_KEY}_user`);
-      addToast({
-        type: 'info',
-        title: 'Signed Out',
-        message: 'You have been safely signed out.',
-      });
-    } catch (error: any) {
-      addToast({ type: 'error', title: 'Sign Out Error', message: error.message });
+    } catch (e) {
+      console.warn('Firebase signout skipped:', e);
     }
+    setCurrentUser(null);
+    setIsAdminAuthenticated(false);
+    setCurrentAdmin(null);
+    localStorage.removeItem(`${STORAGE_KEY}_user`);
+    sessionStorage.removeItem(`${STORAGE_KEY}_admin_auth`);
+    localStorage.removeItem(`${STORAGE_KEY}_admin_auth`);
+    sessionStorage.removeItem(`${STORAGE_KEY}_current_admin`);
+    localStorage.removeItem(`${STORAGE_KEY}_current_admin`);
+    addToast({
+      type: 'info',
+      title: 'Signed Out',
+      message: 'You have been safely signed out.',
+    });
   };
 
   const requestPasswordReset = async (identifier: string) => {
@@ -1364,7 +1518,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!matchingAccount && (cleanEmail === 'abinsajan36@gmail.com')) {
       return { success: true }; // Master admin
     }
-    if (!matchingAccount) return { success: false, message: 'Not an authorized admin account.' };
+    if (!matchingAccount) {
+      const regAdmin = registeredUsers.find(
+        (u) => u.email.toLowerCase() === cleanEmail && (u.role === 'admin' || u.role === 'super_admin')
+      );
+      if (regAdmin) {
+        return { success: true };
+      }
+      return { success: false, message: 'Not an authorized admin account.' };
+    }
 
     return { success: true };
   };
@@ -1417,10 +1579,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // If matching registered user with admin role or owner email
     if (!matchingAccount) {
-      if (
-        cleanEmail === 'abinsajan36@gmail.com' ||
-        cleanEmail === 'abinsajan36@gmail.com'
-      ) {
+      if (cleanEmail === 'abinsajan36@gmail.com') {
         matchingAccount = {
           id: 'adm-01',
           name: '7Seasons Nursery Admin',
@@ -1433,15 +1592,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
         setAdminAccounts((prev) => [matchingAccount!, ...prev.filter((a) => a.email.toLowerCase() !== 'abinsajan36@gmail.com')]);
       } else {
-        addToast({
-          type: 'error',
-          title: 'Unauthorized Account',
-          message: `The account ${cleanEmail} does not have administrator privileges.`,
-        });
-        return {
-          success: false,
-          message: `The email "${cleanEmail}" is not registered as an authorized nursery administrator.`,
-        };
+        const regAdmin = registeredUsers.find(
+          (u) => u.email.toLowerCase() === cleanEmail && (u.role === 'admin' || u.role === 'super_admin')
+        );
+        if (regAdmin) {
+          matchingAccount = {
+            id: `adm-${regAdmin.id}`,
+            name: regAdmin.name,
+            email: regAdmin.email,
+            role: regAdmin.role === 'super_admin' ? 'super_admin' : 'admin',
+            avatar: regAdmin.profileImage,
+            phone: regAdmin.phone,
+            createdAt: regAdmin.createdAt,
+            sourceUserAccountId: regAdmin.id,
+            lastLogin: new Date().toISOString(),
+          };
+          setAdminAccounts((prev) => [matchingAccount!, ...prev.filter((a) => a.email.toLowerCase() !== cleanEmail)]);
+        } else {
+          addToast({
+            type: 'error',
+            title: 'Unauthorized Account',
+            message: `The account ${cleanEmail} does not have administrator privileges. Only accounts promoted by the Super Administrator can access this panel.`,
+          });
+          return {
+            success: false,
+            message: `The email "${cleanEmail}" is not registered as an authorized nursery administrator.`,
+          };
+        }
       }
     }
 
@@ -1453,8 +1630,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentAdmin(updatedAccount);
     setIsAdminAuthenticated(true);
     sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+    localStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
     sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(updatedAccount));
     localStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(updatedAccount));
+
+    const adminUser: User = {
+      id: updatedAccount.id || 'usr-admin-7seasons',
+      name: updatedAccount.name || '7Seasons Nursery Admin',
+      email: updatedAccount.email,
+      phone: updatedAccount.phone || '08848276403',
+      role: 'admin',
+      addresses: [],
+      wishlist: [],
+      createdAt: updatedAccount.createdAt || new Date().toISOString(),
+    };
+    setCurrentUser(adminUser);
+    localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(adminUser));
 
     // Update in admin list
     setAdminAccounts((prev) =>
@@ -1474,8 +1665,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentAdmin(null);
     setIsAdminAuthenticated(false);
     sessionStorage.removeItem(`${STORAGE_KEY}_admin_auth`);
+    localStorage.removeItem(`${STORAGE_KEY}_admin_auth`);
     sessionStorage.removeItem(`${STORAGE_KEY}_current_admin`);
     localStorage.removeItem(`${STORAGE_KEY}_current_admin`);
+    if (currentUser?.role === 'admin') {
+      setCurrentUser(null);
+      localStorage.removeItem(`${STORAGE_KEY}_user`);
+    }
     addToast({
       type: 'info',
       title: 'Admin Session Terminated',
@@ -1484,6 +1680,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addAdminAccount = (newAcc: Omit<AdminAccount, 'id' | 'createdAt'>) => {
+    if (!isCurrentSuperAdmin) {
+      addToast({
+        type: 'error',
+        title: 'Permission Denied',
+        message: 'Only the Super Administrator (abinsajan36@gmail.com) can add new administrator accounts.',
+      });
+      return;
+    }
+
     // Only abinsajan36@gmail.com is permitted to hold super_admin role
     const assignedRole = newAcc.role === 'super_admin' ? 'nursery_manager' : newAcc.role;
 
@@ -1494,6 +1699,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createdAt: new Date().toISOString(),
     };
     setAdminAccounts((prev) => [...prev, newAdmin]);
+
+    // Also update role in registeredUsers if they exist
+    setRegisteredUsers((prev) =>
+      prev.map((u) => (u.email.toLowerCase() === newAcc.email.toLowerCase() ? { ...u, role: 'admin' } : u))
+    );
+
     addToast({
       type: 'success',
       title: 'Admin Account Created',
@@ -1502,6 +1713,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const removeAdminAccount = (id: string) => {
+    if (!isCurrentSuperAdmin) {
+      addToast({
+        type: 'error',
+        title: 'Permission Denied',
+        message: 'Only the Super Administrator (abinsajan36@gmail.com) can revoke administrator accounts.',
+      });
+      return;
+    }
+
     const target = adminAccounts.find((a) => a.id === id);
     if (target?.email?.toLowerCase() === 'abinsajan36@gmail.com' || target?.role === 'super_admin') {
       addToast({
@@ -1520,11 +1740,241 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
     setAdminAccounts((prev) => prev.filter((a) => a.id !== id));
+
+    // Also revert registeredUsers role if linked
+    if (target) {
+      setRegisteredUsers((prev) =>
+        prev.map((u) =>
+          u.email.toLowerCase() === target.email.toLowerCase() || u.id === target.sourceUserAccountId
+            ? { ...u, role: 'customer', promotedToAdminAt: undefined, promotedBy: undefined }
+            : u
+        )
+      );
+      if (target.sourceUserAccountId) {
+        updateDoc(doc(db, 'users', target.sourceUserAccountId), { role: 'customer' }).catch(console.warn);
+      }
+    }
+
     addToast({
       type: 'info',
       title: 'Admin Revoked',
       message: 'The administrator account was removed.',
     });
+  };
+
+  const refreshRegisteredUsers = async (): Promise<User[]> => {
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      const fetched: User[] = [];
+      snap.forEach((d) => {
+        fetched.push({ ...(d.data() as User), id: d.id });
+      });
+      if (fetched.length > 0) {
+        setRegisteredUsers((prev) => {
+          const map = new Map<string, User>();
+          prev.forEach((u) => map.set(u.email.toLowerCase(), u));
+          fetched.forEach((fu) => {
+            const existing = map.get(fu.email.toLowerCase());
+            map.set(fu.email.toLowerCase(), { ...(existing || {}), ...fu });
+          });
+          const merged = Array.from(map.values());
+          localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(merged));
+          return merged;
+        });
+        return fetched;
+      }
+      return registeredUsers;
+    } catch (err) {
+      console.warn('Could not refresh users from Firestore:', err);
+      return registeredUsers;
+    }
+  };
+
+  const grantAdminRoleToUser = async (
+    userIdOrEmail: string,
+    adminRole: AdminRole = 'admin'
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!isCurrentSuperAdmin) {
+      addToast({
+        type: 'error',
+        title: 'Authorization Restricted',
+        message: 'Only the Super Administrator (abinsajan36@gmail.com) can grant admin privileges to registered accounts.',
+      });
+      return {
+        success: false,
+        message: 'Only the Super Administrator can grant admin privileges.',
+      };
+    }
+
+    const clean = userIdOrEmail.trim().toLowerCase();
+    const targetUser = registeredUsers.find(
+      (u) => u.id === userIdOrEmail || u.email.toLowerCase() === clean
+    );
+
+    if (!targetUser) {
+      addToast({
+        type: 'error',
+        title: 'Account Not Located',
+        message: 'Could not find the registered account to promote.',
+      });
+      return { success: false, message: 'Account not found.' };
+    }
+
+    if (targetUser.email.toLowerCase() === 'abinsajan36@gmail.com') {
+      return { success: true, message: 'Account is already the primary Super Administrator.' };
+    }
+
+    const assignedAdminRole: AdminRole = adminRole === 'super_admin' ? 'admin' : adminRole;
+    const promotedAt = new Date().toISOString();
+    const promotedBy = currentAdmin?.email || currentUser?.email || 'abinsajan36@gmail.com';
+
+    const updatedUser: User = {
+      ...targetUser,
+      role: 'admin',
+      promotedToAdminAt: promotedAt,
+      promotedBy,
+    };
+
+    // Update registeredUsers
+    setRegisteredUsers((prev) => {
+      const next = prev.map((u) => (u.email.toLowerCase() === clean ? updatedUser : u));
+      localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(next));
+      return next;
+    });
+
+    // Sync to Firestore
+    try {
+      await updateDoc(doc(db, 'users', targetUser.id), {
+        role: 'admin',
+        promotedToAdminAt: promotedAt,
+        promotedBy,
+      });
+    } catch (err) {
+      try {
+        await setDoc(doc(db, 'users', targetUser.id), updatedUser, { merge: true });
+      } catch (e) {
+        console.warn('Could not sync user role update to Firestore:', e);
+      }
+    }
+
+    // Add / update in adminAccounts list
+    const newAdminAcc: AdminAccount = {
+      id: `adm-${targetUser.id}`,
+      name: targetUser.name,
+      email: targetUser.email,
+      role: assignedAdminRole,
+      avatar: targetUser.profileImage,
+      phone: targetUser.phone,
+      createdAt: targetUser.createdAt || promotedAt,
+      sourceUserAccountId: targetUser.id,
+      promotedBy,
+      lastLogin: new Date().toISOString(),
+    };
+
+    setAdminAccounts((prev) => {
+      const filtered = prev.filter((a) => a.email.toLowerCase() !== clean);
+      const next = [...filtered, newAdminAcc];
+      localStorage.setItem(`${STORAGE_KEY}_admin_accounts`, JSON.stringify(next));
+      return next;
+    });
+
+    addToast({
+      type: 'success',
+      title: 'Admin Role Granted 🛡️',
+      message: `${targetUser.name} (${targetUser.email}) is now an authorized Nursery Administrator.`,
+    });
+
+    return {
+      success: true,
+      message: `Admin role successfully granted to ${targetUser.name}.`,
+    };
+  };
+
+  const revokeAdminRoleFromUser = async (
+    userIdOrEmail: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!isCurrentSuperAdmin) {
+      addToast({
+        type: 'error',
+        title: 'Authorization Restricted',
+        message: 'Only the Super Administrator (abinsajan36@gmail.com) can revoke admin privileges.',
+      });
+      return {
+        success: false,
+        message: 'Only the Super Administrator can revoke admin privileges.',
+      };
+    }
+
+    const clean = userIdOrEmail.trim().toLowerCase();
+    if (clean === 'abinsajan36@gmail.com') {
+      addToast({
+        type: 'error',
+        title: 'Action Prohibited',
+        message: 'Cannot revoke privileges from the root Super Administrator.',
+      });
+      return { success: false, message: 'Cannot revoke root Super Administrator.' };
+    }
+
+    const targetUser = registeredUsers.find(
+      (u) => u.id === userIdOrEmail || u.email.toLowerCase() === clean
+    );
+
+    if (!targetUser) {
+      // Check adminAccounts
+      const adm = adminAccounts.find(
+        (a) => a.id === userIdOrEmail || a.email.toLowerCase() === clean
+      );
+      if (adm) {
+        removeAdminAccount(adm.id);
+        return { success: true, message: 'Admin account removed.' };
+      }
+      return { success: false, message: 'Account not found.' };
+    }
+
+    const updatedUser: User = {
+      ...targetUser,
+      role: 'customer',
+      promotedToAdminAt: undefined,
+      promotedBy: undefined,
+    };
+
+    // Update registeredUsers
+    setRegisteredUsers((prev) => {
+      const next = prev.map((u) => (u.email.toLowerCase() === clean ? updatedUser : u));
+      localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(next));
+      return next;
+    });
+
+    // Sync to Firestore
+    try {
+      await updateDoc(doc(db, 'users', targetUser.id), {
+        role: 'customer',
+      });
+    } catch (err) {
+      console.warn('Could not sync role revocation to Firestore:', err);
+    }
+
+    // Remove from adminAccounts
+    setAdminAccounts((prev) => {
+      const next = prev.filter(
+        (a) =>
+          a.email.toLowerCase() !== clean &&
+          a.sourceUserAccountId !== targetUser.id
+      );
+      localStorage.setItem(`${STORAGE_KEY}_admin_accounts`, JSON.stringify(next));
+      return next;
+    });
+
+    addToast({
+      type: 'info',
+      title: 'Admin Access Revoked',
+      message: `${targetUser.name}'s account has been returned to standard customer status.`,
+    });
+
+    return {
+      success: true,
+      message: `Admin privileges revoked for ${targetUser.name}.`,
+    };
   };
 
   const updateAdminPassword = (
@@ -1895,6 +2345,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         currentAdmin,
         adminAccounts,
         isAdminAuthenticated,
+        registeredUsers,
+        isCurrentSuperAdmin,
         toasts,
         quickViewItem,
         isCartOpen,
@@ -1956,6 +2408,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addAdminAccount,
         removeAdminAccount,
         updateAdminPassword,
+        grantAdminRoleToUser,
+        revokeAdminRoleFromUser,
+        refreshRegisteredUsers,
 
         addReview,
         approveReview,

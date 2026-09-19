@@ -16,8 +16,9 @@
         { "name": "createdAt", "type": "timestamp" }
       ],
       "access_patterns": [
-        "Users can read and update their own document",
-        "Admins can read all users"
+        "Users can read and update their own document without modifying role",
+        "Admins can read all users",
+        "Only the Super Admin can grant or revoke the admin role on registered user documents"
       ]
     },
     {

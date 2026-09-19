@@ -36,6 +36,7 @@ import {
   Check,
   Filter,
   Download,
+  Upload,
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
@@ -58,6 +59,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     currentAdmin,
     adminAccounts,
     isAdminAuthenticated,
+    isCurrentSuperAdmin,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -1705,7 +1707,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
         {/* TAB: USER MANAGEMENT */}
         {activeTab === 'users' && (
-          <UserManagementTab />
+          <UserManagementTab onNavigateToAccounts={() => setActiveTab('accounts')} />
         )}
 
         {/* TAB 4: ADMIN ACCOUNTS & SECURITY */}
@@ -1761,13 +1763,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 </span>
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-2xl font-black text-emerald-950">{adminAccounts.length}</span>
-                  <button
-                    onClick={() => setIsAddAdminModalOpen(true)}
-                    className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>Add Admin</span>
-                  </button>
+                  {isCurrentSuperAdmin ? (
+                    <button
+                      onClick={() => setIsAddAdminModalOpen(true)}
+                      className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Add Admin</span>
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-xl border border-gray-200">
+                      🔒 Super Admin Only
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-gray-600">
                   Only verified staff can access the Mannaratharayil Gardens LLP control room.
@@ -1784,13 +1792,28 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     Team members with verified credentials to edit plant stock, create combos, and manage dispatches.
                   </p>
                 </div>
-                <button
-                  onClick={() => setIsAddAdminModalOpen(true)}
-                  className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer shadow-xs shrink-0 self-start sm:self-auto"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Register New Admin</span>
-                </button>
+                {isCurrentSuperAdmin ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setActiveTab('users')}
+                      className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Users className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Promote Registered User</span>
+                    </button>
+                    <button
+                      onClick={() => setIsAddAdminModalOpen(true)}
+                      className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer shadow-xs shrink-0 self-start sm:self-auto"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>Register New Admin</span>
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-amber-900 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 font-bold self-start sm:self-auto">
+                    🔒 Super Admin Authority Required to Modify Roster
+                  </span>
+                )}
               </div>
 
               <div className="overflow-x-auto">
@@ -1872,23 +1895,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
                           <td className="py-3.5 px-4 text-right">
                             {adminAccounts.length > 1 && adm.role !== 'super_admin' && (
-                              <button
-                                onClick={() => {
-                                  setDeleteModal({
-                                    isOpen: true,
-                                    title: 'Revoke Admin Access',
-                                    message: `Are you sure you want to revoke admin access for ${adm.name} (${adm.email})?`,
-                                    onConfirm: () => {
-                                      removeAdminAccount(adm.id);
-                                      setDeleteModal(prev => ({ ...prev, isOpen: false }));
-                                    }
-                                  });
-                                }}
-                                className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                                title="Remove Admin"
-                              >
-                                Revoke
-                              </button>
+                              isCurrentSuperAdmin ? (
+                                <button
+                                  onClick={() => {
+                                    setDeleteModal({
+                                      isOpen: true,
+                                      title: 'Revoke Admin Access',
+                                      message: `Are you sure you want to revoke admin access for ${adm.name} (${adm.email})?`,
+                                      onConfirm: () => {
+                                        removeAdminAccount(adm.id);
+                                        setDeleteModal(prev => ({ ...prev, isOpen: false }));
+                                      }
+                                    });
+                                  }}
+                                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                                  title="Remove Admin"
+                                >
+                                  Revoke
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 font-medium">Protected</span>
+                              )
                             )}
                           </td>
                         </tr>

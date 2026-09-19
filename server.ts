@@ -709,7 +709,10 @@ app.post("/api/gemini/chat", handleChat);
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -721,8 +724,22 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`7Seasonsplants server running at http://0.0.0.0:${PORT}`);
+  });
+
+  server.on("error", (err: any) => {
+    if (err.code === "EADDRINUSE") {
+      console.warn(`Port ${PORT} in use, retrying in 1.5s...`);
+      setTimeout(() => {
+        try {
+          server.close();
+        } catch (_) {}
+        server.listen(PORT, "0.0.0.0");
+      }, 1500);
+    } else {
+      console.error("Server error:", err);
+    }
   });
 }
 

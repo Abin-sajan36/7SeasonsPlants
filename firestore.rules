@@ -5,16 +5,38 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null;
     }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'abinsajan36@gmail.com' ||
+        request.auth.token.email == 'annanvasu36@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'abinsajan36@gmail.com' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'annanvasu36@gmail.com'
+        ))
+      );
+    }
     
     function isAdmin() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin'
+        ))
+      );
     }
 
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isAdmin();
+      allow create: if isAuthenticated() && request.auth.uid == userId && (request.resource.data.role == 'customer' || isSuperAdmin());
+      // Only Super Admin can modify the 'role' field. Regular users and staff cannot elevate roles.
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ((request.auth.uid == userId || isAdmin()) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])))
+      );
+      allow delete: if isSuperAdmin();
     }
 
     match /products/{productId} {

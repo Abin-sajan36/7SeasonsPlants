@@ -246,15 +246,20 @@ export interface Order {
   createdAt: string;
 }
 
+export type AdminRole = 'super_admin' | 'admin' | 'nursery_manager' | 'inventory_staff';
+export type UserRole = 'customer' | 'admin' | 'super_admin';
+
 export interface AdminAccount {
   id: string;
   name: string;
   email: string;
-  role: 'super_admin' | 'nursery_manager' | 'inventory_staff';
+  role: AdminRole;
   avatar?: string;
   phone?: string;
   lastLogin?: string;
   createdAt: string;
+  sourceUserAccountId?: string;
+  promotedBy?: string;
 }
 
 export interface User {
@@ -264,11 +269,13 @@ export interface User {
   password?: string;
   phone?: string;
   profileImage?: string;
-  role: 'customer' | 'admin';
+  role: UserRole;
   emailVerified?: boolean;
   addresses: CustomerAddress[];
   wishlist: string[]; // item IDs
   createdAt: string;
+  promotedToAdminAt?: string;
+  promotedBy?: string;
 }
 
 export interface Review {

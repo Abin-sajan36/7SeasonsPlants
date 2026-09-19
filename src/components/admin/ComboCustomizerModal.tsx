@@ -1018,9 +1018,11 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-[#4A3E31] block mb-1 flex items-center gap-1">
+                  <label className="font-bold text-[#4A3E31] mb-1 flex items-center gap-1">
                     Total Weight (Kg)
-                    <Info size={14} className="text-[#7D8F69]" title="Hidden from customers. Used for calculating delivery fees." />
+                    <span title="Hidden from customers. Used for calculating delivery fees.">
+                      <Info size={14} className="text-[#7D8F69]" />
+                    </span>
                   </label>
                   <input
                     type="number"

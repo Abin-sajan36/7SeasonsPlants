@@ -31,19 +31,60 @@ import { AdminPage } from './pages/AdminPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 
+const getInitialRoute = (): { view: string; param?: string } => {
+  if (typeof window !== 'undefined') {
+    const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+    if (rawHash) {
+      const [hashView, hashParam] = rawHash.split('?');
+      if (hashView) {
+        return { view: hashView, param: hashParam ? decodeURIComponent(hashParam) : undefined };
+      }
+    }
+    const savedView = sessionStorage.getItem('7seasons_current_view') || localStorage.getItem('7seasons_current_view');
+    const savedParam = sessionStorage.getItem('7seasons_view_param') || localStorage.getItem('7seasons_view_param');
+    if (savedView) {
+      return { view: savedView, param: savedParam || undefined };
+    }
+  }
+  return { view: 'home', param: undefined };
+};
+
 const AppContent: React.FC = () => {
-  const { currentUser, isAdminAuthenticated, logoutAdmin } = useStore();
+  const { currentUser, isAdminAuthenticated } = useStore();
   const isAuthenticated = !!currentUser || isAdminAuthenticated;
 
-  const [currentView, setCurrentView] = useState<string>('home');
-  const [viewParam, setViewParam] = useState<string | undefined>(undefined);
+  const initialRoute = getInitialRoute();
+  const [currentView, setCurrentView] = useState<string>(initialRoute.view);
+  const [viewParam, setViewParam] = useState<string | undefined>(initialRoute.param);
 
-  // Logout admin if they navigate away from the admin panel
+  // Sync route on hashchange (browser back/forward or direct hash links)
   useEffect(() => {
-    if (currentView !== 'admin' && isAdminAuthenticated) {
-      logoutAdmin();
-    }
-  }, [currentView, isAdminAuthenticated, logoutAdmin]);
+    const handleHashChange = () => {
+      const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+      if (rawHash) {
+        const [hashView, hashParam] = rawHash.split('?');
+        if (hashView) {
+          setCurrentView(hashView);
+          setViewParam(hashParam ? decodeURIComponent(hashParam) : undefined);
+          try {
+            sessionStorage.setItem('7seasons_current_view', hashView);
+            localStorage.setItem('7seasons_current_view', hashView);
+            if (hashParam) {
+              sessionStorage.setItem('7seasons_view_param', decodeURIComponent(hashParam));
+              localStorage.setItem('7seasons_view_param', decodeURIComponent(hashParam));
+            } else {
+              sessionStorage.removeItem('7seasons_view_param');
+              localStorage.removeItem('7seasons_view_param');
+            }
+          } catch {
+            // storage error safeguard
+          }
+        }
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Scroll to top on view change
   useEffect(() => {
@@ -53,6 +94,21 @@ const AppContent: React.FC = () => {
   const handleNavigate = (view: string, param?: string) => {
     setCurrentView(view);
     setViewParam(param);
+    try {
+      sessionStorage.setItem('7seasons_current_view', view);
+      localStorage.setItem('7seasons_current_view', view);
+      if (param) {
+        sessionStorage.setItem('7seasons_view_param', param);
+        localStorage.setItem('7seasons_view_param', param);
+        window.location.hash = `${view}?${encodeURIComponent(param)}`;
+      } else {
+        sessionStorage.removeItem('7seasons_view_param');
+        localStorage.removeItem('7seasons_view_param');
+        window.location.hash = view;
+      }
+    } catch {
+      // storage or url error safeguard
+    }
   };
 
   const renderCurrentView = () => {

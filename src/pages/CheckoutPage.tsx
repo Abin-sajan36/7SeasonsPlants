@@ -231,12 +231,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     }
   };
 
-  const handleStateChange = (newState: 'Kerala' | 'Tamil Nadu') => {
+  const handleStateChange = (newState: string) => {
+    const validState: 'Kerala' | 'Tamil Nadu' = newState === 'Tamil Nadu' ? 'Tamil Nadu' : 'Kerala';
     setFormData((prev) => ({
       ...prev,
-      state: newState,
-      city: newState === 'Kerala' ? 'Ernakulam' : 'Chennai',
-      district: newState === 'Kerala' ? 'Ernakulam' : 'Chennai',
+      state: validState,
+      city: validState === 'Kerala' ? 'Ernakulam' : 'Chennai',
+      district: validState === 'Kerala' ? 'Ernakulam' : 'Chennai',
     }));
   };
 
