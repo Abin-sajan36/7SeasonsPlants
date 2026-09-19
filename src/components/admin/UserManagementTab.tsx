@@ -63,6 +63,11 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
     isSubmitting: false,
   });
 
+  // Automatically sync users on component mount
+  useEffect(() => {
+    refreshRegisteredUsers();
+  }, []);
+
   // Sync users on component mount
   const handleRefresh = async () => {
     setLoading(true);
@@ -87,12 +92,16 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
   // Filter and search logic
   const filteredUsers = useMemo(() => {
     return registeredUsers.filter((u) => {
+      const isSuper =
+        u.email.toLowerCase() === 'abinsajan36@gmail.com' ||
+        u.email.toLowerCase() === 'annanvasu36@gmail.com' ||
+        u.role === 'super_admin';
+      const isAdmin = isSuper || u.role === 'admin';
+
       // Role filter
       if (roleFilter === 'admin') {
-        const isAdmin = u.role === 'admin' || u.role === 'super_admin' || u.email.toLowerCase() === 'abinsajan36@gmail.com';
         if (!isAdmin) return false;
       } else if (roleFilter === 'customer') {
-        const isAdmin = u.role === 'admin' || u.role === 'super_admin' || u.email.toLowerCase() === 'abinsajan36@gmail.com';
         if (isAdmin) return false;
       }
 
@@ -111,7 +120,12 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
     let admins = 0;
     let customers = 0;
     registeredUsers.forEach((u) => {
-      if (u.role === 'admin' || u.role === 'super_admin' || u.email.toLowerCase() === 'abinsajan36@gmail.com') {
+      if (
+        u.role === 'admin' ||
+        u.role === 'super_admin' ||
+        u.email.toLowerCase() === 'abinsajan36@gmail.com' ||
+        u.email.toLowerCase() === 'annanvasu36@gmail.com'
+      ) {
         admins++;
       } else {
         customers++;
@@ -200,7 +214,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
               <span>Super Administrator Privilege Required</span>
             </h4>
             <p className="text-amber-800 leading-relaxed">
-              Only the root Super Administrator (<strong className="font-mono">abinsajan36@gmail.com</strong>) has security authorization to promote registered user accounts to administrator roles or revoke administrative privileges.
+              Only authorized Super Administrators (<strong className="font-mono">annanvasu36@gmail.com</strong> / <strong className="font-mono">abinsajan36@gmail.com</strong>) have security authorization to promote registered user accounts to administrator roles or revoke administrative privileges.
             </p>
             <p className="text-[11px] text-amber-700 font-medium">
               You are currently logged in as {currentAdmin?.name || 'Nursery Staff'} ({currentAdmin?.role?.replace('_', ' ').toUpperCase() || 'ADMIN'}). You can view registered users, but role modification controls are locked.
@@ -343,6 +357,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                 {filteredUsers.map((user) => {
                   const isRootSuper =
                     user.email.toLowerCase() === 'abinsajan36@gmail.com' ||
+                    user.email.toLowerCase() === 'annanvasu36@gmail.com' ||
                     user.role === 'super_admin';
                   const isAdmin =
                     isRootSuper || user.role === 'admin';
@@ -493,7 +508,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                             </button>
                           )
                         ) : (
-                          <div className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-xl border border-gray-200" title="Only the Super Administrator (abinsajan36@gmail.com) can modify roles">
+                          <div className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-xl border border-gray-200" title="Only authorized Super Administrators (annanvasu36@gmail.com / abinsajan36@gmail.com) can modify roles">
                             <Lock className="w-3 h-3 text-gray-400" />
                             <span>Super Admin Only</span>
                           </div>

@@ -349,15 +349,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         const parsed: AdminAccount[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Keep only abinsajan36@gmail.com as super_admin, remove any other super admins
           const sanitized = parsed.filter(
             (a) =>
-              (a.email.toLowerCase() === 'abinsajan36@gmail.com' && a.role === 'super_admin') ||
-              (a.role !== 'super_admin' && a.email.toLowerCase() !== 'annanvasu36@gmail.com')
+              ((a.email.toLowerCase() === 'abinsajan36@gmail.com' || a.email.toLowerCase() === 'annanvasu36@gmail.com') && a.role === 'super_admin') ||
+              (a.role !== 'super_admin')
           );
-          // Ensure abinsajan36@gmail.com is always present as the primary root super admin
           if (!sanitized.some((a) => a.email.toLowerCase() === 'abinsajan36@gmail.com')) {
             sanitized.unshift(initialAdminAccounts[0]);
+          }
+          if (!sanitized.some((a) => a.email.toLowerCase() === 'annanvasu36@gmail.com')) {
+            sanitized.push(initialAdminAccounts[1]);
           }
           return sanitized;
         }
@@ -564,42 +565,52 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const isCurrentSuperAdmin = useMemo(() => {
     const isSuperByAdmin = Boolean(
       currentAdmin &&
-      (currentAdmin.role === 'super_admin' || currentAdmin.email.toLowerCase() === 'abinsajan36@gmail.com')
+      (currentAdmin.role === 'super_admin' ||
+        currentAdmin.email.toLowerCase() === 'abinsajan36@gmail.com' ||
+        currentAdmin.email.toLowerCase() === 'annanvasu36@gmail.com')
     );
     const isSuperByUser = Boolean(
       currentUser &&
-      (currentUser.role === 'super_admin' || currentUser.email.toLowerCase() === 'abinsajan36@gmail.com')
+      (currentUser.role === 'super_admin' ||
+        currentUser.email.toLowerCase() === 'abinsajan36@gmail.com' ||
+        currentUser.email.toLowerCase() === 'annanvasu36@gmail.com')
     );
     return isSuperByAdmin || isSuperByUser;
   }, [currentAdmin, currentUser]);
 
-  // Sync users from Firestore on initial mount
+  // Realtime synchronization of all users from Firestore
   useEffect(() => {
-    const syncFirestoreUsers = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'users'));
-        if (!snap.empty) {
+    const unsubscribe = onSnapshot(
+      collection(db, 'users'),
+      (snapshot) => {
+        if (!snapshot.empty) {
           const fetched: User[] = [];
-          snap.forEach((d) => {
-            fetched.push({ ...(d.data() as User), id: d.id });
+          snapshot.forEach((d) => {
+            const data = d.data() as User;
+            fetched.push({ ...data, id: d.id });
           });
           setRegisteredUsers((prev) => {
             const map = new Map<string, User>();
-            prev.forEach((u) => map.set(u.email.toLowerCase(), u));
+            prev.forEach((u) => {
+              if (u && u.email) map.set(u.email.toLowerCase(), u);
+            });
             fetched.forEach((fu) => {
-              const existing = map.get(fu.email.toLowerCase());
-              map.set(fu.email.toLowerCase(), { ...(existing || {}), ...fu });
+              if (fu && fu.email) {
+                const existing = map.get(fu.email.toLowerCase());
+                map.set(fu.email.toLowerCase(), { ...(existing || {}), ...fu });
+              }
             });
             const merged = Array.from(map.values());
             localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(merged));
             return merged;
           });
         }
-      } catch (err) {
-        console.warn('Firestore initial users sync skipped:', err);
+      },
+      (err) => {
+        console.warn('Firestore users realtime sync notice:', err.message || err);
       }
-    };
-    syncFirestoreUsers();
+    );
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -608,30 +619,68 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
           // Fetch fresh profile from Firestore if available
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          let fullUser: User;
+
           if (userDoc.exists()) {
             const userData = userDoc.data() as User;
-            const fullUser = { ...userData, id: firebaseUser.uid };
-            setCurrentUser(fullUser);
-            localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(fullUser));
-            if (userData.role === 'admin' || userData.role === 'super_admin' || userData.email.toLowerCase() === 'abinsajan36@gmail.com') {
-              setIsAdminAuthenticated(true);
-              const adm: AdminAccount = {
-                id: `adm-${userData.id || firebaseUser.uid}`,
-                name: userData.name || 'Nursery Admin',
-                email: userData.email,
-                role: userData.role === 'super_admin' || userData.email.toLowerCase() === 'abinsajan36@gmail.com' ? 'super_admin' : 'admin',
-                avatar: userData.profileImage,
-                phone: userData.phone,
-                createdAt: userData.createdAt || new Date().toISOString(),
-                lastLogin: new Date().toISOString(),
-                sourceUserAccountId: firebaseUser.uid,
-              };
-              setCurrentAdmin(adm);
-              sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
-              localStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
-              sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
-              localStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
-            }
+            fullUser = { ...userData, id: firebaseUser.uid };
+          } else {
+            fullUser = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || 'Plant Lover',
+              email: firebaseUser.email || '',
+              phone: firebaseUser.phoneNumber || '',
+              role:
+                firebaseUser.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
+                firebaseUser.email?.toLowerCase() === 'annanvasu36@gmail.com'
+                  ? 'super_admin'
+                  : 'customer',
+              addresses: [],
+              wishlist: [],
+              createdAt: new Date().toISOString(),
+            };
+            setDoc(doc(db, 'users', firebaseUser.uid), fullUser, { merge: true }).catch(console.warn);
+          }
+
+          setCurrentUser(fullUser);
+          localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(fullUser));
+
+          // Ensure user is in the registered users roster
+          setRegisteredUsers((prev) => {
+            const map = new Map<string, User>();
+            prev.forEach((u) => {
+              if (u?.email) map.set(u.email.toLowerCase(), u);
+            });
+            map.set(fullUser.email.toLowerCase(), { ...(map.get(fullUser.email.toLowerCase()) || {}), ...fullUser });
+            const merged = Array.from(map.values());
+            localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(merged));
+            return merged;
+          });
+
+          const isSuper =
+            fullUser.role === 'super_admin' ||
+            fullUser.email.toLowerCase() === 'abinsajan36@gmail.com' ||
+            fullUser.email.toLowerCase() === 'annanvasu36@gmail.com';
+          const isAdminRole = fullUser.role === 'admin' || isSuper;
+
+          if (isAdminRole) {
+            setIsAdminAuthenticated(true);
+            const adm: AdminAccount = {
+              id: `adm-${fullUser.id || firebaseUser.uid}`,
+              name: fullUser.name || 'Nursery Admin',
+              email: fullUser.email,
+              role: isSuper ? 'super_admin' : 'admin',
+              avatar: fullUser.profileImage,
+              phone: fullUser.phone,
+              createdAt: fullUser.createdAt || new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+              sourceUserAccountId: firebaseUser.uid,
+            };
+            setCurrentAdmin(adm);
+            sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+            localStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+            sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
+            localStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
           }
         } catch (err) {
           console.warn('Could not sync profile from Firestore:', err);
@@ -970,6 +1019,30 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setOrders((prev) => [newOrder, ...prev]);
     clearCart();
 
+    // Ensure customer profile is recorded in registered users if not present
+    if (orderPayload.customer?.email) {
+      const custEmail = orderPayload.customer.email.toLowerCase().trim();
+      const existingUser = registeredUsers.find((u) => u.email.toLowerCase() === custEmail);
+      if (!existingUser) {
+        const newCustUser: User = {
+          id: `usr-ord-${Date.now()}`,
+          name: orderPayload.customer.name || 'Customer',
+          email: custEmail,
+          phone: orderPayload.customer.phone || '',
+          role: 'customer',
+          addresses: orderPayload.customer.shippingAddress ? [orderPayload.customer.shippingAddress] : [],
+          wishlist: [],
+          createdAt: timestamp,
+        };
+        setRegisteredUsers((prev) => {
+          const next = [...prev, newCustUser];
+          localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(next));
+          return next;
+        });
+        setDoc(doc(db, 'users', newCustUser.id), newCustUser, { merge: true }).catch(console.warn);
+      }
+    }
+
     addToast({
       type: 'success',
       title: 'Order Placed Successfully! 🌸',
@@ -1065,9 +1138,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       let userData: User;
-      
+      const isSuper =
+        user.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
+        user.email?.toLowerCase() === 'annanvasu36@gmail.com';
+
       if (userDoc.exists()) {
         userData = userDoc.data() as User;
+        if (isSuper && userData.role !== 'super_admin') {
+          userData.role = 'super_admin';
+          setDoc(doc(db, 'users', user.uid), { role: 'super_admin' }, { merge: true }).catch(console.warn);
+        }
       } else {
         // Register new user
         userData = {
@@ -1075,19 +1155,53 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           name: user.displayName || 'Plant Lover',
           email: user.email || '',
           phone: user.phoneNumber || '',
-          role: 'customer',
+          role: isSuper ? 'super_admin' : 'customer',
           addresses: [],
           wishlist: [],
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         };
-        await setDoc(doc(db, 'users', user.uid), userData);
+        await setDoc(doc(db, 'users', user.uid), userData, { merge: true });
       }
-      
-      setIsAdminAuthenticated(userData.role === 'admin');
-      setCurrentAdmin(userData.role === 'admin' ? (userData as any) : null);
-      
-      setCurrentUser({ ...userData, id: user.uid });
-      localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify({ ...userData, id: user.uid }));
+
+      const fullUser = { ...userData, id: user.uid };
+      const isAdmin = userData.role === 'admin' || isSuper;
+
+      setIsAdminAuthenticated(isAdmin);
+      if (isAdmin) {
+        const adm: AdminAccount = {
+          id: `adm-${user.uid}`,
+          name: userData.name,
+          email: userData.email,
+          role: isSuper ? 'super_admin' : 'admin',
+          avatar: userData.profileImage,
+          phone: userData.phone,
+          createdAt: userData.createdAt,
+          lastLogin: new Date().toISOString(),
+          sourceUserAccountId: user.uid,
+        };
+        setCurrentAdmin(adm);
+        sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+        localStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+        sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
+        localStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
+      } else {
+        setCurrentAdmin(null);
+      }
+
+      setCurrentUser(fullUser);
+      localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(fullUser));
+
+      // Add to registered users list
+      setRegisteredUsers((prev) => {
+        const map = new Map<string, User>();
+        prev.forEach((u) => {
+          if (u?.email) map.set(u.email.toLowerCase(), u);
+        });
+        map.set(fullUser.email.toLowerCase(), { ...(map.get(fullUser.email.toLowerCase()) || {}), ...fullUser });
+        const merged = Array.from(map.values());
+        localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(merged));
+        return merged;
+      });
       
       addToast({
         type: 'success',
@@ -1155,13 +1269,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         return false;
       }
-      if (matched.role === 'admin' || matched.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com') {
+      if (matched.role === 'admin' || matched.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com') {
         setIsAdminAuthenticated(true);
+        const isSuper = matched.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com';
         const admAcc: AdminAccount = {
           id: `adm-${matched.id}`,
           name: matched.name,
           email: matched.email,
-          role: matched.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' ? 'super_admin' : 'admin',
+          role: isSuper ? 'super_admin' : 'admin',
           avatar: matched.profileImage,
           phone: matched.phone,
           createdAt: matched.createdAt,
@@ -1193,10 +1308,47 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data() as User;
-        setIsAdminAuthenticated(userData.role === 'admin');
-        setCurrentAdmin(userData.role === 'admin' ? (userData as any) : null);
-        setCurrentUser({ ...userData, id: userCredential.user.uid });
-        localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify({ ...userData, id: userCredential.user.uid }));
+        const fullUser = { ...userData, id: userCredential.user.uid };
+        const isSuper = fullUser.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com';
+        const isAdmin = fullUser.role === 'admin' || isSuper;
+
+        setIsAdminAuthenticated(isAdmin);
+        if (isAdmin) {
+          const admAcc: AdminAccount = {
+            id: `adm-${fullUser.id}`,
+            name: fullUser.name,
+            email: fullUser.email,
+            role: isSuper ? 'super_admin' : 'admin',
+            avatar: fullUser.profileImage,
+            phone: fullUser.phone,
+            createdAt: fullUser.createdAt,
+            sourceUserAccountId: fullUser.id,
+            lastLogin: new Date().toISOString(),
+          };
+          setCurrentAdmin(admAcc);
+          sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+          localStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+          sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(admAcc));
+          localStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(admAcc));
+        } else {
+          setCurrentAdmin(null);
+        }
+
+        setCurrentUser(fullUser);
+        localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(fullUser));
+
+        // Add to registered users list
+        setRegisteredUsers((prev) => {
+          const map = new Map<string, User>();
+          prev.forEach((u) => {
+            if (u?.email) map.set(u.email.toLowerCase(), u);
+          });
+          map.set(fullUser.email.toLowerCase(), { ...(map.get(fullUser.email.toLowerCase()) || {}), ...fullUser });
+          const merged = Array.from(map.values());
+          localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(merged));
+          return merged;
+        });
+
         addToast({ type: 'success', title: 'Welcome Back! 🌿', message: `Signed in as ${userData.name}` });
         return true;
       }
@@ -1332,6 +1484,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setRegisteredUsers((prev) => {
         const next = [...prev];
         next[existingIndex] = createdOrUpdatedUser;
+        localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(next));
         return next;
       });
     } else {
@@ -1347,7 +1500,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         wishlist: [],
         createdAt: new Date().toISOString(),
       };
-      setRegisteredUsers((prev) => [...prev, createdOrUpdatedUser]);
+      setRegisteredUsers((prev) => {
+        const next = [...prev, createdOrUpdatedUser];
+        localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(next));
+        return next;
+      });
     }
 
     setIsAdminAuthenticated(false);
@@ -1515,7 +1672,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!isPasswordValid) return { success: false, message: 'Invalid admin credentials.' };
 
     let matchingAccount = adminAccounts.find(a => a.email.toLowerCase() === cleanEmail);
-    if (!matchingAccount && (cleanEmail === 'abinsajan36@gmail.com')) {
+    if (!matchingAccount && (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com')) {
       return { success: true }; // Master admin
     }
     if (!matchingAccount) {
@@ -1579,18 +1736,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // If matching registered user with admin role or owner email
     if (!matchingAccount) {
-      if (cleanEmail === 'abinsajan36@gmail.com') {
+      if (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com') {
         matchingAccount = {
-          id: 'adm-01',
-          name: '7Seasons Nursery Admin',
-          email: 'abinsajan36@gmail.com',
+          id: cleanEmail === 'annanvasu36@gmail.com' ? 'adm-02' : 'adm-01',
+          name: cleanEmail === 'annanvasu36@gmail.com' ? 'Super Administrator' : '7Seasons Nursery Admin',
+          email: cleanEmail,
           role: 'super_admin',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+          avatar: cleanEmail === 'annanvasu36@gmail.com' ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80' : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
           phone: '08848276403',
           lastLogin: new Date().toISOString(),
           createdAt: new Date().toISOString(),
         };
-        setAdminAccounts((prev) => [matchingAccount!, ...prev.filter((a) => a.email.toLowerCase() !== 'abinsajan36@gmail.com')]);
+        setAdminAccounts((prev) => [matchingAccount!, ...prev.filter((a) => a.email.toLowerCase() !== cleanEmail)]);
       } else {
         const regAdmin = registeredUsers.find(
           (u) => u.email.toLowerCase() === cleanEmail && (u.role === 'admin' || u.role === 'super_admin')
@@ -1769,21 +1926,45 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       snap.forEach((d) => {
         fetched.push({ ...(d.data() as User), id: d.id });
       });
-      if (fetched.length > 0) {
-        setRegisteredUsers((prev) => {
-          const map = new Map<string, User>();
-          prev.forEach((u) => map.set(u.email.toLowerCase(), u));
-          fetched.forEach((fu) => {
+
+      // Also gather customers from orders who may have placed orders before
+      const orderCustomers: User[] = [];
+      orders.forEach((ord) => {
+        if (ord.customer && ord.customer.email) {
+          orderCustomers.push({
+            id: `usr-ord-${ord.customer.email.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+            name: ord.customer.name || 'Customer',
+            email: ord.customer.email,
+            phone: ord.customer.phone || '',
+            role: 'customer',
+            addresses: ord.customer.shippingAddress ? [ord.customer.shippingAddress] : [],
+            wishlist: [],
+            createdAt: ord.createdAt,
+          });
+        }
+      });
+
+      setRegisteredUsers((prev) => {
+        const map = new Map<string, User>();
+        prev.forEach((u) => {
+          if (u?.email) map.set(u.email.toLowerCase(), u);
+        });
+        orderCustomers.forEach((cu) => {
+          if (!map.has(cu.email.toLowerCase())) {
+            map.set(cu.email.toLowerCase(), cu);
+          }
+        });
+        fetched.forEach((fu) => {
+          if (fu?.email) {
             const existing = map.get(fu.email.toLowerCase());
             map.set(fu.email.toLowerCase(), { ...(existing || {}), ...fu });
-          });
-          const merged = Array.from(map.values());
-          localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(merged));
-          return merged;
+          }
         });
-        return fetched;
-      }
-      return registeredUsers;
+        const merged = Array.from(map.values());
+        localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(merged));
+        return merged;
+      });
+      return fetched;
     } catch (err) {
       console.warn('Could not refresh users from Firestore:', err);
       return registeredUsers;
@@ -1798,11 +1979,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToast({
         type: 'error',
         title: 'Authorization Restricted',
-        message: 'Only the Super Administrator (abinsajan36@gmail.com) can grant admin privileges to registered accounts.',
+        message: 'Only authorized Super Administrators (annanvasu36@gmail.com / abinsajan36@gmail.com) can grant admin privileges.',
       });
       return {
         success: false,
-        message: 'Only the Super Administrator can grant admin privileges.',
+        message: 'Only authorized Super Administrators can grant admin privileges.',
       };
     }
 
@@ -1820,13 +2001,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, message: 'Account not found.' };
     }
 
-    if (targetUser.email.toLowerCase() === 'abinsajan36@gmail.com') {
-      return { success: true, message: 'Account is already the primary Super Administrator.' };
+    if (targetUser.email.toLowerCase() === 'abinsajan36@gmail.com' || targetUser.email.toLowerCase() === 'annanvasu36@gmail.com') {
+      return { success: true, message: 'Account is already a Super Administrator.' };
     }
 
     const assignedAdminRole: AdminRole = adminRole === 'super_admin' ? 'admin' : adminRole;
     const promotedAt = new Date().toISOString();
-    const promotedBy = currentAdmin?.email || currentUser?.email || 'abinsajan36@gmail.com';
+    const promotedBy = currentAdmin?.email || currentUser?.email || 'annanvasu36@gmail.com';
 
     const updatedUser: User = {
       ...targetUser,
@@ -1897,20 +2078,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToast({
         type: 'error',
         title: 'Authorization Restricted',
-        message: 'Only the Super Administrator (abinsajan36@gmail.com) can revoke admin privileges.',
+        message: 'Only authorized Super Administrators (annanvasu36@gmail.com / abinsajan36@gmail.com) can revoke admin privileges.',
       });
       return {
         success: false,
-        message: 'Only the Super Administrator can revoke admin privileges.',
+        message: 'Only authorized Super Administrators can revoke admin privileges.',
       };
     }
 
     const clean = userIdOrEmail.trim().toLowerCase();
-    if (clean === 'abinsajan36@gmail.com') {
+    if (clean === 'abinsajan36@gmail.com' || clean === 'annanvasu36@gmail.com') {
       addToast({
         type: 'error',
         title: 'Action Prohibited',
-        message: 'Cannot revoke privileges from the root Super Administrator.',
+        message: 'Cannot revoke privileges from a root Super Administrator.',
       });
       return { success: false, message: 'Cannot revoke root Super Administrator.' };
     }

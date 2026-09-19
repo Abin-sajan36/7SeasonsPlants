@@ -956,6 +956,16 @@ export const initialAdminAccounts: AdminAccount[] = [
     lastLogin: '2026-08-24T02:00:00.000Z',
     createdAt: new Date().toISOString(),
   },
+  {
+    id: 'adm-02',
+    name: 'Super Administrator',
+    email: 'annanvasu36@gmail.com',
+    role: 'super_admin',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+    phone: '08848276403',
+    lastLogin: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  },
 ];
 
 export const sampleInstagramPosts = [
