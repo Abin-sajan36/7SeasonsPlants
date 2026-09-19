@@ -330,6 +330,9 @@ app.post("/api/auth/send-registration-otp", async (req, res) => {
         ? `A 6-digit verification code has been sent to ${cleanEmail}.`
         : `Verification code sent to ${cleanEmail}.`,
       statusInfo: mailStatusMessage,
+      mailSubject: `🌿 ${otp} is your 7Seasons Nursery admin verification code`,
+      fromAddress: process.env.SMTP_FROM || `"7Seasonsplants Security" <${process.env.SMTP_USER || "security@7seasonsplants.com"}>`,
+      sentAt: new Date().toISOString(),
     });
   } catch (error: any) {
     console.error("Error sending registration OTP:", error);

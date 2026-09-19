@@ -945,6 +945,31 @@ export const initialUser: User = {
   createdAt: '2026-01-10T00:00:00.000Z',
 };
 
+export const initialAdminUser: User = {
+  id: 'usr-admin-7seasons',
+  name: '7Seasons Nursery Admin',
+  email: 'admin@7seasons.com',
+  password: 'Admin@123',
+  phone: '08848276403',
+  role: 'admin',
+  addresses: [
+    {
+      id: 'addr-admin-hq',
+      fullName: '7Seasons Nursery Operations',
+      phoneNumber: '08848276403',
+      addressLine1: 'Mannaratharayil Gardens LLP, Nursery Operations HQ',
+      addressLine2: 'Infopark Expressway, Kakkanad',
+      city: 'Kochi',
+      district: 'Ernakulam',
+      state: 'Kerala',
+      pincode: '682030',
+      isDefault: true,
+    },
+  ],
+  wishlist: [],
+  createdAt: '2026-09-19T00:00:00.000Z',
+};
+
 export const initialAdminAccounts: AdminAccount[] = [
   {
     id: 'adm-01',
@@ -965,6 +990,16 @@ export const initialAdminAccounts: AdminAccount[] = [
     phone: '08848276403',
     lastLogin: new Date().toISOString(),
     createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'adm-03',
+    name: '7Seasons Operations Admin',
+    email: 'admin@7seasons.com',
+    role: 'admin',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+    phone: '08848276403',
+    lastLogin: '2026-09-19T00:00:00.000Z',
+    createdAt: '2026-09-19T00:00:00.000Z',
   },
 ];
 

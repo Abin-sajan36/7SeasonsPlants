@@ -63,6 +63,11 @@ export default async function handler(req, res) {
         return res.status(200).json({
           success: true,
           message: `Verification code sent to ${cleanEmail}`,
+          emailSent: true,
+          previewOtp: otp,
+          mailSubject: `🌿 ${otp} is your 7Seasons Nursery admin verification code`,
+          fromAddress: fromAddress,
+          sentAt: new Date().toISOString(),
         });
       } catch (mailError) {
         console.warn('SMTP dispatch failed in serverless function:', mailError);
@@ -73,7 +78,11 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       message: `Verification code prepared for ${cleanEmail}. Check your email or use code: ${otp}`,
+      previewOtp: otp,
       devOtp: otp,
+      mailSubject: `🌿 ${otp} is your 7Seasons Nursery admin verification code`,
+      fromAddress: '"7Seasonsplants Security" <security@7seasonsplants.com>',
+      sentAt: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Error in send-registration-otp serverless function:', error);

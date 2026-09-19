@@ -1738,7 +1738,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     <h4 className="font-bold text-emerald-950 text-sm leading-tight">{currentAdmin.name}</h4>
                     <p className="text-xs text-gray-500">{currentAdmin.email}</p>
                     <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-800 text-white mt-1">
-                      {currentAdmin.role === 'super_admin' ? 'Super Admin' : 'Nursery Manager'}
+                      {currentAdmin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
                     </span>
                   </div>
                 </div>
@@ -1750,10 +1750,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 </span>
                 <div className="flex items-center gap-2 text-xs font-bold text-emerald-950 pt-1">
                   <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                  <span>Full Administrative Privileges</span>
+                  <span>{isCurrentSuperAdmin ? 'Full Super Admin Privileges' : 'Standard Admin Privileges'}</span>
                 </div>
                 <p className="text-[11px] text-gray-600 leading-relaxed">
-                  Direct access to customer order details, stock inventory, combo recipe builder, and discount codes.
+                  {isCurrentSuperAdmin
+                    ? 'Direct access to customer orders, stock inventory, combo builder, and administrator role assignment.'
+                    : 'Access to product catalog, combos, stock inventory, customer orders, and dispatch operations.'}
                 </p>
               </div>
 

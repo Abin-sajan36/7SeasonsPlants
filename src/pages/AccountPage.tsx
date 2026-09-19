@@ -27,6 +27,9 @@ import {
   KeyRound,
   Clock,
   Box,
+  AlertTriangle,
+  Copy,
+  X,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { CustomerAddress } from '../types';
@@ -48,6 +51,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
     combos,
     loginCustomer,
     loginWithGoogle,
+    authDomainNotice,
+    dismissAuthDomainNotice,
     logoutCustomer,
     sendRegistrationOtp,
     verifyRegistrationOtp,
@@ -78,6 +83,26 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
   const [selectedDistrict, setSelectedDistrict] = useState('Ernakulam');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
+  const [manualDomainHelp, setManualDomainHelp] = useState(false);
+
+  const currentHostname =
+    typeof window !== 'undefined' && window.location.hostname
+      ? window.location.hostname
+      : '7-seasons-plants.vercel.app';
+
+  const handleCopyDomain = (domainToCopy: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(domainToCopy);
+    }
+    setCopiedDomain(true);
+    addToast({
+      type: 'success',
+      title: 'Copied Domain! 📋',
+      message: `${domainToCopy} copied to clipboard.`,
+    });
+    setTimeout(() => setCopiedDomain(false), 2500);
+  };
 
   // Registration OTP Flow
   const [registerStep, setRegisterStep] = useState<'form' | 'verify_otp'>('form');
@@ -290,7 +315,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
       if (success) {
         setEmailInput('');
         setPasswordInput('');
-        if (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'abinsajan36@gmail.com') {
+        if (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com' || cleanEmail === 'admin@7seasons.com') {
           onNavigate('admin');
         }
       }
@@ -748,6 +773,71 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 </button>
               </div>
 
+              {/* DOMAIN AUTHORIZATION GUIDANCE BANNER */}
+              {(authDomainNotice?.show || manualDomainHelp) && (
+                <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 shadow-sm text-left">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold text-xs">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>Firebase Google Sign-In Domain Whitelist Required</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        dismissAuthDomainNotice();
+                        setManualDomainHelp(false);
+                      }}
+                      className="text-amber-700 hover:text-amber-950 dark:text-amber-400 dark:hover:text-amber-100 p-1 cursor-pointer"
+                      title="Dismiss notice"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed mb-3">
+                    Google OAuth prevents authentication from deployment domains until they are whitelisted in Firebase. The target domain is <span className="font-mono font-bold bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded text-amber-950 dark:text-amber-100">{authDomainNotice?.domain || currentHostname}</span>.
+                  </p>
+
+                  <div className="bg-white/80 dark:bg-black/30 rounded-xl p-3 border border-amber-200/80 dark:border-amber-900/50 mb-3 space-y-2 text-[11px] text-amber-900 dark:text-amber-200">
+                    <div className="font-semibold text-xs text-emerald-900 dark:text-emerald-300">Quick Resolution Steps:</div>
+                    <ol className="list-decimal list-inside space-y-1.5 text-gray-700 dark:text-gray-300">
+                      <li>
+                        Open{' '}
+                        <a
+                          href={authDomainNotice?.consoleUrl || `https://console.firebase.google.com/project/master-snowfall-7xfhk/authentication/settings`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-emerald-700 dark:text-emerald-400 underline font-semibold inline-flex items-center gap-1 hover:text-emerald-900"
+                        >
+                          Firebase Console &gt; Authentication &gt; Settings <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </li>
+                      <li>
+                        Scroll down to the <strong className="font-semibold text-gray-900 dark:text-gray-100">Authorized domains</strong> list and click <strong className="font-semibold text-gray-900 dark:text-gray-100">Add domain</strong>.
+                      </li>
+                      <li className="flex items-center flex-wrap gap-2 pt-0.5">
+                        <span>Enter domain:</span>
+                        <code className="font-mono bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded text-emerald-950 dark:text-emerald-200 font-bold">
+                          {authDomainNotice?.domain || currentHostname}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyDomain(authDomainNotice?.domain || currentHostname)}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg transition-colors cursor-pointer"
+                        >
+                          {copiedDomain ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedDomain ? 'Copied!' : 'Copy Domain'}</span>
+                        </button>
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-amber-800 dark:text-amber-300">
+                    <span>💡 <strong>Immediate Sign-In:</strong> You can sign in using <strong>Email &amp; Password</strong> or <strong>Email OTP</strong> below without waiting.</span>
+                  </div>
+                </div>
+              )}
+
           {/* LOGIN FORM */}
           {authMode === 'login' ? (
             <form onSubmit={handleLogin} className="space-y-4 text-xs">
@@ -755,7 +845,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 type="button"
                 onClick={async () => { setIsSubmitting(true); await loginWithGoogle(); setIsSubmitting(false); }}
                 disabled={isSubmitting}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-white dark:bg-[#0a1f18] border border-gray-300 dark:border-emerald-900/40 rounded-xl text-gray-700 dark:text-gray-200 font-bold text-xs hover:bg-gray-50 dark:hover:bg-[#123126] transition-all shadow-sm mb-6"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-white dark:bg-[#0a1f18] border border-gray-300 dark:border-emerald-900/40 rounded-xl text-gray-700 dark:text-gray-200 font-bold text-xs hover:bg-gray-50 dark:hover:bg-[#123126] transition-all shadow-sm mb-2"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -766,6 +856,17 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 </svg>
                 Sign in with Google
               </button>
+
+              <div className="flex items-center justify-between text-[11px] text-gray-500 mb-4 px-1">
+                <span>Domain authorization notice?</span>
+                <button
+                  type="button"
+                  onClick={() => setManualDomainHelp((prev) => !prev)}
+                  className="text-emerald-700 dark:text-emerald-400 hover:underline font-semibold cursor-pointer"
+                >
+                  {manualDomainHelp ? 'Hide Domain Guide' : 'Domain Setup Guide'}
+                </button>
+              </div>
               
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-200"></div>
@@ -959,6 +1060,17 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 </svg>
                 Sign up with Google
               </button>
+
+              <div className="flex items-center justify-between text-[11px] text-gray-500 mb-4 px-1">
+                <span>Domain authorization notice?</span>
+                <button
+                  type="button"
+                  onClick={() => setManualDomainHelp((prev) => !prev)}
+                  className="text-emerald-700 dark:text-emerald-400 hover:underline font-semibold cursor-pointer"
+                >
+                  {manualDomainHelp ? 'Hide Domain Guide' : 'Domain Setup Guide'}
+                </button>
+              </div>
               
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-200"></div>
@@ -1176,12 +1288,9 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-black text-emerald-950">{currentUser.name}</h1>
-                {isAdminAuthenticated &&
-                currentAdmin &&
-                (currentUser.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
-                  currentUser.email?.toLowerCase() === 'abinsajan36@gmail.com') ? (
+                {isAdminAuthenticated && currentAdmin ? (
                   <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-2.5 py-0.5 rounded-full border border-amber-300">
-                    🛡️ Nursery Admin Account
+                    🛡️ {currentAdmin.role === 'super_admin' ? 'Super Admin' : 'Nursery Admin'}
                   </span>
                 ) : (
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-300">
@@ -1199,18 +1308,15 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {isAdminAuthenticated &&
-              currentAdmin &&
-              (currentUser.email?.toLowerCase() === 'abinsajan36@gmail.com' ||
-                currentUser.email?.toLowerCase() === 'abinsajan36@gmail.com') && (
-                <button
-                  onClick={() => onNavigate('admin')}
-                  className="px-4 py-2 bg-[#7D8F69] text-white rounded-full text-xs font-bold hover:bg-[#627252] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Open Admin Control Panel</span>
-                </button>
-              )}
+            {isAdminAuthenticated && currentAdmin && (
+              <button
+                onClick={() => onNavigate('admin')}
+                className="px-4 py-2 bg-[#7D8F69] text-white rounded-full text-xs font-bold hover:bg-[#627252] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Open Admin Control Panel</span>
+              </button>
+            )}
             <button
               onClick={() => onNavigate('plants')}
               className="px-4 py-2 bg-emerald-50 text-emerald-800 rounded-full text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center gap-1.5 cursor-pointer border border-emerald-200"

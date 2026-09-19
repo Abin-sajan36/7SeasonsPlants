@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { auth, db } from '../lib/firebase';
+import { auth, db, firebaseConfig } from '../lib/firebase';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -43,8 +43,17 @@ import {
   initialReviews,
   initialOrders,
   initialUser,
+  initialAdminUser,
   initialAdminAccounts,
 } from '../data/initialData';
+
+export interface OAuthDomainNotice {
+  show: boolean;
+  domain: string;
+  projectId: string;
+  authDomain: string;
+  consoleUrl: string;
+}
 
 interface StoreContextType {
   // State
@@ -126,6 +135,8 @@ interface StoreContextType {
   getOrderByNumber: (orderNumber: string) => Order | undefined;
 
   // User & Auth
+  authDomainNotice: OAuthDomainNotice | null;
+  dismissAuthDomainNotice: () => void;
   loginCustomer: (email: string, password?: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
   sendRegistrationOtp: (
@@ -333,12 +344,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const list = [...parsed];
+          const admin7Index = list.findIndex((u) => u.email.toLowerCase() === 'admin@7seasons.com');
+          if (admin7Index === -1) {
+            list.push(initialAdminUser);
+          } else {
+            list[admin7Index] = {
+              ...list[admin7Index],
+              password: 'Admin@123',
+              role: 'admin',
+            };
+          }
+          return list;
+        }
       } catch (e) {
         console.error(e);
       }
     }
-    return [initialUser];
+    return [initialUser, initialAdminUser];
   });
 
   const [resetOtps, setResetOtps] = useState<Record<string, string>>({});
@@ -359,6 +383,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
           if (!sanitized.some((a) => a.email.toLowerCase() === 'annanvasu36@gmail.com')) {
             sanitized.push(initialAdminAccounts[1]);
+          }
+          const admin7Index = sanitized.findIndex((a) => a.email.toLowerCase() === 'admin@7seasons.com');
+          if (admin7Index === -1) {
+            sanitized.push(initialAdminAccounts[2]);
+          } else {
+            // Strictly enforce standard 'admin' role, not super_admin
+            sanitized[admin7Index] = {
+              ...sanitized[admin7Index],
+              role: 'admin',
+            };
           }
           return sanitized;
         }
@@ -416,6 +450,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [selectedDeliveryState, setSelectedDeliveryState] = useState<string | null>(() => {
     return localStorage.getItem(`${STORAGE_KEY}_deliveryState`);
   });
+
+  // Domain Authorization Notice for OAuth
+  const [authDomainNotice, setAuthDomainNotice] = useState<OAuthDomainNotice | null>(null);
+  const dismissAuthDomainNotice = () => setAuthDomainNotice(null);
 
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -1210,7 +1248,52 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
       return true;
     } catch (error: any) {
-      addToast({ type: 'error', title: 'Authentication Failed', message: error.message });
+      console.error('Google sign-in error:', error);
+      const errMsg = (error?.message || '').toLowerCase();
+      const errCode = error?.code || '';
+      const isDomainUnauthorized =
+        errCode === 'auth/unauthorized-domain' ||
+        errCode === 'auth/configuration-not-found' ||
+        errMsg.includes('not authorized for oauth') ||
+        errMsg.includes('unauthorized domain') ||
+        errMsg.includes('unauthorized-domain');
+
+      if (isDomainUnauthorized) {
+        const currentHostname =
+          typeof window !== 'undefined' && window.location.hostname
+            ? window.location.hostname
+            : '7-seasons-plants.vercel.app';
+        const targetProjId = firebaseConfig.projectId || 'master-snowfall-7xfhk';
+        const primaryAuthDomain = firebaseConfig.authDomain || `${targetProjId}.firebaseapp.com`;
+        const consoleLink = `https://console.firebase.google.com/project/${targetProjId}/authentication/settings`;
+
+        setAuthDomainNotice({
+          show: true,
+          domain: currentHostname,
+          projectId: targetProjId,
+          authDomain: primaryAuthDomain,
+          consoleUrl: consoleLink,
+        });
+
+        addToast({
+          type: 'error',
+          title: 'Domain Not Authorized in Firebase',
+          message: `The domain "${currentHostname}" must be added to Authorized Domains in the Firebase Console (Authentication > Settings > Authorized domains). You can sign in using Email / Password or OTP below in the meantime.`,
+          duration: 12000,
+        });
+      } else if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
+        addToast({
+          type: 'info',
+          title: 'Sign-In Cancelled',
+          message: 'The Google sign-in window was closed.',
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Authentication Failed',
+          message: error.message || 'Could not complete Google sign-in.',
+        });
+      }
       return false;
     }
   };
@@ -1673,7 +1756,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     let matchingAccount = adminAccounts.find(a => a.email.toLowerCase() === cleanEmail);
     if (!matchingAccount && (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com')) {
-      return { success: true }; // Master admin
+      return { success: true }; // Master super admin
+    }
+    if (!matchingAccount && cleanEmail === 'admin@7seasons.com') {
+      return { success: true }; // Standard admin
     }
     if (!matchingAccount) {
       const regAdmin = registeredUsers.find(
@@ -1748,6 +1834,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           createdAt: new Date().toISOString(),
         };
         setAdminAccounts((prev) => [matchingAccount!, ...prev.filter((a) => a.email.toLowerCase() !== cleanEmail)]);
+      } else if (cleanEmail === 'admin@7seasons.com') {
+        matchingAccount = {
+          id: 'adm-03',
+          name: '7Seasons Operations Admin',
+          email: 'admin@7seasons.com',
+          role: 'admin',
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+          phone: '08848276403',
+          lastLogin: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        };
+        setAdminAccounts((prev) => [...prev.filter((a) => a.email.toLowerCase() !== cleanEmail), matchingAccount!]);
       } else {
         const regAdmin = registeredUsers.find(
           (u) => u.email.toLowerCase() === cleanEmail && (u.role === 'admin' || u.role === 'super_admin')
@@ -1781,6 +1879,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const updatedAccount: AdminAccount = {
       ...matchingAccount,
+      role: (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com')
+        ? 'super_admin'
+        : cleanEmail === 'admin@7seasons.com'
+        ? 'admin'
+        : matchingAccount.role,
       lastLogin: new Date().toISOString(),
     };
 
@@ -1796,7 +1899,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       name: updatedAccount.name || '7Seasons Nursery Admin',
       email: updatedAccount.email,
       phone: updatedAccount.phone || '08848276403',
-      role: 'admin',
+      role: updatedAccount.role === 'super_admin' ? 'super_admin' : 'admin',
       addresses: [],
       wishlist: [],
       createdAt: updatedAccount.createdAt || new Date().toISOString(),
@@ -2572,6 +2675,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         loginCustomer,
         loginWithGoogle,
+        authDomainNotice,
+        dismissAuthDomainNotice,
         sendRegistrationOtp,
         verifyRegistrationOtp,
         registerCustomer,

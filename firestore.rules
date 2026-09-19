@@ -21,9 +21,11 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && (
         isSuperAdmin() ||
+        request.auth.token.email == 'admin@7seasons.com' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin'
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'admin@7seasons.com'
         ))
       );
     }
