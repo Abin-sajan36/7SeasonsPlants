@@ -7,7 +7,13 @@ interface ContactPageProps {
 }
 
 export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
-  const { addToast } = useStore();
+  const { addToast, storeSettings } = useStore();
+  const whatsappNum = storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403';
+  const digits = whatsappNum.replace(/[^0-9]/g, '');
+  const waNum = digits.startsWith('91') ? digits : digits.length === 10 ? `91${digits}` : digits;
+  const nurseryName = storeSettings?.parentNursery || 'Mannaratharayil Gardens LLP';
+  const nurseryAddress = storeSettings?.address || 'Main Propagation Facility & Dispatch Hub, Kerala, India.';
+  const helplinePhone = storeSettings?.phone || '+91 88482 76403';
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -70,13 +76,13 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
                 order tracking.
               </p>
               <a
-                href="https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team!%20I%20have%20an%20enquiry."
+                href={`https://wa.me/${waNum}?text=Hi%207Seasonsplants%20Team!%20I%20have%20an%20enquiry.`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-5 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full text-xs font-bold shadow-md transition-colors"
               >
                 <MessageCircle className="w-4 h-4 fill-white" />
-                <span>Chat on WhatsApp (+91 88482 76403)</span>
+                <span>Chat on WhatsApp ({whatsappNum})</span>
               </a>
             </div>
 
@@ -86,10 +92,10 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
                 <MapPin className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                 <div>
                   <strong className="text-emerald-950 block font-bold text-sm">
-                    Mannaratharayil Gardens LLP
+                    {nurseryName}
                   </strong>
                   <p className="text-gray-600 mt-0.5 leading-relaxed">
-                    Main Propagation Facility & Dispatch Hub, Kerala, India.
+                    {nurseryAddress}
                   </p>
                 </div>
               </div>
@@ -98,7 +104,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
                 <Phone className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                 <div>
                   <strong className="text-emerald-950 block font-bold">Helpline & WhatsApp</strong>
-                  <p className="text-gray-600 mt-0.5">+91 88482 76403</p>
+                  <p className="text-gray-600 mt-0.5">{helplinePhone} / {whatsappNum}</p>
                 </div>
               </div>
 

@@ -778,13 +778,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const cartDeliveryFee = useMemo(() => {
     if (cartSubtotal === 0) return 0;
-    if (cartSubtotal >= storeSettings.freeShippingThreshold) return 0;
+    const threshold = storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899;
+    if (cartSubtotal >= threshold) return 0;
     
     // Calculate total weight in kg (defaulting to 1kg if weight is not specified)
     const totalWeight = cart.reduce((total, item) => total + ((item.weight || 1) * item.quantity), 0);
     
     // Delivery charge is per kg
-    return storeSettings.deliveryCharge * Math.ceil(totalWeight);
+    const chargePerKg = storeSettings.deliveryCharge ?? 80;
+    return chargePerKg * Math.ceil(totalWeight);
   }, [cartSubtotal, storeSettings, cart]);
 
   const cartTotal = useMemo(() => {
@@ -792,7 +794,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [cartSubtotal, cartDiscount, cartDeliveryFee]);
 
   const freeShippingRemaining = useMemo(() => {
-    return Math.max(0, storeSettings.freeShippingThreshold - cartSubtotal);
+    const threshold = storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899;
+    return Math.max(0, threshold - cartSubtotal);
   }, [cartSubtotal, storeSettings]);
 
   // Cart Actions
@@ -2568,7 +2571,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Settings
   const updateStoreSettings = async (newSettings: Partial<StoreSettings>) => {
     try {
-      const mergedSettings = { ...storeSettings, ...newSettings };
+      const normalized: Partial<StoreSettings> = { ...newSettings };
+      if (normalized.whatsapp !== undefined) {
+        normalized.whatsappNumber = normalized.whatsapp;
+      } else if (normalized.whatsappNumber !== undefined) {
+        normalized.whatsapp = normalized.whatsappNumber;
+      }
+
+      if (normalized.freeShippingThreshold !== undefined) {
+        normalized.freeDeliveryThreshold = normalized.freeShippingThreshold;
+      } else if (normalized.freeDeliveryThreshold !== undefined) {
+        normalized.freeShippingThreshold = normalized.freeDeliveryThreshold;
+      }
+
+      if (normalized.announcementBarText !== undefined) {
+        normalized.announcementText = normalized.announcementBarText;
+      } else if (normalized.announcementText !== undefined) {
+        normalized.announcementBarText = normalized.announcementText;
+      }
+
+      const mergedSettings = { ...storeSettings, ...normalized };
       setStoreSettings(mergedSettings);
 
       await setDoc(doc(db, 'storeSettings', 'global'), mergedSettings, { merge: true });
@@ -2576,7 +2598,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToast({
         type: 'success',
         title: 'Store Settings Saved',
-        message: 'Store configurations updated globally.',
+        message: 'Nursery store settings have been saved and applied globally.',
       });
     } catch (err) {
       console.error('Error updating store settings:', err);

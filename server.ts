@@ -4,6 +4,12 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import {
+  BOTANICAL_DATABASE,
+  findBotanicalProfile,
+  botanicalCache,
+  analyzeBotanicalSymptoms,
+} from "./server/botanicalKnowledge.js";
 
 const app = express();
 const PORT = 3000;
@@ -46,7 +52,69 @@ function getMailTransporter(): nodemailer.Transporter | null {
 function getGenAI(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build",
+      },
+    },
+  });
+}
+
+// Resilient Gemini generator with automatic fallback across models when high demand / 503 occurs
+async function generateContentWithFallback(
+  ai: GoogleGenAI,
+  params: {
+    contents: any;
+    config?: any;
+    primaryModel?: string;
+  }
+) {
+  // Use gemini-3.1-flash-lite first for instant response and resilience against 503 demand spikes
+  const modelsToTry = [
+    "gemini-3.1-flash-lite",
+    params.primaryModel || "gemini-3.8-flash",
+    "gemini-flash-latest",
+  ];
+
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    try {
+      // 5-second safety timeout per model attempt
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model,
+          contents: params.contents,
+          config: params.config,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout after 5000ms on ${model}`)), 5000)
+        ),
+      ]);
+      return response;
+    } catch (err: any) {
+      lastError = err;
+      const isTransient =
+        err?.status === 503 ||
+        err?.status === 429 ||
+        err?.message?.includes("503") ||
+        err?.message?.includes("high demand") ||
+        err?.message?.includes("UNAVAILABLE") ||
+        err?.message?.includes("ResourceExhausted") ||
+        err?.message?.includes("Timeout");
+
+      if (isTransient) {
+        console.warn(`[Gemini API] Model ${model} is experiencing temporary high demand or latency (${err?.message || err?.status}). Attempting next model...`);
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        continue;
+      }
+      break;
+    }
+  }
+
+  throw lastError;
 }
 
 // ---------------- API ROUTES ----------------
@@ -525,128 +593,185 @@ app.post("/api/razorpay/verify-payment", (req, res) => {
   }
 });
 
-// Gemini AI: Plant Doctor Diagnosis Handler
+// Smart botanical rule-based diagnosis generator with species profile intelligence
+function getFallbackPlantDiagnosis(plantName: string, symptoms: string, env: string) {
+  return analyzeBotanicalSymptoms(plantName, symptoms, env);
+}
+
+// Enhanced botanical product description generator with species profile intelligence
+function getFallbackProductDescription(finalName: string, finalCategory: string, finalKeywords: string) {
+  const profile = findBotanicalProfile(finalName);
+
+  if (profile) {
+    return {
+      shortDescription: `Premium acclimatized ${profile.commonName} nurtured at Mannarathayil Gardens LLP. Thrives in ${profile.lightRequirement.toLowerCase()} with high tropical vitality.`,
+      description: `Experience the botanical elegance of ${profile.commonName} (${profile.botanicalName}), carefully cultivated at 7Seasonsplants by Mannarathayil Gardens LLP. Perfectly conditioned for South Indian home and office climates (Kerala and Tamil Nadu), this specimen features robust root systems and lush, vibrant foliage.\n\n${profile.climateNote}\n\nOur nursery experts pot each specimen in an optimized, well-aerated medium (${profile.idealSoilMix}) to ensure seamless acclimatization and sustained growth right from day one.`,
+      light: profile.lightRequirement,
+      water: profile.wateringScheduleKeralaTN.summer.slice(0, 30),
+      difficulty: profile.family === 'Asparagaceae' || profile.botanicalName.includes('Zamioculcas') ? 'Beginner Friendly' : 'Easy',
+      airPurifying: profile.airPurifying,
+      petFriendly: profile.petSafe,
+      benefits: [
+        profile.airPurifying ? 'Active indoor air purification & VOC filtration' : 'Lush aesthetic mood enhancer',
+        `Acclimatized for South Indian humidity: ${profile.humidityNeed}`,
+        'Sustainably nurtured at Mannarathayil Gardens LLP',
+        profile.petSafe ? '100% Non-toxic & Pet Safe foliage' : 'Statement foliage for architectural indoor accents',
+      ],
+      tags: [
+        finalCategory,
+        profile.family,
+        'Mannarathayil Gardens',
+        profile.lightRequirement,
+        profile.airPurifying ? 'Air Purifier' : 'Ornamental Plant',
+      ],
+    };
+  }
+
+  return {
+    shortDescription: `A vigorous and acclimatized ${finalName} cultivated at Mannarathayil Gardens LLP, ideal for elevating living and workspace environments.`,
+    description: `Introduce lush tropical serenity with the resilient ${finalName}. Nurtured under strict nursery standards at Mannarathayil Gardens LLP, this prime specimen exhibits dense foliage, superior vitality, and easy adaptation to indoor living across South India. Perfect for accentuating desks, living rooms, balconies, and botanical gifting.`,
+    light: "Bright Indirect Light",
+    water: "When topsoil is dry (every 4-6 days)",
+    difficulty: "Easy",
+    airPurifying: true,
+    petFriendly: true,
+    benefits: [
+      "Natural indoor air purification and mood enhancement",
+      "Lush tropical foliage acclimatized for high survival rates",
+      "Grown with organic potting nutrients at Mannarathayil Nursery",
+      "Straightforward care suitable for both beginners and collectors",
+    ],
+    tags: [finalCategory, "Air Purifying", "Mannarathayil Gardens", "Indoor Foliage", "Low Maintenance"],
+  };
+}
+
+// Gemini AI: Plant Doctor Diagnosis Handler with Botanical Intelligence & Fast Response
 const handlePlantDoctor = async (req: express.Request, res: express.Response) => {
-  try {
-    const { plantName, symptoms, issueDescription, environment, lightCondition, wateringFrequency } = req.body;
-    const finalPlantName = plantName || "Houseplant";
-    const finalSymptoms = symptoms || issueDescription || "Yellowing leaves with wilting stems";
-    const finalEnv = environment || lightCondition || "Indoor with bright indirect light";
+  const { plantName, symptoms, issueDescription, environment, lightCondition } = req.body;
+  const finalPlantName = (plantName || "Houseplant").trim();
+  const finalSymptoms = (symptoms || issueDescription || "Yellowing leaves with wilting stems").trim();
+  const finalEnv = (environment || lightCondition || "Indoor with bright indirect light").trim();
 
-    const ai = getGenAI();
+  // 1. Check in-memory botanical cache for instant sub-millisecond response
+  const cacheKey = `diag:${finalPlantName.toLowerCase()}:${finalSymptoms.toLowerCase()}:${finalEnv.toLowerCase()}`;
+  const cached = botanicalCache.get<any>(cacheKey);
+  if (cached) {
+    return res.json({ ...cached, _cached: true });
+  }
 
-    if (!ai) {
-      // Fallback smart rule-based botanical diagnostic for Mannarathayil Nursery
-      return res.json({
-        diagnosis: {
-          problem: "Moisture & Drainage Stress",
-          cause: "Root over-saturation combined with high humidity and insufficient air circulation.",
-          urgency: "Medium",
-          actionPlan: [
-            "Check the nursery container drainage holes to ensure no stagnant water in the tray.",
-            "Allow the top 2 inches of potting mix to dry completely before the next watering.",
-            "Relocate plant to a well-ventilated spot with bright, indirect morning sunlight.",
-            "Wipe foliage with a damp cotton cloth to remove dust and optimize transpiration.",
-          ],
-          preventativeTips: "In Kerala and Tamil Nadu tropical climates, deep watering once every 4-6 days is preferable to light daily sprinkles.",
-        },
-      });
-    }
+  // 2. Identify plant botanical profile from knowledge base
+  const profile = findBotanicalProfile(finalPlantName);
+  const profileContext = profile
+    ? `Botanical Profile for ${profile.commonName} (${profile.botanicalName}):
+- Light: ${profile.lightRequirement} (${profile.lightLux})
+- Kerala/TN Watering: Summer: ${profile.wateringScheduleKeralaTN.summer} | Monsoon: ${profile.wateringScheduleKeralaTN.monsoon} | Winter: ${profile.wateringScheduleKeralaTN.winter}
+- Soil: ${profile.idealSoilMix}
+- Known pests: ${profile.commonPests.join(', ')}
+- Vulnerabilities: ${profile.vulnerabilities.join(', ')}
+- Nursery tips: ${profile.nurseryTips.join(' ')}`
+    : `General South Indian tropical horticulture context applies.`;
 
-    const prompt = `You are a master horticulturist at "Mannarathayil Nursery / 7Seasonsplants" specializing in South Indian tropical houseplants (Kerala and Tamil Nadu climates).
-Diagnose the following plant condition:
+  const ai = getGenAI();
+
+  if (!ai) {
+    const fallback = getFallbackPlantDiagnosis(finalPlantName, finalSymptoms, finalEnv);
+    botanicalCache.set(cacheKey, fallback);
+    return res.json(fallback);
+  }
+
+  const prompt = `You are a master horticulturist at "Mannarathayil Gardens LLP / 7Seasonsplants" in Kerala and Tamil Nadu.
+Diagnose this plant issue with scientific botanical accuracy and actionable care guidance:
 - Plant: ${finalPlantName}
 - Observed Symptoms: ${finalSymptoms}
 - Growing Environment: ${finalEnv}
 
-Return a strictly valid JSON object with the following schema:
+${profileContext}
+
+Provide a precise, fast, and highly accurate diagnostic JSON object:
 {
   "diagnosis": {
-    "problem": "Name of the issue (e.g. Overwatering & Root Hypoxia)",
-    "cause": "Concise scientific and environmental explanation",
+    "problem": "Precise name of the issue with scientific context",
+    "cause": "Specific cause (e.g. transpiration rate, watering frequency, light level, fungal pathogen)",
     "urgency": "Low" | "Medium" | "High",
     "actionPlan": [
-      "Immediate action step 1",
-      "Action step 2",
-      "Action step 3",
-      "Action step 4"
+      "Immediate action step 1 (concrete instruction)",
+      "Action step 2 (remedy/spray/adjust watering)",
+      "Action step 3 (soil aeration/light relocation)",
+      "Action step 4 (nursery recovery timeline)"
     ],
-    "preventativeTips": "Long-term maintenance guidance specifically tailored to Kerala/Tamil Nadu weather"
+    "preventativeTips": "Long-term preventative maintenance specific to Kerala/Tamil Nadu weather"
   }
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+  try {
+    const response = await generateContentWithFallback(ai, {
+      primaryModel: "gemini-3.1-flash-lite",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        maxOutputTokens: 600,
       },
     });
 
     const text = response.text;
     const parsed = text ? JSON.parse(text) : {};
-    res.json(parsed);
+    if (parsed?.diagnosis) {
+      botanicalCache.set(cacheKey, parsed);
+      return res.json(parsed);
+    }
+    const fallback = getFallbackPlantDiagnosis(finalPlantName, finalSymptoms, finalEnv);
+    return res.json(fallback);
   } catch (error: any) {
-    console.error("Plant doctor AI error:", error);
-    res.json({
-      diagnosis: {
-        problem: "General Root Zone Stress",
-        cause: "Fluctuations in soil moisture levels or seasonal acclimatization.",
-        urgency: "Medium",
-        actionPlan: [
-          "Check soil moisture 2 inches deep before adding water",
-          "Ensure pot drainage holes are unblocked",
-          "Provide bright, filtered morning sunlight",
-          "Gently mist leaves during hot dry afternoons",
-        ],
-        preventativeTips: "Reach out to Mannarathayil Nursery WhatsApp (+91 95672 74176) for personalized advice.",
-      },
-    });
+    console.warn("[Plant Doctor AI] Fallback invoked:", error?.message || error);
+    const fallback = getFallbackPlantDiagnosis(finalPlantName, finalSymptoms, finalEnv);
+    return res.json(fallback);
   }
 };
 
 app.post("/api/gemini/diagnose-plant", handlePlantDoctor);
 app.post("/api/ai/plant-doctor", handlePlantDoctor);
 
-// Gemini AI: Auto-generate Product Description Handler
+// Gemini AI: Auto-generate Product Description Handler with Species Knowledge
 const handleGenerateDescription = async (req: express.Request, res: express.Response) => {
-  try {
-    const { plantName, name, category, keywords, plantType } = req.body;
-    const finalName = plantName || name || "Exotic Tropical Foliage";
-    const finalCategory = category || "Indoor Plants";
-    const finalKeywords = keywords || "Air purifying, lush greenery, easy care, Mannarathayil Nursery";
+  const { plantName, name, category, keywords } = req.body;
+  const finalName = (plantName || name || "Exotic Tropical Foliage").trim();
+  const finalCategory = (category || "Indoor Plants").trim();
+  const finalKeywords = (keywords || "Air purifying, lush greenery, easy care, Mannarathayil Gardens LLP").trim();
 
-    const ai = getGenAI();
+  const cacheKey = `desc:${finalName.toLowerCase()}:${finalCategory.toLowerCase()}:${finalKeywords.toLowerCase()}`;
+  const cached = botanicalCache.get<any>(cacheKey);
+  if (cached) {
+    return res.json(cached);
+  }
 
-    if (!ai) {
-      return res.json({
-        shortDescription: `A vibrant and resilient ${finalName} nurtured at Mannarathayil Nursery, ideal for enhancing indoor spaces across Kerala and Tamil Nadu.`,
-        description: `Bring nature into your living space with the exquisite ${finalName}. Grown and acclimatized at Mannarathayil Nursery under optimal tropical conditions, this specimen features lush foliage, excellent air-purifying qualities, and straightforward care requirements. Perfect for living rooms, workdesks, and green gifting.`,
-        light: "Bright Indirect Light",
-        water: "Moderate (Twice a week)",
-        difficulty: "Easy",
-        airPurifying: true,
-        petFriendly: true,
-        benefits: [
-          "Natural indoor air purification",
-          "Lush tropical aesthetic for modern interiors",
-          "Acclimatized for high survival in South India",
-          "Low maintenance and beginner friendly",
-        ],
-        tags: ["Indoor", "Air Purifying", "Mannarathayil", "Low Maintenance"],
-      });
-    }
+  const profile = findBotanicalProfile(finalName);
+  const profileContext = profile
+    ? `Botanical Profile Context:
+- Species: ${profile.commonName} (${profile.botanicalName}), Family: ${profile.family}
+- Light: ${profile.lightRequirement} (${profile.lightLux})
+- Recommended Soil: ${profile.idealSoilMix}
+- Air Purifying: ${profile.airPurifying}, Pet Safe: ${profile.petSafe}`
+    : `Category: ${finalCategory}`;
 
-    const prompt = `You are a botanical e-commerce copywriter for "7Seasonsplants by Mannarathayil Nursery" in Kerala & Tamil Nadu.
-Generate an engaging, SEO-optimized product description and care parameters for:
+  const ai = getGenAI();
+
+  if (!ai) {
+    const fallback = getFallbackProductDescription(finalName, finalCategory, finalKeywords);
+    botanicalCache.set(cacheKey, fallback);
+    return res.json(fallback);
+  }
+
+  const prompt = `You are an expert botanical copywriter for "7Seasonsplants by Mannarathayil Gardens LLP" in South India.
+Generate an accurate, compelling, SEO-rich product listing and botanical care parameters for:
 - Plant Name: ${finalName}
 - Category: ${finalCategory}
-- Key Highlights / Keywords: ${finalKeywords}
+- Key Highlights: ${finalKeywords}
+${profileContext}
 
-Return a valid JSON object with:
+Return a valid JSON object:
 {
   "shortDescription": "1-2 punchy sentences highlighting aesthetic appeal and nursery quality",
-  "description": "2-3 well-written paragraphs emphasizing tropical cultivation at Mannarathayil Nursery, foliage texture, and care simplicity",
+  "description": "2 well-written paragraphs emphasizing tropical cultivation at Mannarathayil Gardens LLP, foliage texture, and care simplicity in Kerala/Tamil Nadu homes",
   "light": "Bright Indirect" | "Low Light" | "Direct Sun" | "Partial Shade",
   "water": "Low" | "Moderate (Twice a week)" | "When topsoil is dry",
   "difficulty": "Beginner Friendly" | "Easy" | "Moderate" | "Advanced",
@@ -656,53 +781,104 @@ Return a valid JSON object with:
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+  try {
+    const response = await generateContentWithFallback(ai, {
+      primaryModel: "gemini-3.1-flash-lite",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        maxOutputTokens: 600,
       },
     });
 
     const parsed = JSON.parse(response.text || "{}");
-    res.json(parsed);
+    if (parsed?.shortDescription) {
+      botanicalCache.set(cacheKey, parsed);
+      return res.json(parsed);
+    }
+    return res.json(getFallbackProductDescription(finalName, finalCategory, finalKeywords));
   } catch (error: any) {
-    console.error("AI describe plant error:", error);
-    res.status(500).json({ error: "Failed to generate botanical description" });
+    console.warn("[AI Describe Plant] Serving botanical fallback:", error?.message || error);
+    return res.json(getFallbackProductDescription(finalName, finalCategory, finalKeywords));
   }
 };
 
 app.post("/api/gemini/generate-description", handleGenerateDescription);
 app.post("/api/ai/describe-plant", handleGenerateDescription);
 
-// Gemini AI: Gardener Chat Handler
+// Gemini AI: Gardener Chat Handler with Species Intelligence & Streaming-Fast Direct Answers
 const handleChat = async (req: express.Request, res: express.Response) => {
   try {
     const { message, history = [] } = req.body;
-    
+    const userMsg = (message || "").trim();
+
+    if (!userMsg) {
+      return res.json({ reply: "Hello! How can I help you with your plants today? Feel free to ask any plant care, watering, or disease question!" });
+    }
+
+    // Check botanical knowledge profile match in user query
+    const profile = findBotanicalProfile(userMsg);
+    let botanicalInjectedContext = "";
+    if (profile) {
+      botanicalInjectedContext = `\n[Species Knowledge Injected for ${profile.commonName}]:
+- Botanical Name: ${profile.botanicalName} (${profile.family})
+- Light: ${profile.lightRequirement} (${profile.lightLux})
+- Watering in Kerala/TN: Summer: ${profile.wateringScheduleKeralaTN.summer} | Monsoon: ${profile.wateringScheduleKeralaTN.monsoon} | Winter: ${profile.wateringScheduleKeralaTN.winter}
+- Soil: ${profile.idealSoilMix}
+- Pet Friendly: ${profile.petSafe ? 'Yes (Non-toxic)' : 'No (Toxic to pets if ingested)'}
+- Air Purifying: ${profile.airPurifying ? 'Yes' : 'No'}
+- Common Pests: ${profile.commonPests.join(', ')}
+- Nursery Advice: ${profile.nurseryTips.join(' ')}`;
+    }
+
     const ai = getGenAI();
     if (!ai) {
+      if (profile) {
+        return res.json({
+          reply: `**${profile.commonName} Care Guide (${profile.botanicalName})**:\n\n* **Light:** ${profile.lightRequirement} (${profile.lightLux})\n* **Watering:** In Kerala & Tamil Nadu, water in summer every ${profile.wateringScheduleKeralaTN.summer}; in monsoon every ${profile.wateringScheduleKeralaTN.monsoon}.\n* **Soil:** ${profile.idealSoilMix}\n* **Pet Safety:** ${profile.petSafe ? 'Safe for dogs & cats 🐾' : 'Toxic if ingested by pets ⚠️'}\n\n*Need personalized help? WhatsApp our horticulturists at [+91 88482 76403](https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team!%20I%20have%20a%20question%20about%20${encodeURIComponent(profile.commonName)})!*`
+        });
+      }
       return res.json({ 
-        reply: "I'm currently resting! Please configure the GEMINI_API_KEY to enable my AI capabilities." 
+        reply: "Hello! I am Gardener AI from 7Seasonsplants (Mannarathayil Gardens LLP). For instant plant care assistance or gardening advice, chat with our horticulturists on WhatsApp at [+91 88482 76403](https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team!%20I'm%20looking%20for%20assistance.)." 
       });
     }
 
-    // Format history for generateContent
-    // history should be an array of { role: 'user' | 'model', parts: [{ text: '...' }] }
-    const contents = [...history, { role: 'user', parts: [{ text: message }] }];
+    // Keep history compact to 4 most recent turns for rapid latency
+    const compactHistory = history.slice(-4);
+    const contents = [...compactHistory, { role: "user", parts: [{ text: userMsg }] }];
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+    const systemInstruction = `You are 'Gardener AI', the chief digital horticulturist at 7Seasonsplants / Mannarathayil Gardens LLP in Kerala & Tamil Nadu.
+Your mission:
+1. Provide accurate, practical, and highly adaptive plant care recommendations tailored to South Indian tropical climates (warm humid monsoons, dry summers).
+2. Answer concisely and clearly (2-3 short, formatted paragraphs or bullet points). Be warm and knowledgeable.
+3. If the user asks about toxic plants, watering frequency, sunlight levels, pest treatments (like neem oil), or soil potting mixes, give specific botanical remedies.
+4. If the user requests human contact, custom bulk orders, or direct WhatsApp support, provide: [WhatsApp Support (+91 88482 76403)](https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team!%20I'm%20looking%20for%20assistance.).
+${botanicalInjectedContext}`;
+
+    const response = await generateContentWithFallback(ai, {
+      primaryModel: "gemini-3.1-flash-lite",
       contents: contents,
       config: {
-        systemInstruction: "You are 'Gardener AI', a helpful and friendly botanical assistant at Mannarathayil Nursery (7Seasonsplants). Keep responses concise, warm, and focused on plant care, gardening advice, and recommendations. Format with short paragraphs and bullet points if necessary. Limit responses to a few short paragraphs so it fits nicely in a chat window. If the user asks for human support, customer service, or WhatsApp support, or if you cannot resolve their issue, you MUST provide them with this WhatsApp support link: [WhatsApp Support (+91 95672 74176)](https://wa.me/919567274176?text=Hi%207Seasonsplants%20Team!%20I'm%20looking%20for%20assistance.).",
+        systemInstruction,
+        maxOutputTokens: 500,
       },
     });
 
     res.json({ reply: response.text });
   } catch (error: any) {
-    console.error("Gardener AI chat error:", error);
-    res.status(500).json({ error: "Failed to generate a reply." });
+    console.warn("[Gardener AI Chat] Fallback response served:", error?.message || error);
+    const userMsg = (req.body?.message || "").toLowerCase();
+    const profile = findBotanicalProfile(userMsg);
+
+    if (profile) {
+      return res.json({
+        reply: `**${profile.commonName} Care Highlights**:\n* **Light:** ${profile.lightRequirement}\n* **Watering:** In summer, ${profile.wateringScheduleKeralaTN.summer}; during monsoons, ${profile.wateringScheduleKeralaTN.monsoon}.\n* **Soil Mix:** ${profile.idealSoilMix}\n* **Pet Safety:** ${profile.petSafe ? 'Safe for pets' : 'Toxic to pets if chewed'}.\n\nFor direct expert advice, chat with us on WhatsApp at [+91 88482 76403](https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team!%20I'm%20looking%20for%20assistance.)!`
+      });
+    }
+
+    res.json({
+      reply: "In South Indian tropical climates, tropical houseplants thrive in bright indirect light with irrigation only when the top 2 inches of soil are dry. During monsoons, reduce watering by half. For immediate guidance, WhatsApp our nursery horticulturists at [+91 88482 76403](https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team!%20I'm%20looking%20for%20assistance.).",
+    });
   }
 };
 

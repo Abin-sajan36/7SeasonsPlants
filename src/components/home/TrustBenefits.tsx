@@ -1,7 +1,11 @@
 import React from 'react';
 import { ShieldCheck, Sparkles, Box, Truck, BookOpen } from 'lucide-react';
+import { useStore } from '../../context/StoreContext';
 
 export const TrustBenefits: React.FC = () => {
+  const { storeSettings } = useStore();
+  const whatsapp = storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403';
+
   const benefits = [
     {
       icon: ShieldCheck,
@@ -30,7 +34,7 @@ export const TrustBenefits: React.FC = () => {
     {
       icon: BookOpen,
       title: 'Expert Care Guidance',
-      description: 'Free WhatsApp support (+91 88482 76403) and our 7Seasons Plant Doctor AI tool.',
+      description: `Free WhatsApp support (${whatsapp}) and our 7Seasons Plant Doctor AI tool.`,
       color: 'text-rose-600 bg-rose-50 border border-rose-100',
     },
   ];

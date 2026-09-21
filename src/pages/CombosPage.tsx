@@ -9,7 +9,10 @@ interface CombosPageProps {
 }
 
 export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCategory }) => {
-  const { combos, selectedDeliveryState } = useStore();
+  const { combos, selectedDeliveryState, storeSettings } = useStore();
+  const whatsappNum = storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403';
+  const digits = whatsappNum.replace(/[^0-9]/g, '');
+  const waNum = digits.startsWith('91') ? digits : digits.length === 10 ? `91${digits}` : digits;
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'All');
 
   const comboCategories = [
@@ -144,13 +147,13 @@ export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCateg
           </div>
 
           <a
-            href="https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team!%20I%20want%20to%20create%20a%20custom%20plant%20combo%20for%20my%20home."
+            href={`https://wa.me/${waNum}?text=Hi%207Seasonsplants%20Team!%20I%20want%20to%20create%20a%20custom%20plant%20combo%20for%20my%20home.`}
             target="_blank"
             rel="noopener noreferrer"
             className="px-6 py-3.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full font-bold text-xs shadow-md transition-all flex items-center gap-2 shrink-0 cursor-pointer"
           >
             <MessageCircle className="w-4 h-4 fill-white" />
-            <span>Chat on WhatsApp (+91 88482 76403)</span>
+            <span>Chat on WhatsApp ({whatsappNum})</span>
           </a>
         </div>
       </div>

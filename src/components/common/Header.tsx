@@ -198,10 +198,10 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
     <>
       <header className={`sticky top-0 z-40 bg-white dark:bg-[#06120e] shadow-xs border-b border-emerald-900/10 dark:border-emerald-900/40 transition-all duration-300 ease-in-out transform ${scrollDirection === "down" && isScrolled ? "-translate-y-full" : "translate-y-0"}`}>
       {/* 1. TOP ANNOUNCEMENT BAR */}
-      {storeSettings.announcementBarActive && (
+      {storeSettings.announcementBarActive !== false && (storeSettings.announcementBarText || storeSettings.announcementText) && (
         <div className="overflow-hidden">
         <div className="bg-gradient-to-r from-emerald-800 via-green-700 to-emerald-800 text-white px-4 py-1.5 text-xs font-semibold text-center relative z-20 flex items-center justify-center gap-2 shadow-inner">
-          <span>{storeSettings.announcementBarText}</span>
+          <span>{storeSettings.announcementBarText || storeSettings.announcementText}</span>
           <button
             onClick={() => onNavigate('combos')}
             className="hidden sm:inline-flex items-center text-amber-200 hover:text-white font-bold underline decoration-amber-300 ml-1 cursor-pointer transition-colors"
@@ -378,15 +378,22 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
           {/* Right Action Icons: Phone support, Wishlist, Account, Cart */}
           <div className="flex items-center gap-1.5 sm:gap-3">
             {/* Direct WhatsApp / Phone Contact Link */}
-            <a
-              href="https://wa.me/918848276403?text=Hi%207Seasonsplants%20Team,%20I%20have%20an%20inquiry%20about%20your%20plants"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden xl:flex items-center gap-2 text-xs font-medium text-emerald-950 dark:text-emerald-50 bg-emerald-50 dark:bg-[#0a1f18] hover:bg-emerald-100 px-3.5 py-1.5 rounded-full border border-emerald-900/10 dark:border-emerald-900/40 transition-colors"
-            >
-              <Phone className="w-3.5 h-3.5 text-emerald-700" />
-              <span>+91 88482 76403</span>
-            </a>
+            {(() => {
+              const waDisplay = storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403';
+              const digits = waDisplay.replace(/[^0-9]/g, '');
+              const waNum = digits.startsWith('91') ? digits : digits.length === 10 ? `91${digits}` : digits;
+              return (
+                <a
+                  href={`https://wa.me/${waNum}?text=Hi%207Seasonsplants%20Team,%20I%20have%20an%20inquiry%20about%20your%20plants`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden xl:flex items-center gap-2 text-xs font-medium text-emerald-950 dark:text-emerald-50 bg-emerald-50 dark:bg-[#0a1f18] hover:bg-emerald-100 px-3.5 py-1.5 rounded-full border border-emerald-900/10 dark:border-emerald-900/40 transition-colors"
+                >
+                  <Phone className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>{waDisplay}</span>
+                </a>
+              );
+            })()}
 
             {/* Theme Toggle Button */}
             <button
@@ -795,15 +802,22 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
 
             {/* Mobile Footer with contact */}
             <div className="border-t border-gray-100 dark:border-gray-800 pt-4 mt-6 space-y-2 text-xs">
-              <a
-                href="https://wa.me/918848276403"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-700 text-white rounded-full font-bold shadow-xs hover:bg-emerald-800 transition-colors"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                WhatsApp Support (+91 88482 76403)
-              </a>
+              {(() => {
+                const waDisplay = storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403';
+                const digits = waDisplay.replace(/[^0-9]/g, '');
+                const waNum = digits.startsWith('91') ? digits : digits.length === 10 ? `91${digits}` : digits;
+                return (
+                  <a
+                    href={`https://wa.me/${waNum}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-700 text-white rounded-full font-bold shadow-xs hover:bg-emerald-800 transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    WhatsApp Support ({waDisplay})
+                  </a>
+                );
+              })()}
             </div>
           </div>
 

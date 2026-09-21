@@ -38,11 +38,15 @@ import {
   Download,
   Upload,
   Crown,
+  Save,
+  Undo2,
+  Store,
+  Megaphone,
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
 import { UserManagementTab } from '../components/admin/UserManagementTab';
-import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus } from '../types';
+import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus, StoreSettings } from '../types';
 import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
 import { ImageUploadPicker } from '../components/admin/ImageUploadPicker';
 import { AdminLoginGate } from '../components/admin/AdminLoginGate';
@@ -186,6 +190,168 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
   const [exportStatus, setExportStatus] = useState('all');
+
+  // Nursery Settings Local Form State
+  const [settingsForm, setSettingsForm] = useState<StoreSettings>(() => ({
+    businessName: storeSettings?.businessName || '7Seasonsplants',
+    tagline: storeSettings?.tagline || 'Vibrant Plants & Curated Green Combos',
+    parentNursery: storeSettings?.parentNursery || '7Seasons By Mannaratharayil Gardens LLP',
+    phone: storeSettings?.phone || '08848276403',
+    email: storeSettings?.email || '7seasonsplants@gmail.com',
+    whatsapp: storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403',
+    whatsappNumber: storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403',
+    instagram: storeSettings?.instagram || '@7seasonsplants',
+    address: storeSettings?.address || 'Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India',
+    supportedStates: storeSettings?.supportedStates || ['Kerala', 'Tamil Nadu'],
+    deliveryCharge: storeSettings?.deliveryCharge ?? 80,
+    freeShippingThreshold: storeSettings?.freeShippingThreshold ?? storeSettings?.freeDeliveryThreshold ?? 899,
+    freeDeliveryThreshold: storeSettings?.freeShippingThreshold ?? storeSettings?.freeDeliveryThreshold ?? 899,
+    announcementBarText: storeSettings?.announcementBarText || storeSettings?.announcementText || '🌿 Fresh Plants • Curated Combos • Delivered Safely Across Kerala & Tamil Nadu • Free Shipping over ₹899!',
+    announcementText: storeSettings?.announcementBarText || storeSettings?.announcementText || '🌿 Fresh Plants • Curated Combos • Delivered Safely Across Kerala & Tamil Nadu • Free Shipping over ₹899!',
+    announcementBarActive: storeSettings?.announcementBarActive !== false,
+    announcementLink: storeSettings?.announcementLink || '/combos',
+    razorpayKeyId: storeSettings?.razorpayKeyId || '',
+    razorpayEnabled: storeSettings?.razorpayEnabled !== false,
+    menuVisibility: {
+      home: true,
+      plants: true,
+      combos: true,
+      bestSellers: true,
+      newArrivals: true,
+      deals: true,
+      plantCare: true,
+      blog: true,
+      trackOrder: true,
+      wishlist: true,
+      cart: true,
+      ...(storeSettings?.menuVisibility || {}),
+    },
+  }));
+
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSavedSuccess, setSettingsSavedSuccess] = useState(false);
+  const [isSettingsDirty, setIsSettingsDirty] = useState(false);
+
+  // Sync settingsForm with storeSettings from Firebase when not dirty
+  useEffect(() => {
+    if (!isSettingsDirty && storeSettings) {
+      setSettingsForm({
+        businessName: storeSettings.businessName || '7Seasonsplants',
+        tagline: storeSettings.tagline || 'Vibrant Plants & Curated Green Combos',
+        parentNursery: storeSettings.parentNursery || '7Seasons By Mannaratharayil Gardens LLP',
+        phone: storeSettings.phone || '08848276403',
+        email: storeSettings.email || '7seasonsplants@gmail.com',
+        whatsapp: storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403',
+        whatsappNumber: storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403',
+        instagram: storeSettings.instagram || '@7seasonsplants',
+        address: storeSettings.address || 'Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India',
+        supportedStates: storeSettings.supportedStates || ['Kerala', 'Tamil Nadu'],
+        deliveryCharge: storeSettings.deliveryCharge ?? 80,
+        freeShippingThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
+        freeDeliveryThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
+        announcementBarText: storeSettings.announcementBarText || storeSettings.announcementText || '',
+        announcementText: storeSettings.announcementBarText || storeSettings.announcementText || '',
+        announcementBarActive: storeSettings.announcementBarActive !== false,
+        announcementLink: storeSettings.announcementLink || '/combos',
+        razorpayKeyId: storeSettings.razorpayKeyId || '',
+        razorpayEnabled: storeSettings.razorpayEnabled !== false,
+        menuVisibility: {
+          home: true,
+          plants: true,
+          combos: true,
+          bestSellers: true,
+          newArrivals: true,
+          deals: true,
+          plantCare: true,
+          blog: true,
+          trackOrder: true,
+          wishlist: true,
+          cart: true,
+          ...(storeSettings.menuVisibility || {}),
+        },
+      });
+    }
+  }, [storeSettings, isSettingsDirty]);
+
+  const handleSaveStoreSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingSettings(true);
+    setSettingsSavedSuccess(false);
+
+    try {
+      const payload: Partial<StoreSettings> = {
+        ...settingsForm,
+        deliveryCharge: Number(settingsForm.deliveryCharge) || 0,
+        freeShippingThreshold: Number(settingsForm.freeShippingThreshold) || 0,
+        freeDeliveryThreshold: Number(settingsForm.freeShippingThreshold) || 0,
+        whatsapp: settingsForm.whatsapp.trim(),
+        whatsappNumber: settingsForm.whatsapp.trim(),
+        phone: settingsForm.phone.trim(),
+        email: settingsForm.email.trim(),
+        announcementBarText: settingsForm.announcementBarText.trim(),
+        announcementText: settingsForm.announcementBarText.trim(),
+        announcementBarActive: settingsForm.announcementBarActive,
+        announcementLink: settingsForm.announcementLink?.trim() || '/combos',
+        businessName: settingsForm.businessName.trim(),
+        parentNursery: settingsForm.parentNursery.trim(),
+        address: settingsForm.address.trim(),
+        menuVisibility: settingsForm.menuVisibility,
+      };
+
+      await updateStoreSettings(payload);
+      setIsSettingsDirty(false);
+      setSettingsSavedSuccess(true);
+      setTimeout(() => setSettingsSavedSuccess(false), 4000);
+    } catch (err) {
+      console.error('Error saving settings:', err);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleResetStoreSettings = () => {
+    setSettingsForm({
+      businessName: storeSettings.businessName || '7Seasonsplants',
+      tagline: storeSettings.tagline || 'Vibrant Plants & Curated Green Combos',
+      parentNursery: storeSettings.parentNursery || '7Seasons By Mannaratharayil Gardens LLP',
+      phone: storeSettings.phone || '08848276403',
+      email: storeSettings.email || '7seasonsplants@gmail.com',
+      whatsapp: storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403',
+      whatsappNumber: storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403',
+      instagram: storeSettings.instagram || '@7seasonsplants',
+      address: storeSettings.address || 'Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India',
+      supportedStates: storeSettings.supportedStates || ['Kerala', 'Tamil Nadu'],
+      deliveryCharge: storeSettings.deliveryCharge ?? 80,
+      freeShippingThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
+      freeDeliveryThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
+      announcementBarText: storeSettings.announcementBarText || storeSettings.announcementText || '',
+      announcementText: storeSettings.announcementBarText || storeSettings.announcementText || '',
+      announcementBarActive: storeSettings.announcementBarActive !== false,
+      announcementLink: storeSettings.announcementLink || '/combos',
+      razorpayKeyId: storeSettings.razorpayKeyId || '',
+      razorpayEnabled: storeSettings.razorpayEnabled !== false,
+      menuVisibility: {
+        home: true,
+        plants: true,
+        combos: true,
+        bestSellers: true,
+        newArrivals: true,
+        deals: true,
+        plantCare: true,
+        blog: true,
+        trackOrder: true,
+        wishlist: true,
+        cart: true,
+        ...(storeSettings.menuVisibility || {}),
+      },
+    });
+    setIsSettingsDirty(false);
+    addToast({
+      title: 'Settings Reset',
+      message: 'Reverted all unsaved changes to active store settings.',
+      type: 'info',
+    });
+  };
 
   const downloadCSV = (content: string, filename: string) => {
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
@@ -2176,77 +2342,428 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
         {/* TAB 5: NURSERY SETTINGS */}
         {activeTab === 'settings' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-2xs max-w-2xl space-y-6">
-            <h3 className="text-base font-bold text-emerald-950">Store Operational Settings</h3>
-            <div className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-emerald-950 block mb-1">
-                  Nursery WhatsApp Helpline Number
-                </label>
-                <input
-                  type="text"
-                  value={storeSettings.whatsappNumber}
-                  onChange={(e) => updateStoreSettings({ whatsappNumber: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-full border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold"
-                />
-              </div>
-              <div>
-                <label className="font-bold text-emerald-950 block mb-1">
-                  Free Delivery Threshold (₹)
-                </label>
-                <input
-                  type="number"
-                  value={storeSettings.freeDeliveryThreshold}
-                  onChange={(e) =>
-                    updateStoreSettings({ freeDeliveryThreshold: Number(e.target.value) })
-                  }
-                  className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-full border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold"
-                />
+          <div
+            id="nursery-settings-container"
+            className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-2xs max-w-3xl space-y-8"
+          >
+            {/* Header & Status */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5">
+                  <Store className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-emerald-950">Store Operational Settings</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Configure live announcements, delivery fees, customer helpline numbers, and menu links.
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <label className="font-bold text-emerald-950 block mb-1">Top Announcement Bar Text</label>
-                <input
-                  type="text"
-                  value={storeSettings.announcementText}
-                  onChange={(e) => updateStoreSettings({ announcementText: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-full border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold"
-                />
+              <div className="flex items-center gap-2 shrink-0">
+                {isSettingsDirty && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold rounded-full animate-pulse">
+                    Unsaved Changes
+                  </span>
+                )}
+                {settingsSavedSuccess && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold rounded-full">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Saved Successfully
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveStoreSettings} className="space-y-8 text-xs">
+              {/* SECTION 1: TOP ANNOUNCEMENT BAR */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                      <Megaphone className="w-4 h-4 text-emerald-700" />
+                      Top Announcement Bar
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Promotional banner displayed at the very top of the website.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      id="toggle-announcement-bar-active"
+                      checked={settingsForm.announcementBarActive}
+                      onChange={(e) => {
+                        setSettingsForm((prev) => ({ ...prev, announcementBarActive: e.target.checked }));
+                        setIsSettingsDirty(true);
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="font-bold text-emerald-950 block mb-1">
+                    Announcement Banner Text
+                  </label>
+                  <input
+                    type="text"
+                    id="settings-announcement-text-input"
+                    value={settingsForm.announcementBarText}
+                    onChange={(e) => {
+                      setSettingsForm((prev) => ({ ...prev, announcementBarText: e.target.value }));
+                      setIsSettingsDirty(true);
+                    }}
+                    placeholder="e.g. 🌿 Fresh Plants • Curated Combos • Delivered Safely Across Kerala & Tamil Nadu • Free Shipping over ₹899!"
+                    className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold transition-colors"
+                  />
+                </div>
+
+                {/* Real-time Preview */}
+                {settingsForm.announcementBarActive && (
+                  <div className="p-3 bg-gray-50 rounded-2xl border border-dashed border-gray-200 space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+                      Live Announcement Banner Preview
+                    </span>
+                    <div className="bg-gradient-to-r from-emerald-800 via-green-700 to-emerald-800 text-white px-4 py-1.5 rounded-xl text-xs font-semibold text-center flex items-center justify-center gap-2 shadow-inner">
+                      <span>{settingsForm.announcementBarText || 'No announcement message set.'}</span>
+                      <span className="text-amber-200 font-bold underline decoration-amber-300 ml-1">
+                        Explore Combos →
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="font-bold text-emerald-950 block mb-1">
+                    Banner Click Destination / Route
+                  </label>
+                  <input
+                    type="text"
+                    id="settings-announcement-link-input"
+                    value={settingsForm.announcementLink || '/combos'}
+                    onChange={(e) => {
+                      setSettingsForm((prev) => ({ ...prev, announcementLink: e.target.value }));
+                      setIsSettingsDirty(true);
+                    }}
+                    placeholder="/combos or custom URL"
+                    className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-medium transition-colors"
+                  />
+                </div>
               </div>
 
-              <div className="pt-6 mt-6 border-t border-gray-100">
-                <h4 className="text-sm font-bold text-emerald-950 mb-4">Menu Visibility Configuration</h4>
+              {/* SECTION 2: SHIPPING & DELIVERY CONFIGURATION */}
+              <div className="pt-6 border-t border-gray-100 space-y-4">
+                <div>
+                  <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-emerald-700" />
+                    Shipping & Delivery Pricing
+                  </h4>
+                  <p className="text-[11px] text-gray-500">
+                    Controls automatic free shipping thresholds and base weight-based delivery fees.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-emerald-950 block mb-1">
+                      Free Delivery Threshold (₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        id="settings-free-delivery-input"
+                        min="0"
+                        step="1"
+                        value={settingsForm.freeShippingThreshold}
+                        onChange={(e) => {
+                          setSettingsForm((prev) => ({
+                            ...prev,
+                            freeShippingThreshold: Number(e.target.value),
+                            freeDeliveryThreshold: Number(e.target.value),
+                          }));
+                          setIsSettingsDirty(true);
+                        }}
+                        className="w-full pl-8 pr-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold transition-colors"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Orders with subtotal equal to or above ₹{settingsForm.freeShippingThreshold} get 100% free delivery.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-emerald-950 block mb-1">
+                      Standard Delivery Charge (₹ per Kg)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        id="settings-delivery-charge-input"
+                        min="0"
+                        step="1"
+                        value={settingsForm.deliveryCharge}
+                        onChange={(e) => {
+                          setSettingsForm((prev) => ({
+                            ...prev,
+                            deliveryCharge: Number(e.target.value),
+                          }));
+                          setIsSettingsDirty(true);
+                        }}
+                        className="w-full pl-8 pr-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold transition-colors"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Charged per kg of total plant shipment weight when subtotal is under ₹{settingsForm.freeShippingThreshold}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: NURSERY CONTACT & HELPLINE */}
+              <div className="pt-6 border-t border-gray-100 space-y-4">
+                <div>
+                  <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-emerald-700" />
+                    Customer Helpline & WhatsApp Support
+                  </h4>
+                  <p className="text-[11px] text-gray-500">
+                    Displayed across header support buttons, sticky footer, order tracking, and contact pages.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-emerald-950 block mb-1">
+                      Nursery WhatsApp Helpline
+                    </label>
+                    <input
+                      type="text"
+                      id="settings-whatsapp-input"
+                      value={settingsForm.whatsapp}
+                      onChange={(e) => {
+                        setSettingsForm((prev) => ({
+                          ...prev,
+                          whatsapp: e.target.value,
+                          whatsappNumber: e.target.value,
+                        }));
+                        setIsSettingsDirty(true);
+                      }}
+                      placeholder="+91 88482 76403"
+                      className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold transition-colors"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Used for direct chat links (e.g. wa.me/...).
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-emerald-950 block mb-1">
+                      Customer Care Calling Phone
+                    </label>
+                    <input
+                      type="text"
+                      id="settings-phone-input"
+                      value={settingsForm.phone}
+                      onChange={(e) => {
+                        setSettingsForm((prev) => ({ ...prev, phone: e.target.value }));
+                        setIsSettingsDirty(true);
+                      }}
+                      placeholder="08848276403"
+                      className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold transition-colors"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Direct voice call helpline number.
+                    </p>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-emerald-950 block mb-1">
+                      Customer Support Email Address
+                    </label>
+                    <input
+                      type="email"
+                      id="settings-email-input"
+                      value={settingsForm.email}
+                      onChange={(e) => {
+                        setSettingsForm((prev) => ({ ...prev, email: e.target.value }));
+                        setIsSettingsDirty(true);
+                      }}
+                      placeholder="7seasonsplants@gmail.com"
+                      className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 4: BRANDING & FACILITY INFORMATION */}
+              <div className="pt-6 border-t border-gray-100 space-y-4">
+                <div>
+                  <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-700" />
+                    Nursery Branding & Dispatch Facility
+                  </h4>
+                  <p className="text-[11px] text-gray-500">
+                    Store name, parent botanical nursery identity, and registered dispatch facility.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-emerald-950 block mb-1">
+                      Store Brand Name
+                    </label>
+                    <input
+                      type="text"
+                      id="settings-business-name-input"
+                      value={settingsForm.businessName}
+                      onChange={(e) => {
+                        setSettingsForm((prev) => ({ ...prev, businessName: e.target.value }));
+                        setIsSettingsDirty(true);
+                      }}
+                      placeholder="7Seasonsplants"
+                      className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-emerald-950 block mb-1">
+                      Parent Nursery / Legal LLP
+                    </label>
+                    <input
+                      type="text"
+                      id="settings-parent-nursery-input"
+                      value={settingsForm.parentNursery}
+                      onChange={(e) => {
+                        setSettingsForm((prev) => ({ ...prev, parentNursery: e.target.value }));
+                        setIsSettingsDirty(true);
+                      }}
+                      placeholder="7Seasons By Mannaratharayil Gardens LLP"
+                      className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold transition-colors"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-emerald-950 block mb-1">
+                      Dispatch Hub & Propagation Facility Address
+                    </label>
+                    <input
+                      type="text"
+                      id="settings-address-input"
+                      value={settingsForm.address}
+                      onChange={(e) => {
+                        setSettingsForm((prev) => ({ ...prev, address: e.target.value }));
+                        setIsSettingsDirty(true);
+                      }}
+                      placeholder="Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India"
+                      className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-medium transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: MENU VISIBILITY CONFIGURATION */}
+              <div className="pt-6 border-t border-gray-100 space-y-4">
+                <div>
+                  <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-emerald-700" />
+                    Website Menu Visibility Configuration
+                  </h4>
+                  <p className="text-[11px] text-gray-500">
+                    Toggle which navigation links and sections appear in the header and mobile drawer.
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {[
-                    { id: 'home', label: 'Home' },
-                    { id: 'plants', label: 'Plants' },
+                    { id: 'home', label: 'Home Page' },
+                    { id: 'plants', label: 'Plants Catalog' },
                     { id: 'combos', label: 'Plant Combos' },
                     { id: 'bestSellers', label: 'Best Sellers' },
                     { id: 'newArrivals', label: 'New Arrivals' },
-                    { id: 'deals', label: 'Deals' },
-                    { id: 'plantCare', label: 'Plant Care' },
-                    { id: 'blog', label: 'Blog' },
+                    { id: 'deals', label: 'Daily Deals' },
+                    { id: 'plantCare', label: 'Plant Care / Doctor' },
+                    { id: 'blog', label: 'Botanical Blog' },
                     { id: 'trackOrder', label: 'Track Order' },
-                    { id: 'wishlist', label: 'Wishlist' },
-                    { id: 'cart', label: 'Cart' },
+                    { id: 'wishlist', label: 'Saved Wishlist' },
+                    { id: 'cart', label: 'Shopping Cart' },
                   ].map((menu) => (
-                    <label key={menu.id} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded-lg">
+                    <label
+                      key={menu.id}
+                      className="flex items-center gap-2.5 cursor-pointer p-2.5 hover:bg-gray-50 rounded-xl border border-gray-100 transition-colors"
+                    >
                       <input
                         type="checkbox"
-                        checked={storeSettings.menuVisibility?.[menu.id] !== false}
+                        id={`menu-visibility-${menu.id}`}
+                        checked={settingsForm.menuVisibility?.[menu.id] !== false}
                         onChange={(e) => {
-                          const newVis = { ...(storeSettings.menuVisibility || {}) };
+                          const newVis = { ...(settingsForm.menuVisibility || {}) };
                           newVis[menu.id] = e.target.checked;
-                          updateStoreSettings({ menuVisibility: newVis });
+                          setSettingsForm((prev) => ({ ...prev, menuVisibility: newVis }));
+                          setIsSettingsDirty(true);
                         }}
                         className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 border-gray-300"
                       />
-                      <span className="text-xs font-semibold text-gray-700">{menu.label}</span>
+                      <span className="text-xs font-semibold text-gray-800">{menu.label}</span>
                     </label>
                   ))}
                 </div>
               </div>
-            </div>
+
+              {/* ACTION BAR: SAVE & RESET BUTTONS */}
+              <div className="pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-xs text-gray-500 flex items-center gap-2">
+                  {isSettingsDirty ? (
+                    <span className="text-amber-700 font-semibold flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4" />
+                      You have unsaved changes. Click Save to apply.
+                    </span>
+                  ) : (
+                    <span className="text-emerald-700 font-medium flex items-center gap-1.5">
+                      <Check className="w-4 h-4" />
+                      All settings are synchronized with the live website.
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  {isSettingsDirty && (
+                    <button
+                      type="button"
+                      id="reset-nursery-settings-btn"
+                      onClick={handleResetStoreSettings}
+                      disabled={isSavingSettings}
+                      className="flex-1 sm:flex-initial px-5 py-2.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Undo2 className="w-3.5 h-3.5" />
+                      <span>Discard</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="submit"
+                    id="save-nursery-settings-btn"
+                    disabled={isSavingSettings}
+                    className="flex-1 sm:flex-initial px-7 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-full font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingSettings ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Saving Settings...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save Store Settings</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         )}
       </div>

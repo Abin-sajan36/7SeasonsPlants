@@ -235,34 +235,46 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               Nursery Contact
             </h3>
             <div className="space-y-3 text-xs text-[#D1FAE5]/90">
-              <a
-                href="tel:08848276403"
-                className="flex items-start gap-2.5 hover:text-white transition-colors"
-              >
-                <Phone className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>08848276403</span>
-              </a>
+              {(() => {
+                const phone = storeSettings?.phone || '08848276403';
+                const whatsapp = storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403';
+                const email = storeSettings?.email || '7seasonsplants@gmail.com';
+                const digits = whatsapp.replace(/[^0-9]/g, '');
+                const waNum = digits.startsWith('91') ? digits : digits.length === 10 ? `91${digits}` : digits;
+
+                return (
+                  <>
+                    <a
+                      href={`tel:${phone.replace(/\s+/g, '')}`}
+                      className="flex items-start gap-2.5 hover:text-white transition-colors"
+                    >
+                      <Phone className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>{phone}</span>
+                    </a>
+
+                    <a
+                      href={`https://wa.me/${waNum}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-2.5 hover:text-white transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>{whatsapp} (WhatsApp)</span>
+                    </a>
+
+                    <a
+                      href={`mailto:${email}`}
+                      className="flex items-start gap-2.5 hover:text-white transition-colors"
+                    >
+                      <Mail className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="break-all">{email}</span>
+                    </a>
+                  </>
+                );
+              })()}
 
               <a
-                href="https://wa.me/918848276403"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-start gap-2.5 hover:text-white transition-colors"
-              >
-                <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>+91 88482 76403 (WhatsApp)</span>
-              </a>
-
-              <a
-                href="mailto:7seasonsplants@gmail.com"
-                className="flex items-start gap-2.5 hover:text-white transition-colors"
-              >
-                <Mail className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span className="break-all">7seasonsplants@gmail.com</span>
-              </a>
-
-              <a
-                href="https://instagram.com/7seasonsplants"
+                href={storeSettings?.instagram ? (storeSettings.instagram.startsWith('http') ? storeSettings.instagram : `https://instagram.com/${storeSettings.instagram.replace('@', '')}`) : "https://instagram.com/7seasonsplants"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2.5 hover:text-white transition-colors"
