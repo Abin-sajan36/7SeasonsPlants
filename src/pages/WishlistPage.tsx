@@ -84,12 +84,6 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({ onNavigate }) => {
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 <span>Explore Plant Combos (Save 35%)</span>
               </button>
-              <button
-                onClick={() => onNavigate('plants')}
-                className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 rounded-full text-xs font-semibold transition-colors cursor-pointer border border-emerald-100"
-              >
-                Browse All Plants
-              </button>
             </div>
           </div>
         ) : (

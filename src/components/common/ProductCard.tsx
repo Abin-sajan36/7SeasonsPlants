@@ -87,7 +87,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
       {/* 2. Product Details */}
       <div
         className="p-4 flex-1 flex flex-col justify-between cursor-pointer"
-        onClick={() => onNavigate('product-detail', product.slug)}
+        onClick={() => onNavigate('combos')}
       >
         <div>
           {/* Category & Rating */}

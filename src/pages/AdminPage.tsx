@@ -160,6 +160,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     status: 'published',
     isBestseller: false,
     isDealOfTheDay: false,
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
   });
 
   // Combo Customizer Modal State
@@ -538,13 +539,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       status: 'published',
       isBestseller: false,
       isDealOfTheDay: false,
+      sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
     });
     setIsProductModalOpen(true);
   };
 
   const handleEditProduct = (prod: Product) => {
     setEditingProduct(prod);
-    setProductForm(prod);
+    setProductForm({
+      ...prod,
+      sellableStates: prod.sellableStates?.length ? prod.sellableStates : ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
+    });
     setIsProductModalOpen(true);
   };
 
@@ -659,6 +664,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           temperature: '20°C - 32°C',
           commonProblems: [],
         },
+        sellableStates: productForm.sellableStates || ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
         createdAt: new Date().toISOString(),
       };
 
@@ -2943,6 +2949,46 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   />
                   <span>Feature in Deal of the Day</span>
                 </label>
+              </div>
+
+              {/* State-Based Plant Shipping Availability */}
+              <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-900/10 space-y-2">
+                <label className="font-bold text-emerald-950 text-xs flex items-center justify-between">
+                  <span>Deliverable States for this Variety</span>
+                  <span className="text-[11px] text-emerald-700 font-normal">Controls catalog display per customer state</span>
+                </label>
+                <div className="flex flex-wrap gap-3 pt-1">
+                  {['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'].map((stateName) => {
+                    const currentStates = productForm.sellableStates || ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'];
+                    const isChecked = currentStates.includes(stateName);
+                    return (
+                      <label
+                        key={stateName}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer border transition-colors ${
+                          isChecked
+                            ? 'bg-emerald-700 text-white border-emerald-700'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-emerald-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            let updated: string[];
+                            if (e.target.checked) {
+                              updated = [...currentStates, stateName];
+                            } else {
+                              updated = currentStates.filter((s) => s !== stateName);
+                            }
+                            setProductForm({ ...productForm, sellableStates: updated });
+                          }}
+                        />
+                        <span>{isChecked ? '✓' : '+'} {stateName}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">

@@ -139,12 +139,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onNa
             Home
           </button>
           <span>/</span>
-          <button onClick={() => onNavigate('plants')} className="hover:text-emerald-700">
-            Plants
+          <button onClick={() => onNavigate('combos')} className="hover:text-emerald-700">
+            Combos
           </button>
           <span>/</span>
           <button
-            onClick={() => onNavigate('plants', `category:${product.category}`)}
+            onClick={() => onNavigate('combos', `category:${product.category}`)}
             className="hover:text-emerald-700 font-medium"
           >
             {product.category}

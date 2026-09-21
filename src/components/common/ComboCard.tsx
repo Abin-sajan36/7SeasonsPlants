@@ -1,5 +1,5 @@
 import React from 'react';
-import { Heart, ShoppingBag, Sparkles, Star, PackageCheck, Eye } from 'lucide-react';
+import { Heart, ShoppingBag, Sparkles, Star, PackageCheck, Eye, MapPin } from 'lucide-react';
 import { PlantCombo } from '../../types';
 import { useStore } from '../../context/StoreContext';
 
@@ -10,7 +10,7 @@ interface ComboCardProps {
 }
 
 export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, featured = false }) => {
-  const { addToCart, toggleWishlist, isInWishlist, openQuickView } = useStore();
+  const { addToCart, toggleWishlist, isInWishlist, openQuickView, selectedDeliveryState } = useStore();
 
   const isSaved = isInWishlist(combo.id);
   const isOutOfStock = combo.stock <= 0;
@@ -102,6 +102,13 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
           <h3 className="font-extrabold text-emerald-950 text-base leading-snug group-hover:text-emerald-700 transition-colors line-clamp-2">
             {combo.name}
           </h3>
+
+          {selectedDeliveryState && (
+            <div className="inline-flex items-center gap-1 text-[11px] text-emerald-800 font-semibold bg-emerald-50/90 dark:bg-[#0a1f18] px-2 py-0.5 rounded-md mt-1.5 border border-emerald-100">
+              <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+              <span>Deliverable to {selectedDeliveryState}</span>
+            </div>
+          )}
 
           <p className="text-xs text-gray-600 mt-1 line-clamp-2 leading-relaxed font-medium">
             {combo.shortDescription}

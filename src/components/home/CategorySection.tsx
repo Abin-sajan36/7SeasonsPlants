@@ -29,10 +29,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({ onNavigate }) 
           </div>
 
           <button
-            onClick={() => onNavigate('plants')}
+            onClick={() => onNavigate('combos')}
             className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer group"
           >
-            <span>View All Categories</span>
+            <span>View All Combos</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
@@ -47,11 +47,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({ onNavigate }) 
                 key={cat.id}
                 aria-label={`Shop ${cat.name} category`}
                 onClick={() => {
-                  if (isCombo) {
-                    onNavigate('combos');
-                  } else {
-                    onNavigate('plants', `category:${cat.name}`);
-                  }
+                  onNavigate('combos', `category:${cat.name}`);
                 }}
                 className={`group relative rounded-3xl overflow-hidden cursor-pointer border transition-all duration-300 flex flex-col justify-end min-h-[220px] sm:min-h-[260px] p-5 shadow-xs hover:shadow-xl w-full text-left ${
                   isCombo

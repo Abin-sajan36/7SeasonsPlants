@@ -151,6 +151,7 @@ export const initialProducts: Product[] = [
     reviewCount: 12,
     status: 'published',
     tags: ['seasonal', 'flowers', 'outdoor', 'seedling'],
+    sellableStates: ['Kerala', 'Tamil Nadu'],
     attributes: {
       light: 'Full Sun',
       water: 'Moderate',
@@ -184,6 +185,7 @@ export const initialProducts: Product[] = [
     reviewCount: 25,
     status: 'published',
     tags: ['imported', 'tropical', 'flowers'],
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka'],
     attributes: {
       light: 'Full Sun to Partial Shade',
       water: 'High',
@@ -217,6 +219,7 @@ export const initialProducts: Product[] = [
     reviewCount: 40,
     status: 'published',
     tags: ['fragrant', 'balcony', 'low-maintenance'],
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
     attributes: {
       light: 'Full Sun',
       water: 'Moderate',
@@ -250,6 +253,7 @@ export const initialProducts: Product[] = [
     reviewCount: 8,
     status: 'published',
     tags: ['premium', 'bonsai', 'indoor'],
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
     attributes: {
       light: 'Bright Indirect Light',
       water: 'Moderate',
@@ -283,6 +287,7 @@ export const initialProducts: Product[] = [
     reviewCount: 15,
     status: 'published',
     tags: ['jiffy', 'indoor', 'foliage'],
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
     attributes: {
       light: 'Bright Indirect Light',
       water: 'Moderate',
@@ -316,6 +321,7 @@ export const initialProducts: Product[] = [
     reviewCount: 18,
     status: 'published',
     tags: ['jiffy', 'indoor', 'rare'],
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
     attributes: {
       light: 'Bright Indirect Light',
       water: 'Moderate',
@@ -349,6 +355,7 @@ export const initialProducts: Product[] = [
     reviewCount: 30,
     status: 'published',
     tags: ['jiffy', 'colorful', 'foliage'],
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
     attributes: {
       light: 'Partial Shade',
       water: 'High',
@@ -382,6 +389,7 @@ export const initialProducts: Product[] = [
     reviewCount: 42,
     status: 'published',
     tags: ['jiffy', 'indoor', 'easy-care'],
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
     attributes: {
       light: 'Low to Bright Indirect Light',
       water: 'Moderate',
@@ -415,6 +423,7 @@ export const initialProducts: Product[] = [
     reviewCount: 9,
     status: 'published',
     tags: ['shrub', 'purple', 'outdoor'],
+    sellableStates: ['Kerala', 'Tamil Nadu'],
     attributes: {
       light: 'Full Sun',
       water: 'High',
@@ -451,13 +460,14 @@ export const initialPlantCombos: PlantCombo[] = [
     rating: 4.9,
     reviewCount: 15,
     status: 'published',
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
     items: [
       { productId: 'prod-philodendron-jiffy', productName: 'Philodendron (Jiffy Plant)', image: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 1 },
       { productId: 'prod-alocasia-jiffy', productName: 'Alocasia (Jiffy Plant)', image: 'https://images.unsplash.com/photo-1620127394144-8848416d86fb?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 1 },
       { productId: 'prod-caladium-jiffy', productName: 'Caladium (Jiffy Plant)', image: 'https://images.unsplash.com/photo-1601370690183-1c7796ecec61?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 1 },
       { productId: 'prod-syngonium-jiffy', productName: 'Syngonium (Jiffy Plant)', image: 'https://images.unsplash.com/photo-1611211232932-da3113c5b960?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 1 }
     ],
-    tags: ['combo'],
+    tags: ['combo', 'indoor', 'jiffy', 'air-purifying'],
     careSummary: 'Water when dry, give bright light.',
     benefits: ['Looks great', 'Cleans air'],
     createdAt: new Date().toISOString(),
@@ -479,14 +489,43 @@ export const initialPlantCombos: PlantCombo[] = [
     rating: 4.8,
     reviewCount: 22,
     status: 'published',
+    sellableStates: ['Kerala', 'Tamil Nadu', 'Karnataka'],
     items: [
       { productId: 'prod-sweet-alyssum', productName: 'Sweet Alyssum', image: 'https://images.unsplash.com/photo-1621272036047-bf0ebfd40f1a?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 2 },
       { productId: 'prod-chrysanthemum-seedling', productName: 'Chrysanthemum Seedling', image: 'https://images.unsplash.com/photo-1603507022069-450f3b06325f?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 1 },
       { productId: 'prod-melastoma', productName: 'Melastoma', image: 'https://images.unsplash.com/photo-1681283626245-779836a0fbac?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 1 }
     ],
-    tags: ['combo'],
+    tags: ['combo', 'balcony', 'flowering'],
     careSummary: 'Water when dry, give bright light.',
-    benefits: ['Looks great', 'Cleans air'],
+    benefits: ['Pollinator magnet', 'Vibrant blooms'],
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'combo-monsoon-balcony-garden',
+    name: 'Monsoon Balcony Garden Special',
+    slug: 'monsoon-balcony-garden-special',
+    shortDescription: 'Rain-hardy tropical collection with fragrant blooms and lush foliage.',
+    description: 'Curated specially for South Indian monsoons. Includes rain-tolerant flowering shrubs, potted planters, and our slow-release organic nursery fertilizer pack.',
+    category: 'Balcony Combos',
+    price: 499,
+    originalPrice: 699,
+    savings: 200,
+    discountPercentage: 29,
+    stock: 30,
+    sku: '7S-CMB-MON-01',
+    images: ['https://images.unsplash.com/photo-1508610048659-a06b669e3321?auto=format&fit=crop&w=900&q=80'],
+    rating: 4.9,
+    reviewCount: 18,
+    status: 'published',
+    sellableStates: ['Kerala', 'Tamil Nadu'],
+    items: [
+      { productId: 'prod-imported-hibiscus', productName: 'Imported Hibiscus Sapling', image: 'https://images.unsplash.com/photo-1550073255-a0c4f346b9a2?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 1 },
+      { productId: 'prod-sweet-alyssum', productName: 'Sweet Alyssum', image: 'https://images.unsplash.com/photo-1621272036047-bf0ebfd40f1a?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 1 },
+      { productId: 'prod-melastoma', productName: 'Melastoma', image: 'https://images.unsplash.com/photo-1681283626245-779836a0fbac?auto=format&fit=crop&w=150&q=80', itemType: 'plant', quantity: 1 }
+    ],
+    tags: ['combo', 'monsoon', 'tropical', 'rain-hardy'],
+    careSummary: 'Well-draining pot mix, partial to full sun.',
+    benefits: ['Heavy monsoon blooms', 'Hardy roots'],
     createdAt: new Date().toISOString(),
   }
 ];

@@ -92,7 +92,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           {/* Col 2: Shop & Categories */}
           <div>
             <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-3.5">
-              Shop Greenery
+              Shop Combos
             </h3>
             <ul className="space-y-2.5 text-xs">
               {visibility.combos !== false && (
@@ -101,53 +101,51 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   onClick={() => onNavigate('combos')}
                   className="hover:text-white transition-colors flex items-center gap-1.5 font-bold text-white cursor-pointer"
                 >
-                  <span>Plant Combos</span>
+                  <span>Curated Plant Combos</span>
                   <span className="text-[9px] bg-rose-500 text-white font-extrabold px-1.5 py-0.5 rounded-full">
                     SAVE 35%
                   </span>
                 </button>
               </li>
             )}
-              {visibility.plants !== false && (
               <li>
                 <button
-                  onClick={() => onNavigate('plants')}
+                  onClick={() => onNavigate('combos')}
                   className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
                 >
-                  All Nursery Plants
-                </button>
-              </li>
-            )}
-              <li>
-                <button
-                  onClick={() => onNavigate('plants', 'category:Indoor Plants')}
-                  className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
-                >
-                  Indoor Air Purifiers
+                  All Plant Combos
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate('plants', 'category:Flowering Plants')}
+                  onClick={() => onNavigate('combos', 'category:Indoor Plants')}
                   className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
                 >
-                  Tropical Flowering
+                  Air Purifying Combos
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate('plants', 'category:Low Maintenance')}
+                  onClick={() => onNavigate('combos', 'category:Flowering Plants')}
                   className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
                 >
-                  Low Maintenance Plants
+                  Balcony Flowering Sets
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate('plants', 'category:Succulents & Cactus')}
+                  onClick={() => onNavigate('combos', 'category:Low Maintenance')}
                   className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
                 >
-                  Succulents & Desert Rose
+                  Low Maintenance Sets
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate('combos', 'category:Succulents & Cactus')}
+                  className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
+                >
+                  Succulent & Desk Combos
                 </button>
               </li>
               {visibility.deals !== false && (

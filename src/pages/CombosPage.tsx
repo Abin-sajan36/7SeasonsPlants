@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, ShieldCheck, CheckCircle2, MessageCircle, Package, ArrowRight } from 'lucide-react';
+import { Sparkles, ShieldCheck, CheckCircle2, MessageCircle, Package, ArrowRight, MapPin } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { ComboCard } from '../components/common/ComboCard';
 
@@ -9,7 +9,7 @@ interface CombosPageProps {
 }
 
 export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCategory }) => {
-  const { combos, selectedDeliveryState, storeSettings } = useStore();
+  const { combos, selectedDeliveryState, storeSettings, isItemDeliverable, openStateModal } = useStore();
   const whatsappNum = storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403';
   const digits = whatsappNum.replace(/[^0-9]/g, '');
   const waNum = digits.startsWith('91') ? digits : digits.length === 10 ? `91${digits}` : digits;
@@ -27,18 +27,7 @@ export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCateg
 
   const filteredCombos = combos.filter((combo) => {
     if (combo.status !== 'published') return false;
-    
-    // Filter by delivery state
-    if (selectedDeliveryState) {
-      if (!combo.sellableStates || combo.sellableStates.length === 0) {
-        // If combo has no sellableStates defined, assume available everywhere
-        // Or if you want strict: return false; 
-        // We'll assume available everywhere to not break existing data
-      } else if (!combo.sellableStates.includes(selectedDeliveryState)) {
-        return false;
-      }
-    }
-
+    if (!isItemDeliverable(combo)) return false;
     if (selectedCategory === 'All') return true;
     return combo.category === selectedCategory;
   });
@@ -96,6 +85,33 @@ export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCateg
               {cat}
             </button>
           ))}
+        </div>
+
+        {/* Delivery State Info & Selector */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-emerald-900/10 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-800 shrink-0">
+              <MapPin className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-emerald-950">
+                Delivering Combos to: <span className="text-emerald-700 font-extrabold">{selectedDeliveryState || 'All India'}</span>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                {selectedDeliveryState 
+                  ? `Showing ${filteredCombos.length} plant combos acclimated for fast, safe delivery in ${selectedDeliveryState}.`
+                  : 'Select your state for accurate delivery availability.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={openStateModal}
+            className="px-4 py-2 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors cursor-pointer self-start sm:self-auto"
+          >
+            Change State
+          </button>
         </div>
 
         {/* 3. Combos Grid or Empty State */}

@@ -37,6 +37,7 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
     setIsCartOpen,
     addToast,
     selectedDeliveryState,
+    openStateModal,
   } = useStore();
 
   const combo = combos.find((c) => c.slug === slug) || combos[0];
@@ -291,6 +292,21 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
 
             {/* Actions: Quantity, Add to Bag, Buy Now */}
             <div className="space-y-4 pt-4 border-t border-emerald-900/10">
+              {/* Delivery State Info Row */}
+              <div className="flex items-center justify-between p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100 text-xs">
+                <div className="flex items-center gap-2 text-emerald-950 font-medium">
+                  <MapPin className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>Delivering to: <strong className="text-emerald-900 font-extrabold">{selectedDeliveryState || 'All India'}</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={openStateModal}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                >
+                  Change State
+                </button>
+              </div>
+
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 {/* Quantity */}
                 <div className="flex items-center border border-emerald-900/10 rounded-full overflow-hidden bg-[#F4FAF5] p-1 w-full sm:w-auto justify-between sm:justify-start">
@@ -311,8 +327,15 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
                 </div>
 
                 {!isAvailableInState ? (
-                  <div className="w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-bold flex items-center justify-center gap-2 transition-all bg-amber-50 text-amber-900 border border-amber-200">
-                    Not Deliverable to {selectedDeliveryState}
+                  <div className="w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-2 transition-all bg-amber-50 text-amber-900 border border-amber-200 text-center">
+                    <span>Not Deliverable to {selectedDeliveryState}</span>
+                    <button
+                      type="button"
+                      onClick={openStateModal}
+                      className="underline font-bold text-amber-950 cursor-pointer ml-1"
+                    >
+                      Change State
+                    </button>
                   </div>
                 ) : (
                   <>

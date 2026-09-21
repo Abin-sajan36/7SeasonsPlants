@@ -9,6 +9,7 @@ import { Header } from './components/common/Header';
 import { Footer } from './components/common/Footer';
 import { CartDrawer } from './components/common/CartDrawer';
 import { QuickViewModal } from './components/common/QuickViewModal';
+import { StateSelectionModal } from './components/common/StateSelectionModal';
 import { ToastContainer } from './components/common/ToastContainer';
 import { GardenerAIChat } from './components/common/GardenerAIChat';
 import { BottomNav } from './components/common/BottomNav';
@@ -37,12 +38,18 @@ const getInitialRoute = (): { view: string; param?: string } => {
     if (rawHash) {
       const [hashView, hashParam] = rawHash.split('?');
       if (hashView) {
+        if (hashView === 'plants' || hashView === 'product-detail') {
+          return { view: 'combos', param: undefined };
+        }
         return { view: hashView, param: hashParam ? decodeURIComponent(hashParam) : undefined };
       }
     }
     const savedView = sessionStorage.getItem('7seasons_current_view') || localStorage.getItem('7seasons_current_view');
     const savedParam = sessionStorage.getItem('7seasons_view_param') || localStorage.getItem('7seasons_view_param');
     if (savedView) {
+      if (savedView === 'plants' || savedView === 'product-detail') {
+        return { view: 'combos', param: undefined };
+      }
       return { view: savedView, param: savedParam || undefined };
     }
   }
@@ -64,12 +71,13 @@ const AppContent: React.FC = () => {
       if (rawHash) {
         const [hashView, hashParam] = rawHash.split('?');
         if (hashView) {
-          setCurrentView(hashView);
-          setViewParam(hashParam ? decodeURIComponent(hashParam) : undefined);
+          const effectiveView = (hashView === 'plants' || hashView === 'product-detail') ? 'combos' : hashView;
+          setCurrentView(effectiveView);
+          setViewParam(effectiveView === 'combos' && (hashView === 'plants' || hashView === 'product-detail') ? undefined : (hashParam ? decodeURIComponent(hashParam) : undefined));
           try {
-            sessionStorage.setItem('7seasons_current_view', hashView);
-            localStorage.setItem('7seasons_current_view', hashView);
-            if (hashParam) {
+            sessionStorage.setItem('7seasons_current_view', effectiveView);
+            localStorage.setItem('7seasons_current_view', effectiveView);
+            if (hashParam && effectiveView !== 'combos') {
               sessionStorage.setItem('7seasons_view_param', decodeURIComponent(hashParam));
               localStorage.setItem('7seasons_view_param', decodeURIComponent(hashParam));
             } else {
@@ -92,19 +100,26 @@ const AppContent: React.FC = () => {
   }, [currentView, viewParam]);
 
   const handleNavigate = (view: string, param?: string) => {
-    setCurrentView(view);
-    setViewParam(param);
+    // Restrict access to individual plants: force Combos flow for customers
+    let targetView = view;
+    let targetParam = param;
+    if (targetView === 'plants' || targetView === 'product-detail') {
+      targetView = 'combos';
+      targetParam = undefined;
+    }
+    setCurrentView(targetView);
+    setViewParam(targetParam);
     try {
-      sessionStorage.setItem('7seasons_current_view', view);
-      localStorage.setItem('7seasons_current_view', view);
-      if (param) {
-        sessionStorage.setItem('7seasons_view_param', param);
-        localStorage.setItem('7seasons_view_param', param);
-        window.location.hash = `${view}?${encodeURIComponent(param)}`;
+      sessionStorage.setItem('7seasons_current_view', targetView);
+      localStorage.setItem('7seasons_current_view', targetView);
+      if (targetParam) {
+        sessionStorage.setItem('7seasons_view_param', targetParam);
+        localStorage.setItem('7seasons_view_param', targetParam);
+        window.location.hash = `${targetView}?${encodeURIComponent(targetParam)}`;
       } else {
         sessionStorage.removeItem('7seasons_view_param');
         localStorage.removeItem('7seasons_view_param');
-        window.location.hash = view;
+        window.location.hash = targetView;
       }
     } catch {
       // storage or url error safeguard
@@ -123,18 +138,9 @@ const AppContent: React.FC = () => {
         return <HomePage onNavigate={handleNavigate} />;
 
       case 'plants':
-        return <PlantsPage onNavigate={handleNavigate} initialFilter={viewParam} />;
-
+      case 'product-detail':
       case 'combos':
         return <CombosPage onNavigate={handleNavigate} initialCategory={viewParam} />;
-
-      case 'product-detail':
-        return (
-          <ProductDetailPage
-            slug={viewParam || 'monstera-deliciosa-swiss-cheese-plant'}
-            onNavigate={handleNavigate}
-          />
-        );
 
       case 'combo-detail':
         return (
@@ -198,6 +204,7 @@ const AppContent: React.FC = () => {
       {/* 4. Drawers, Modals & Floating Helpers */}
       <CartDrawer onNavigate={handleNavigate} />
       <QuickViewModal onNavigate={handleNavigate} />
+      <StateSelectionModal />
       <ToastContainer />
       <GardenerAIChat />
       <BottomNav currentView={currentView} onNavigate={handleNavigate} />

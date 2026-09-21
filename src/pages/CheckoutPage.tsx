@@ -205,13 +205,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
           </div>
           <h2 className="text-xl font-bold text-emerald-950 mb-2">Your cart is empty</h2>
           <p className="text-xs text-gray-500 mb-6">
-            Please select plants or curated combos from our catalog before checking out.
+            Please select curated combos from our catalog before checking out.
           </p>
           <button
-            onClick={() => onNavigate('plants')}
+            onClick={() => onNavigate('combos')}
             className="w-full py-3 bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white rounded-full text-xs font-bold transition-colors cursor-pointer shadow-md"
           >
-            Browse Nursery Catalog
+            Browse Plant Combos
           </button>
         </div>
       </div>
@@ -393,8 +393,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
             Home
           </button>
           <span>/</span>
-          <button onClick={() => onNavigate('plants')} className="hover:text-emerald-700 cursor-pointer">
-            Plants
+          <button onClick={() => onNavigate('combos')} className="hover:text-emerald-700 cursor-pointer">
+            Plant Combos
           </button>
           <span>/</span>
           <span className="font-semibold text-emerald-950">Secure Checkout</span>
@@ -638,7 +638,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               <h3 className="text-base font-bold text-emerald-950 pb-3 border-b border-emerald-900/10 flex items-center justify-between">
                 <span>Order Summary ({cart.length} items)</span>
                 <button
-                  onClick={() => onNavigate('plants')}
+                  onClick={() => onNavigate('combos')}
                   className="text-xs text-emerald-700 font-semibold hover:underline cursor-pointer"
                 >
                   + Add More

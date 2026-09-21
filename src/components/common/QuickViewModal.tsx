@@ -41,10 +41,10 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ onNavigate }) =>
 
   const handleViewFullPage = () => {
     closeQuickView();
-    if (isCombo) {
-      onNavigate('combo-detail', combo!.slug);
+    if (isCombo && combo) {
+      onNavigate('combo-detail', combo.slug);
     } else {
-      onNavigate('product-detail', product!.slug);
+      onNavigate('combos');
     }
   };
 

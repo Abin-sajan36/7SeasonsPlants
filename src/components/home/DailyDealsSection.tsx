@@ -8,9 +8,16 @@ interface DailyDealsSectionProps {
 }
 
 export const DailyDealsSection: React.FC<DailyDealsSectionProps> = ({ onNavigate }) => {
-  const { dailyDeals, products, combos, addToCart } = useStore();
+  const { dailyDeals, products, combos, addToCart, isItemDeliverable } = useStore();
 
   const activeDeals = dailyDeals.filter((d) => d.isActive).filter(deal => {
+    const isCombo = deal.targetType === 'combo';
+    const targetItem = isCombo
+      ? combos.find((c) => c.id === deal.targetId)
+      : products.find((p) => p.id === deal.targetId);
+    if (!targetItem) return false;
+    if (!isItemDeliverable(targetItem)) return false;
+
     try {
       const [hours, minutes] = deal.endTime.split(':').map(Number);
       const target = new Date(`${deal.endDate}T${String(hours || 23).padStart(2, '0')}:${String(minutes || 59).padStart(2, '0')}:00`);

@@ -109,10 +109,10 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderId, onN
 
           <div className="pt-2">
             <button
-              onClick={() => onNavigate('plants')}
+              onClick={() => onNavigate('combos')}
               className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
             >
-              ← Continue Browsing Plants
+              ← Continue Browsing Plant Combos
             </button>
           </div>
         </div>

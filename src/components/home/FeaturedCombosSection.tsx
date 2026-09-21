@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Sparkles, CheckCircle2, MapPin } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { ComboCard } from '../common/ComboCard';
 
@@ -8,8 +8,14 @@ interface FeaturedCombosSectionProps {
 }
 
 export const FeaturedCombosSection: React.FC<FeaturedCombosSectionProps> = ({ onNavigate }) => {
-  const { combos } = useStore();
-  const featuredCombos = combos.filter((c) => c.status === 'published').slice(0, 3);
+  const { combos, selectedDeliveryState, isItemDeliverable, openStateModal } = useStore();
+
+  const deliverableCombos = combos.filter((c) => {
+    if (c.status !== 'published') return false;
+    return isItemDeliverable(c);
+  });
+
+  const featuredCombos = deliverableCombos.slice(0, 3);
 
   return (
     <section className="py-16 bg-[#F4FAF5] border-b border-emerald-900/8">
@@ -24,7 +30,21 @@ export const FeaturedCombosSection: React.FC<FeaturedCombosSectionProps> = ({ on
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-emerald-950 tracking-tight">
               Curated Plant Combos
             </h2>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <button
+                type="button"
+                onClick={openStateModal}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/80 hover:bg-emerald-200/80 text-emerald-900 text-xs font-bold transition-colors cursor-pointer border border-emerald-200"
+              >
+                <MapPin className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Showing Combos for: <strong>{selectedDeliveryState || 'All India'}</strong></span>
+                <span className="text-[10px] text-emerald-700 underline ml-1">Change</span>
+              </button>
+              <span className="text-xs text-gray-500 font-medium">
+                ({deliverableCombos.length} available)
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-600 mt-2 max-w-2xl leading-relaxed">
               Why buy one when you can create a thriving green sanctuary? Expertly paired plant bundles with
               matching care routines, matching planters, and bundled savings up to 35%.
             </p>

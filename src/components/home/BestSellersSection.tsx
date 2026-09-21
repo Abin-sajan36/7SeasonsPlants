@@ -1,29 +1,27 @@
 import React, { useState } from 'react';
-import { ArrowRight, Leaf } from 'lucide-react';
+import { ArrowRight, Sparkles, MapPin } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
-import { ProductCard } from '../common/ProductCard';
+import { ComboCard } from '../common/ComboCard';
 
 interface BestSellersSectionProps {
   onNavigate: (view: string, param?: string) => void;
 }
 
 export const BestSellersSection: React.FC<BestSellersSectionProps> = ({ onNavigate }) => {
-  const { products } = useStore();
-  const [activeTab, setActiveTab] = useState<'bestseller' | 'indoor' | 'flowering' | 'easy'>('bestseller');
+  const { combos, selectedDeliveryState, isItemDeliverable, openStateModal } = useStore();
+  const [activeTab, setActiveTab] = useState<'all' | 'air-purifying' | 'balcony' | 'living-room'>('all');
 
-  const filteredProducts = React.useMemo(() => {
-    let list = [...products];
-    if (activeTab === 'bestseller') {
-      list = list.filter((p) => p.isBestseller);
-    } else if (activeTab === 'indoor') {
-      list = list.filter((p) => p.category === 'Indoor Plants');
-    } else if (activeTab === 'flowering') {
-      list = list.filter((p) => p.category === 'Flowering Plants');
-    } else if (activeTab === 'easy') {
-      list = list.filter((p) => p.attributes.difficulty === 'Beginner Friendly');
+  const filteredCombos = React.useMemo(() => {
+    let list = combos.filter((c) => isItemDeliverable(c));
+    if (activeTab === 'air-purifying') {
+      list = list.filter((c) => /air|purif/i.test(c.name) || /air|purif/i.test(c.description || ''));
+    } else if (activeTab === 'balcony') {
+      list = list.filter((c) => /balcony|flower|outdoor/i.test(c.name) || /balcony|flower/i.test(c.description || ''));
+    } else if (activeTab === 'living-room') {
+      list = list.filter((c) => /living|decor|room|trio|duo/i.test(c.name) || /living|decor/i.test(c.description || ''));
     }
     return list.slice(0, 8);
-  }, [products, activeTab]);
+  }, [combos, activeTab, isItemDeliverable]);
 
   return (
     <section className="py-16 bg-[#F4FAF5]">
@@ -32,68 +30,79 @@ export const BestSellersSection: React.FC<BestSellersSectionProps> = ({ onNaviga
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-700 mb-2">
-              <Leaf className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Nursery Favorites</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Curated Botanical Sets</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-emerald-950 tracking-tight">
-              Best Selling & Popular Plants
+              Best Selling Plant Combos
             </h2>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1">
-              Top requested varieties acclimated for optimal growth in homes and balconies across Kerala & TN.
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={openStateModal}
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-900 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <MapPin className="w-3 h-3 text-emerald-700" />
+                <span>Showing combos for: <strong>{selectedDeliveryState || 'All India'}</strong></span>
+                <span className="text-[10px] text-emerald-700 underline">Change</span>
+              </button>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1.5">
+              Acclimated plant pairings bundled with matching premium pots and nursery potting mix. Save up to 35%!
             </p>
           </div>
 
           {/* Filter Pills */}
           <div className="flex items-center gap-1.5 p-1 bg-emerald-50 rounded-2xl overflow-x-auto border border-emerald-100">
             <button
-              onClick={() => setActiveTab('bestseller')}
+              onClick={() => setActiveTab('all')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'bestseller'
+                activeTab === 'all'
                   ? 'bg-emerald-700 text-white shadow-xs'
                   : 'text-emerald-900 hover:text-emerald-700'
               }`}
             >
-              Best Sellers
+              All Combos
             </button>
             <button
-              onClick={() => setActiveTab('indoor')}
+              onClick={() => setActiveTab('air-purifying')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'indoor'
+                activeTab === 'air-purifying'
                   ? 'bg-emerald-700 text-white shadow-xs'
                   : 'text-emerald-900 hover:text-emerald-700'
               }`}
             >
-              Indoor Air Purifiers
+              Air Purifier Sets
             </button>
             <button
-              onClick={() => setActiveTab('flowering')}
+              onClick={() => setActiveTab('balcony')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'flowering'
+                activeTab === 'balcony'
                   ? 'bg-emerald-700 text-white shadow-xs'
                   : 'text-emerald-900 hover:text-emerald-700'
               }`}
             >
-              Tropical Flowering
+              Balcony & Flowering
             </button>
             <button
-              onClick={() => setActiveTab('easy')}
+              onClick={() => setActiveTab('living-room')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'easy'
+                activeTab === 'living-room'
                   ? 'bg-emerald-700 text-white shadow-xs'
                   : 'text-emerald-900 hover:text-emerald-700'
               }`}
             >
-              Easy Care
+              Living Room Pairs
             </button>
           </div>
         </div>
 
-        {/* Product Cards Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
+        {/* Combo Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          {filteredCombos.map((combo) => (
+            <ComboCard
+              key={combo.id}
+              combo={combo}
               onNavigate={onNavigate}
             />
           ))}
@@ -102,10 +111,10 @@ export const BestSellersSection: React.FC<BestSellersSectionProps> = ({ onNaviga
         {/* Bottom CTA */}
         <div className="mt-12 text-center">
           <button
-            onClick={() => onNavigate('plants')}
+            onClick={() => onNavigate('combos')}
             className="px-8 py-3.5 bg-white hover:bg-emerald-50 text-emerald-950 border border-emerald-900/15 rounded-full text-xs font-black shadow-xs hover:shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
           >
-            <span>Browse Complete 7Seasons Nursery Catalog ({products.length} Plants)</span>
+            <span>Browse All Curated Combos ({combos.length} Sets Available)</span>
             <ArrowRight className="w-4 h-4 text-emerald-700" />
           </button>
         </div>

@@ -11,6 +11,7 @@ import {
   Droplets,
   Award,
   RefreshCw,
+  MapPin,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/common/ProductCard';
@@ -22,7 +23,7 @@ interface PlantsPageProps {
 }
 
 export const PlantsPage: React.FC<PlantsPageProps> = ({ onNavigate, initialFilter, initialFilterParam }) => {
-  const { products, categories } = useStore();
+  const { products, categories, selectedDeliveryState, isItemDeliverable, openStateModal } = useStore();
 
   // State for filters
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -70,6 +71,9 @@ export const PlantsPage: React.FC<PlantsPageProps> = ({ onNavigate, initialFilte
   const filteredProducts = useMemo(() => {
     return products
       .filter((p) => {
+        // Delivery State filter
+        if (!isItemDeliverable(p)) return false;
+
         // Search filter
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
@@ -128,6 +132,8 @@ export const PlantsPage: React.FC<PlantsPageProps> = ({ onNavigate, initialFilte
     priceRange,
     inStockOnly,
     sortBy,
+    selectedDeliveryState,
+    isItemDeliverable,
   ]);
 
   const activeFilterCount =
@@ -165,14 +171,28 @@ export const PlantsPage: React.FC<PlantsPageProps> = ({ onNavigate, initialFilte
               </p>
             </div>
 
-            {/* Quick Link to Combos */}
-            <button
-              onClick={() => onNavigate('combos')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white text-emerald-800 border border-emerald-300 rounded-full text-xs font-bold hover:bg-emerald-50 transition-colors cursor-pointer w-fit shadow-2xs"
-            >
-              <Sparkles className="w-4 h-4 text-emerald-600" />
-              <span>Looking for value bundles? Explore Plant Combos →</span>
-            </button>
+            {/* Delivery State Badge & Combos Link */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={openStateModal}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-100/90 hover:bg-emerald-200 text-emerald-900 border border-emerald-300/80 rounded-full text-xs font-bold transition-all cursor-pointer shadow-2xs group"
+                title="Change destination state"
+              >
+                <MapPin className="w-3.5 h-3.5 text-emerald-700 group-hover:scale-110 transition-transform" />
+                <span>State: <strong className="text-emerald-950">{selectedDeliveryState || 'All India'}</strong></span>
+                <span className="text-[10px] text-emerald-700 underline font-medium">Change</span>
+              </button>
+
+              {/* Quick Link to Combos */}
+              <button
+                onClick={() => onNavigate('combos')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white text-emerald-800 border border-emerald-300 rounded-full text-xs font-bold hover:bg-emerald-50 transition-colors cursor-pointer w-fit shadow-2xs"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span>Value Bundles: Explore Combos →</span>
+              </button>
+            </div>
           </div>
         </div>
 

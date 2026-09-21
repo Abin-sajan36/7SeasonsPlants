@@ -49,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
     toggleDarkMode,
     selectedDeliveryState,
     setSelectedDeliveryState,
+    openStateModal,
   } = useStore();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -58,7 +59,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
-  const [plantsDropdownOpen, setPlantsDropdownOpen] = useState(false);
   
   const [isScrolled, setIsScrolled] = useState(false);
   const [scrollDirection, setScrollDirection] = useState<'up'|'down'>('up');
@@ -148,7 +148,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
       const newHistory = [q, ...searchHistory.filter((item) => item.toLowerCase() !== q.toLowerCase())].slice(0, 5);
       setSearchHistory(newHistory);
       localStorage.setItem('searchHistory', JSON.stringify(newHistory));
-      onNavigate('plants', `search:${encodeURIComponent(q)}`);
+      onNavigate('combos', `search:${encodeURIComponent(q)}`);
     }
   };
 
@@ -158,17 +158,11 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
     const newHistory = [query, ...searchHistory.filter((item) => item.toLowerCase() !== query.toLowerCase())].slice(0, 5);
     setSearchHistory(newHistory);
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
-    onNavigate('plants', `search:${encodeURIComponent(query)}`);
+    onNavigate('combos', `search:${encodeURIComponent(query)}`);
   };
 
-      const navLinks = [
+  const navLinks = [
     { label: 'Home', view: 'home', key: 'home' },
-    {
-      label: 'Plants',
-      view: 'plants',
-      hasDropdown: true,
-      key: 'plants'
-    },
     {
       label: 'Plant Combos',
       view: 'combos',
@@ -176,8 +170,8 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
       badgeColor: 'bg-rose-500 text-white shadow-xs',
       key: 'combos'
     },
-    { label: 'Best Sellers', view: 'plants', param: 'filter:bestseller', key: 'bestSellers' },
-    { label: 'New Arrivals', view: 'plants', param: 'filter:new', key: 'newArrivals' },
+    { label: 'Best Sellers', view: 'combos', param: 'filter:bestseller', key: 'bestSellers' },
+    { label: 'New Arrivals', view: 'combos', param: 'filter:new', key: 'newArrivals' },
     {
       label: 'Deals',
       view: 'home',
@@ -231,8 +225,28 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
             </div>
           </div>
 
+          {/* State-based Plant Selection Selector */}
+          <button
+            type="button"
+            onClick={openStateModal}
+            id="header-delivery-state-btn"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-emerald-50/90 dark:bg-[#0a1f18] hover:bg-emerald-100 dark:hover:bg-[#0f2e24] text-emerald-950 dark:text-emerald-50 border border-emerald-900/10 dark:border-emerald-900/40 text-xs transition-all cursor-pointer group shrink-0"
+            title="Select your state to view available plants & combos"
+          >
+            <div className="w-6 h-6 rounded-full bg-emerald-600/15 dark:bg-emerald-800/40 flex items-center justify-center text-emerald-700 dark:text-emerald-300 group-hover:scale-105 transition-transform">
+              <MapPin className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
+            </div>
+            <div className="text-left leading-none">
+              <span className="text-[10px] text-gray-500 dark:text-gray-400 block font-normal">Deliver to</span>
+              <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 truncate max-w-[80px] sm:max-w-[120px] block">
+                {selectedDeliveryState || 'Select State'}
+              </span>
+            </div>
+            <ChevronDown className="w-3 h-3 text-emerald-700/60 dark:text-emerald-400/60" />
+          </button>
+
           {/* Desktop Search Bar with Live Suggestions */}
-          <div ref={searchRef} className="hidden md:flex flex-1 max-w-md relative mx-4">
+          <div ref={searchRef} className="hidden md:flex flex-1 max-w-md relative mx-3">
             <form onSubmit={handleSearchSubmit} className="w-full relative">
               <input
                 type="text"
@@ -322,52 +336,17 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                   </div>
                 )}
 
-                {searchResults.products.length > 0 && (
-                  <div>
-                    <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider px-2 mb-1.5">
-                      Plants ({searchResults.products.length})
-                    </div>
-                    {searchResults.products.map((product) => (
-                      <button
-                        type="button"
-                        key={product.id}
-                        onClick={() => {
-                          setIsSearchFocused(false);
-                          onNavigate('product-detail', product.slug);
-                        }}
-                        className="w-full text-left flex items-center gap-3 p-2 hover:bg-emerald-50 dark:bg-[#0a1f18]/70 focus:bg-emerald-50 dark:bg-[#0a1f18]/70 rounded-xl cursor-pointer transition-colors outline-hidden focus:ring-2 focus:ring-emerald-500/20"
-                      >
-                        <img
-                          src={product.images?.[0]}
-                          alt={product.name}
-                          className="w-10 h-10 rounded-lg object-cover bg-emerald-50 dark:bg-[#0a1f18] shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-emerald-950 dark:text-emerald-50 truncate">{product.name}</p>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="font-bold text-emerald-700">₹{product.price}</span>
-                            {product.originalPrice > product.price && (
-                              <span className="text-gray-400 dark:text-gray-500 dark:text-gray-400 line-through">₹{product.originalPrice}</span>
-                            )}
-                            <span className="text-xs text-emerald-800/80 capitalize">{product.category}</span>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {searchQuery.trim().length > 0 && searchResults.products.length === 0 && searchResults.combos.length === 0 && (
+                {searchQuery.trim().length > 0 && searchResults.combos.length === 0 && (
                   <div className="text-center py-6 px-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">No plants found for "{searchQuery}"</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No combos found for "{searchQuery}"</p>
                     <button
                       onClick={() => {
                         setIsSearchFocused(false);
-                        onNavigate('plants');
+                        onNavigate('combos');
                       }}
                       className="mt-2 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
                     >
-                      Browse all nursery plants →
+                      Browse all plant combos →
                     </button>
                   </div>
                 )}
@@ -643,66 +622,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
 
               const Icon = link.icon;
 
-              if (link.hasDropdown) {
-                return (
-                  <li
-                    key={link.label}
-                    className="relative"
-                    onMouseEnter={() => setPlantsDropdownOpen(true)}
-                    onMouseLeave={() => setPlantsDropdownOpen(false)}
-                  >
-                    <button
-                      onClick={() => onNavigate(link.view)}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide transition-colors cursor-pointer ${
-                        currentView === 'plants'
-                          ? 'text-white bg-emerald-700 shadow-xs'
-                          : 'text-emerald-950 dark:text-emerald-50 hover:text-emerald-700 hover:bg-emerald-100/60'
-                      }`}
-                    >
-                      <span>{link.label}</span>
-                      <ChevronDown className="w-3 h-3 text-emerald-700" />
-                    </button>
-
-                    {/* Mega Dropdown Menu for Categories */}
-                    {plantsDropdownOpen && (
-                      <div className="absolute top-full left-0 w-80 bg-white dark:bg-[#06120e] rounded-2xl shadow-xl border border-emerald-900/10 dark:border-emerald-900/40 p-3 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                        <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider px-2 mb-2 pb-1 border-b border-emerald-100 dark:border-emerald-900/40">
-                          Shop by Plant Category
-                        </div>
-                        <div className="grid grid-cols-1 gap-1">
-                          {categories
-                            .filter((c) => c.type !== 'combo')
-                            .map((cat) => (
-                              <button
-                                key={cat.id}
-                                onClick={() => {
-                                  setPlantsDropdownOpen(false);
-                                  onNavigate('plants', `category:${cat.name}`);
-                                }}
-                                className="flex items-center justify-between px-3 py-2 rounded-xl text-left hover:bg-emerald-50 dark:bg-[#0a1f18] text-xs text-emerald-950 dark:text-emerald-50 transition-colors cursor-pointer"
-                              >
-                                <span className="font-semibold">{cat.name}</span>
-                                <span className="text-[11px] text-emerald-700/80 font-medium">{cat.itemCount} plants</span>
-                              </button>
-                            ))}
-                          <div className="pt-2 mt-1 border-t border-gray-100 dark:border-gray-800">
-                            <button
-                              onClick={() => {
-                                setPlantsDropdownOpen(false);
-                                onNavigate('plants');
-                              }}
-                              className="w-full text-center text-xs font-bold text-emerald-700 hover:text-emerald-900 py-1 cursor-pointer"
-                            >
-                              View All Plants →
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </li>
-                );
-              }
-
               return (
                 <li key={link.label}>
                   <button
@@ -747,11 +666,26 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                 </button>
               </div>
 
-              {/* Delivery regions notification */}
-              <div className="my-3 p-2.5 bg-emerald-50 dark:bg-[#0a1f18] rounded-2xl text-xs text-emerald-950 dark:text-emerald-50 flex items-center gap-2 border border-emerald-100 dark:border-emerald-900/40">
-                <Truck className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>Delivering across <strong>Kerala & Tamil Nadu</strong></span>
-              </div>
+              {/* Delivery regions selector */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  openStateModal();
+                }}
+                className="w-full my-3 p-3 bg-emerald-50 dark:bg-[#0a1f18] hover:bg-emerald-100/70 rounded-2xl text-xs text-emerald-950 dark:text-emerald-50 flex items-center justify-between border border-emerald-100 dark:border-emerald-900/40 text-left transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <MapPin className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <div>
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Deliver Plants to:</div>
+                    <div className="font-bold text-emerald-950 dark:text-emerald-50">{selectedDeliveryState || 'Select State'}</div>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full">
+                  Change
+                </span>
+              </button>
 
               {/* Navigation list */}
               <ul className="space-y-1 py-2">
@@ -789,7 +723,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                       key={cat.id}
                       onClick={() => {
                         setMobileMenuOpen(false);
-                        onNavigate(cat.type === 'combo' ? 'combos' : 'plants', `category:${cat.name}`);
+                        onNavigate('combos', `category:${cat.name}`);
                       }}
                       className="text-left p-2 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:bg-[#0a1f18] hover:text-emerald-950 dark:text-emerald-50 cursor-pointer"
                     >

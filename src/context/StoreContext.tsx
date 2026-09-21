@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, db, firebaseConfig } from '../lib/firebase';
 import { 
   createUserWithEmailAndPassword, 
@@ -9,7 +9,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, query, where } from 'firebase/firestore';
 import {
   Product,
   PlantCombo,
@@ -85,6 +85,11 @@ interface StoreContextType {
   searchQuery: string;
   selectedDeliveryState: string | null;
   setSelectedDeliveryState: (state: string | null) => void;
+  isStateModalOpen: boolean;
+  setIsStateModalOpen: (open: boolean) => void;
+  openStateModal: () => void;
+  closeStateModal: () => void;
+  isItemDeliverable: (item: Product | PlantCombo, targetState?: string | null) => boolean;
 
   // Cart getters
   cartCount: number;
@@ -239,6 +244,19 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const STORAGE_KEY = '7seasonsplants_app_data_v1';
+
+export const removeUndefined = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(removeUndefined);
+  } else if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([_, v]) => v !== undefined)
+        .map(([k, v]) => [k, removeUndefined(v)])
+    );
+  }
+  return obj;
+};
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load persisted state or initial seed
@@ -463,9 +481,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDeliveryState, setSelectedDeliveryState] = useState<string | null>(() => {
+  const [selectedDeliveryState, setSelectedDeliveryStateState] = useState<string | null>(() => {
     return localStorage.getItem(`${STORAGE_KEY}_deliveryState`);
   });
+  const [isStateModalOpen, setIsStateModalOpen] = useState(false);
+  const openStateModal = () => setIsStateModalOpen(true);
+  const closeStateModal = () => setIsStateModalOpen(false);
+
+  const setSelectedDeliveryState = (state: string | null) => {
+    setSelectedDeliveryStateState(state);
+    if (state) {
+      addToast({
+        type: 'info',
+        title: `Location: ${state}`,
+        message: `Catalog updated to show plants deliverable to ${state}.`,
+        duration: 3500,
+      });
+    }
+  };
+
+  const isItemDeliverable = useCallback((item: Product | PlantCombo, targetState?: string | null): boolean => {
+    const stateToCheck = targetState !== undefined ? targetState : selectedDeliveryState;
+    if (!stateToCheck || stateToCheck === 'All' || stateToCheck === 'All India') return true;
+    if (!item.sellableStates || item.sellableStates.length === 0) return true;
+    return item.sellableStates.includes(stateToCheck) || item.sellableStates.includes('All India');
+  }, [selectedDeliveryState]);
 
   // Domain Authorization Notice for OAuth
   const [authDomainNotice, setAuthDomainNotice] = useState<OAuthDomainNotice | null>(null);
@@ -593,7 +633,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_cart`, JSON.stringify(cart));
-  }, [cart]);
+    if (currentUser?.id) {
+      const cleanCart = removeUndefined(cart);
+      updateDoc(doc(db, 'users', currentUser.id), {
+        cart: cleanCart,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {
+        setDoc(doc(db, 'users', currentUser.id), {
+          cart: cleanCart,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(console.warn);
+      });
+    }
+  }, [cart, currentUser?.id]);
 
 
   useEffect(() => {
@@ -667,6 +719,42 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => unsubscribe();
   }, []);
 
+  // Realtime synchronization of all orders from Firestore
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, 'orders'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const fetchedOrders: Order[] = [];
+          snapshot.forEach((d) => {
+            const data = d.data() as Order;
+            fetchedOrders.push({ ...data, id: d.id });
+          });
+          setOrders((prev) => {
+            const map = new Map<string, Order>();
+            prev.forEach((o) => {
+              if (o && (o.id || o.orderNumber)) map.set(o.id || o.orderNumber, o);
+            });
+            fetchedOrders.forEach((fo) => {
+              if (fo && (fo.id || fo.orderNumber)) {
+                map.set(fo.id || fo.orderNumber, fo);
+              }
+            });
+            const merged = Array.from(map.values()).sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            localStorage.setItem(`${STORAGE_KEY}_orders`, JSON.stringify(merged));
+            return merged;
+          });
+        }
+      },
+      (err) => {
+        console.warn('Firestore orders realtime sync notice:', err.message || err);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -678,6 +766,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (userDoc.exists()) {
             const userData = userDoc.data() as User;
             fullUser = { ...userData, id: firebaseUser.uid };
+            if (userData.cart && Array.isArray(userData.cart) && userData.cart.length > 0) {
+              setCart((prevCart) => (prevCart.length === 0 ? userData.cart! : prevCart));
+            }
           } else {
             fullUser = {
               id: firebaseUser.uid,
@@ -691,9 +782,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   : 'customer',
               addresses: [],
               wishlist: [],
+              cart: cart || [],
+              orderIds: [],
               createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
             };
-            setDoc(doc(db, 'users', firebaseUser.uid), fullUser, { merge: true }).catch(console.warn);
+            setDoc(doc(db, 'users', firebaseUser.uid), removeUndefined(fullUser), { merge: true }).catch(console.warn);
           }
 
           setCurrentUser(fullUser);
@@ -1030,10 +1125,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   ): Promise<Order> => {
     const timestamp = new Date().toISOString();
     const orderNumber = `7S-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const customerId = currentUser?.id || (orderPayload as any).customerId || `usr-ord-${Date.now()}`;
     const newOrder: Order = {
       ...orderPayload,
       id: `ord-${Date.now()}`,
       orderNumber,
+      customerId,
       createdAt: timestamp,
       statusHistory: [
         {
@@ -1072,31 +1169,76 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
     );
 
-    // Save order
+    // Save order locally
     setOrders((prev) => [newOrder, ...prev]);
     clearCart();
 
-    // Ensure customer profile is recorded in registered users if not present
-    if (orderPayload.customer?.email) {
+    // Persist order to Firestore orders collection
+    try {
+      await setDoc(doc(db, 'orders', newOrder.id), removeUndefined(newOrder));
+    } catch (fsErr) {
+      console.warn('Could not save order to Firestore:', fsErr);
+    }
+
+    // Ensure customer profile is recorded and updated in registered users and Firestore
+    if (currentUser) {
+      try {
+        const prevOrderIds = currentUser.orderIds || [];
+        const nextOrderIds = prevOrderIds.includes(newOrder.id) ? prevOrderIds : [newOrder.id, ...prevOrderIds];
+        let nextAddresses = currentUser.addresses || [];
+        if (orderPayload.customer?.shippingAddress) {
+          const newAddr = orderPayload.customer.shippingAddress;
+          const exists = nextAddresses.some(
+            (a) => a.pincode === newAddr.pincode && a.addressLine1 === newAddr.addressLine1
+          );
+          if (!exists) {
+            nextAddresses = [newAddr, ...nextAddresses];
+          }
+        }
+        const updatedUser: User = {
+          ...currentUser,
+          orderIds: nextOrderIds,
+          addresses: nextAddresses,
+          cart: [],
+          updatedAt: timestamp,
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(updatedUser));
+        await setDoc(doc(db, 'users', currentUser.id), removeUndefined(updatedUser), { merge: true });
+      } catch (userErr) {
+        console.warn('Could not update user order profile in Firestore:', userErr);
+      }
+    } else if (orderPayload.customer?.email) {
       const custEmail = orderPayload.customer.email.toLowerCase().trim();
       const existingUser = registeredUsers.find((u) => u.email.toLowerCase() === custEmail);
       if (!existingUser) {
         const newCustUser: User = {
-          id: `usr-ord-${Date.now()}`,
+          id: customerId,
           name: orderPayload.customer.name || 'Customer',
           email: custEmail,
           phone: orderPayload.customer.phone || '',
           role: 'customer',
           addresses: orderPayload.customer.shippingAddress ? [orderPayload.customer.shippingAddress] : [],
           wishlist: [],
+          cart: [],
+          orderIds: [newOrder.id],
           createdAt: timestamp,
+          updatedAt: timestamp,
+          lastLogin: timestamp,
         };
         setRegisteredUsers((prev) => {
           const next = [...prev, newCustUser];
           localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(next));
           return next;
         });
-        setDoc(doc(db, 'users', newCustUser.id), newCustUser, { merge: true }).catch(console.warn);
+        setDoc(doc(db, 'users', newCustUser.id), removeUndefined(newCustUser), { merge: true }).catch(console.warn);
+      } else {
+        const updatedIds = existingUser.orderIds ? [newOrder.id, ...existingUser.orderIds] : [newOrder.id];
+        setDoc(doc(db, 'users', existingUser.id), {
+          orderIds: updatedIds,
+          cart: [],
+          updatedAt: timestamp,
+        }, { merge: true }).catch(console.warn);
       }
     }
 
@@ -1110,8 +1252,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   
-  const deleteOrder = (orderId: string) => {
+  const deleteOrder = async (orderId: string) => {
     setOrders(prev => prev.filter(o => o.id !== orderId));
+    try {
+      await deleteDoc(doc(db, 'orders', orderId));
+    } catch (e) {
+      console.warn('Could not delete order from Firestore:', e);
+    }
   };
 
   const updateOrderStatus = async (
@@ -1123,19 +1270,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   ) => {
     // 1. Find the order first to get customer details
     const orderToUpdate = orders.find((o) => o.id === orderId);
-    
+    const updatedHistory = orderToUpdate ? [
+      ...orderToUpdate.statusHistory,
+      {
+        status,
+        timestamp: new Date().toISOString(),
+        note: note || `Status updated to ${status}`,
+      },
+    ] : [
+      {
+        status,
+        timestamp: new Date().toISOString(),
+        note: note || `Status updated to ${status}`,
+      }
+    ];
+
     // 2. Update local state
     setOrders((prev) =>
       prev.map((ord) => {
         if (ord.id === orderId) {
-          const updatedHistory = [
-            ...ord.statusHistory,
-            {
-              status,
-              timestamp: new Date().toISOString(),
-              note: note || `Status updated to ${status}`,
-            },
-          ];
           return {
             ...ord,
             orderStatus: status,
@@ -1147,6 +1300,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return ord;
       })
     );
+
+    // 3. Update in Firestore
+    try {
+      await updateDoc(doc(db, 'orders', orderId), removeUndefined({
+        orderStatus: status,
+        statusHistory: updatedHistory,
+        trackingNumber: trackingNumber || orderToUpdate?.trackingNumber,
+        courierPartner: courierPartner || orderToUpdate?.courierPartner,
+        updatedAt: new Date().toISOString(),
+      }));
+    } catch (fsErr) {
+      console.warn('Could not update order status in Firestore:', fsErr);
+    }
 
     addToast({
       type: 'success',
@@ -1205,6 +1371,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           userData.role = 'super_admin';
           setDoc(doc(db, 'users', user.uid), { role: 'super_admin' }, { merge: true }).catch(console.warn);
         }
+        if (userData.cart && Array.isArray(userData.cart) && userData.cart.length > 0) {
+          setCart((prev) => (prev.length === 0 ? userData.cart! : prev));
+        }
+        // Update last login
+        setDoc(doc(db, 'users', user.uid), { lastLogin: new Date().toISOString() }, { merge: true }).catch(console.warn);
       } else {
         // Register new user
         userData = {
@@ -1215,9 +1386,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           role: isSuper ? 'super_admin' : 'customer',
           addresses: [],
           wishlist: [],
+          cart: cart || [],
+          orderIds: [],
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
         };
-        await setDoc(doc(db, 'users', user.uid), userData, { merge: true });
+        await setDoc(doc(db, 'users', user.uid), removeUndefined(userData), { merge: true });
       }
 
       const fullUser = { ...userData, id: user.uid };
@@ -1371,18 +1546,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         return false;
       }
-      if (matched.role === 'admin' || matched.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com') {
+
+      let resolvedUser = matched;
+      try {
+        const uDoc = await getDoc(doc(db, 'users', matched.id));
+        if (uDoc.exists()) {
+          resolvedUser = { ...matched, ...(uDoc.data() as User) };
+        }
+      } catch (e) {
+        console.warn('Firestore doc sync on login:', e);
+      }
+
+      if (resolvedUser.cart && Array.isArray(resolvedUser.cart) && resolvedUser.cart.length > 0) {
+        setCart((prev) => (prev.length === 0 ? resolvedUser.cart! : prev));
+      }
+      setDoc(doc(db, 'users', resolvedUser.id), { lastLogin: new Date().toISOString() }, { merge: true }).catch(console.warn);
+
+      if (resolvedUser.role === 'admin' || resolvedUser.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com') {
         setIsAdminAuthenticated(true);
-        const isSuper = matched.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com';
+        const isSuper = resolvedUser.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com';
         const admAcc: AdminAccount = {
-          id: `adm-${matched.id}`,
-          name: matched.name,
-          email: matched.email,
+          id: `adm-${resolvedUser.id}`,
+          name: resolvedUser.name,
+          email: resolvedUser.email,
           role: isSuper ? 'super_admin' : 'admin',
-          avatar: matched.profileImage,
-          phone: matched.phone,
-          createdAt: matched.createdAt,
-          sourceUserAccountId: matched.id,
+          avatar: resolvedUser.profileImage,
+          phone: resolvedUser.phone,
+          createdAt: resolvedUser.createdAt,
+          sourceUserAccountId: resolvedUser.id,
           lastLogin: new Date().toISOString(),
         };
         setCurrentAdmin(admAcc);
@@ -1394,14 +1585,67 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsAdminAuthenticated(false);
         setCurrentAdmin(null);
       }
-      setCurrentUser(matched);
-      localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(matched));
+      setCurrentUser(resolvedUser);
+      localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(resolvedUser));
       addToast({
         type: 'success',
         title: 'Welcome Back! 🌿',
-        message: `Signed in as ${matched.name}${matched.role === 'admin' ? ' (Nursery Administrator)' : ''}`,
+        message: `Signed in as ${resolvedUser.name}${resolvedUser.role === 'admin' ? ' (Nursery Administrator)' : ''}`,
       });
       return true;
+    }
+
+    // Try Firestore users collection lookup next
+    try {
+      const uQuery = query(collection(db, 'users'), where('email', '==', cleanEmail));
+      const uSnap = await getDocs(uQuery);
+      if (!uSnap.empty) {
+        const fsUser = { ...(uSnap.docs[0].data() as User), id: uSnap.docs[0].id };
+        if (fsUser.password && fsUser.password === cleanPass) {
+          const isSuper = fsUser.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com';
+          const isAdmin = fsUser.role === 'admin' || isSuper;
+          setIsAdminAuthenticated(isAdmin);
+          if (isAdmin) {
+            const admAcc: AdminAccount = {
+              id: `adm-${fsUser.id}`,
+              name: fsUser.name,
+              email: fsUser.email,
+              role: isSuper ? 'super_admin' : 'admin',
+              avatar: fsUser.profileImage,
+              phone: fsUser.phone,
+              createdAt: fsUser.createdAt,
+              sourceUserAccountId: fsUser.id,
+              lastLogin: new Date().toISOString(),
+            };
+            setCurrentAdmin(admAcc);
+            sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+            localStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+            sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(admAcc));
+            localStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(admAcc));
+          } else {
+            setCurrentAdmin(null);
+          }
+
+          if (fsUser.cart && Array.isArray(fsUser.cart) && fsUser.cart.length > 0) {
+            setCart((prev) => (prev.length === 0 ? fsUser.cart! : prev));
+          }
+          setCurrentUser(fsUser);
+          localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(fsUser));
+          setRegisteredUsers((prev) => {
+            const map = new Map<string, User>();
+            prev.forEach((u) => { if (u?.email) map.set(u.email.toLowerCase(), u); });
+            map.set(fsUser.email.toLowerCase(), fsUser);
+            const merged = Array.from(map.values());
+            localStorage.setItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(merged));
+            return merged;
+          });
+          setDoc(doc(db, 'users', fsUser.id), { lastLogin: new Date().toISOString() }, { merge: true }).catch(console.warn);
+          addToast({ type: 'success', title: 'Welcome Back! 🌿', message: `Signed in as ${fsUser.name}` });
+          return true;
+        }
+      }
+    } catch (fsCheckErr) {
+      console.warn('Firestore fallback user check notice:', fsCheckErr);
     }
 
     // Try Firebase Auth as last resort
@@ -1435,6 +1679,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } else {
           setCurrentAdmin(null);
         }
+
+        if (userData.cart && Array.isArray(userData.cart) && userData.cart.length > 0) {
+          setCart((prev) => (prev.length === 0 ? userData.cart! : prev));
+        }
+        setDoc(doc(db, 'users', userCredential.user.uid), { lastLogin: new Date().toISOString() }, { merge: true }).catch(console.warn);
 
         setCurrentUser(fullUser);
         localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(fullUser));
@@ -1572,16 +1821,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       (u) => u.email.toLowerCase() === cleanEmail
     );
 
+    const timestamp = new Date().toISOString();
+    let firebaseUid: string | null = null;
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+      if (userCredential?.user?.uid) {
+        firebaseUid = userCredential.user.uid;
+      }
+    } catch (authErr: any) {
+      console.log('Firebase Auth creation notice during customer registration:', authErr?.message || authErr);
+    }
+
     let createdOrUpdatedUser: User;
 
     if (existingIndex >= 0) {
       const existing = registeredUsers[existingIndex];
       createdOrUpdatedUser = {
         ...existing,
+        id: firebaseUid || existing.id,
         name: cleanName,
         phone: cleanPhone || existing.phone,
         password: cleanPassword || existing.password,
         emailVerified: true,
+        addresses: addresses.length ? addresses : (existing.addresses || []),
+        cart: cart && cart.length ? cart : (existing.cart || []),
+        orderIds: existing.orderIds || [],
+        wishlist: wishlist && wishlist.length ? wishlist : (existing.wishlist || []),
+        updatedAt: timestamp,
+        lastLogin: timestamp,
       };
       setRegisteredUsers((prev) => {
         const next = [...prev];
@@ -1591,7 +1858,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
     } else {
       createdOrUpdatedUser = {
-        id: `usr-${Date.now()}`,
+        id: firebaseUid || `usr-${Date.now()}`,
         name: cleanName,
         email: cleanEmail,
         password: cleanPassword,
@@ -1599,8 +1866,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         role: 'customer',
         emailVerified: true,
         addresses: addresses,
-        wishlist: [],
-        createdAt: new Date().toISOString(),
+        wishlist: wishlist || [],
+        cart: cart || [],
+        orderIds: [],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        lastLogin: timestamp,
       };
       setRegisteredUsers((prev) => {
         const next = [...prev, createdOrUpdatedUser];
@@ -1616,7 +1887,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Sync user record to Firestore users collection
     try {
-      await setDoc(doc(db, 'users', createdOrUpdatedUser.id), createdOrUpdatedUser, { merge: true });
+      await setDoc(doc(db, 'users', createdOrUpdatedUser.id), removeUndefined(createdOrUpdatedUser), { merge: true });
     } catch (fsErr) {
       console.warn('Could not sync new user to Firestore users collection:', fsErr);
     }
@@ -2726,6 +2997,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         searchQuery,
         selectedDeliveryState,
         setSelectedDeliveryState,
+        isStateModalOpen,
+        setIsStateModalOpen,
+        openStateModal,
+        closeStateModal,
+        isItemDeliverable,
 
         cartCount,
         cartSubtotal,

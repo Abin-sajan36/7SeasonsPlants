@@ -1318,11 +1318,11 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
               </button>
             )}
             <button
-              onClick={() => onNavigate('plants')}
+              onClick={() => onNavigate('combos')}
               className="px-4 py-2 bg-emerald-50 text-emerald-800 rounded-full text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center gap-1.5 cursor-pointer border border-emerald-200"
             >
               <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Shop Plants</span>
+              <span>Shop Combos</span>
             </button>
             <button
               onClick={() => {
@@ -1393,22 +1393,16 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 <div className="w-16 h-16 bg-emerald-50 text-emerald-700 rounded-full flex items-center justify-center text-3xl mx-auto border border-emerald-100">
                   📦
                 </div>
-                <h3 className="text-base font-bold text-emerald-950">No Plant Orders Placed Yet</h3>
+                <h3 className="text-base font-bold text-emerald-950">No Plant Combo Orders Placed Yet</h3>
                 <p className="text-xs text-gray-600 max-w-sm mx-auto">
-                  You haven't ordered any plants under <strong className="text-emerald-950">{currentUser.email}</strong>. Browse our fresh nursery stock or curated combos!
+                  You haven't ordered any plant combos under <strong className="text-emerald-950">{currentUser.email}</strong>. Browse our curated botanical combos!
                 </p>
-                <div className="pt-2 flex justify-center gap-3">
+                <div className="pt-2 flex justify-center">
                   <button
                     onClick={() => onNavigate('combos')}
                     className="px-6 py-2.5 bg-gradient-to-r from-emerald-700 to-green-600 text-white rounded-full text-xs font-bold hover:from-emerald-800 hover:to-green-700 transition-all cursor-pointer shadow-sm"
                   >
-                    Explore Plant Combos
-                  </button>
-                  <button
-                    onClick={() => onNavigate('plants')}
-                    className="px-6 py-2.5 bg-emerald-50 text-emerald-800 rounded-full text-xs font-bold hover:bg-emerald-100 transition-all cursor-pointer border border-emerald-200"
-                  >
-                    Browse All Plants
+                    Explore Curated Plant Combos
                   </button>
                 </div>
               </div>
@@ -1654,12 +1648,12 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
               <div className="text-center py-10 text-xs text-gray-500 space-y-2">
                 <Heart className="w-8 h-8 text-rose-400 mx-auto" />
                 <p className="font-semibold text-emerald-950">Your wishlist is empty.</p>
-                <p>Browse our nursery to heart your favorite plants and combos.</p>
+                <p>Browse our nursery to heart your favorite curated combos.</p>
                 <button
-                  onClick={() => onNavigate('plants')}
+                  onClick={() => onNavigate('combos')}
                   className="mt-2 px-5 py-2 bg-emerald-700 text-white rounded-full text-xs font-bold hover:bg-emerald-800 transition-colors cursor-pointer"
                 >
-                  Browse Nursery
+                  Browse Plant Combos
                 </button>
               </div>
             ) : (

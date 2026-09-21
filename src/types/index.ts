@@ -58,6 +58,7 @@ export interface Product {
   potIncluded?: boolean;
   status?: 'published' | 'draft' | 'scheduled' | string;
   tags: string[];
+  sellableStates?: string[];
   attributes: ProductAttribute;
   careInstructions: CareInstructions;
   createdAt: string;
@@ -218,6 +219,7 @@ export interface OrderStatusHistoryItem {
 export interface Order {
   id: string;
   orderNumber: string;
+  customerId?: string;
   customer: {
     name: string;
     email: string;
@@ -244,6 +246,7 @@ export interface Order {
   estimatedDelivery?: string;
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type AdminRole = 'super_admin' | 'admin' | 'nursery_manager' | 'inventory_staff';
@@ -273,7 +276,12 @@ export interface User {
   emailVerified?: boolean;
   addresses: CustomerAddress[];
   wishlist: string[]; // item IDs
+  cart?: CartItem[];
+  orderIds?: string[];
+  pastOrders?: Order[];
+  lastLogin?: string;
   createdAt: string;
+  updatedAt?: string;
   promotedToAdminAt?: string;
   promotedBy?: string;
 }

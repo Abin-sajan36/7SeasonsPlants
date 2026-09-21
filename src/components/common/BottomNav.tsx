@@ -25,17 +25,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate })
             <span className="text-[10px] mt-0.5">Home</span>
           </button>
         )}
-        {visibility.plants !== false && (
-          <button
-            onClick={() => onNavigate('plants')}
-            className={`flex flex-col items-center py-1 px-2.5 rounded-xl transition-colors cursor-pointer ${
-              currentView === 'plants' ? 'text-emerald-700 font-bold' : 'text-gray-500'
-            }`}
-          >
-            <Leaf className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Plants</span>
-          </button>
-        )}
         {visibility.combos !== false && (
           <button
             onClick={() => onNavigate('combos')}

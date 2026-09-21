@@ -13,6 +13,10 @@
         { "name": "emailVerified", "type": "boolean", "optional": true },
         { "name": "addresses", "type": "array", "optional": true },
         { "name": "wishlist", "type": "array", "optional": true },
+        { "name": "cart", "type": "array", "optional": true },
+        { "name": "orderIds", "type": "array", "optional": true },
+        { "name": "lastLogin", "type": "timestamp", "optional": true },
+        { "name": "updatedAt", "type": "timestamp", "optional": true },
         { "name": "createdAt", "type": "timestamp" }
       ],
       "access_patterns": [
