@@ -481,20 +481,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const VALID_DELIVERY_STATES = ['Kerala', 'Tamil Nadu', 'Karnataka'] as const;
   const [selectedDeliveryState, setSelectedDeliveryStateState] = useState<string | null>(() => {
-    return localStorage.getItem(`${STORAGE_KEY}_deliveryState`);
+    const saved = localStorage.getItem(`${STORAGE_KEY}_deliveryState`) || localStorage.getItem('7seasons_deliveryState');
+    if (saved && (VALID_DELIVERY_STATES as readonly string[]).includes(saved)) {
+      return saved;
+    }
+    return null;
   });
-  const [isStateModalOpen, setIsStateModalOpen] = useState(false);
+  const [isStateModalOpen, setIsStateModalOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_deliveryState`) || localStorage.getItem('7seasons_deliveryState');
+    return !(saved && (VALID_DELIVERY_STATES as readonly string[]).includes(saved));
+  });
   const openStateModal = () => setIsStateModalOpen(true);
-  const closeStateModal = () => setIsStateModalOpen(false);
+  const closeStateModal = () => {
+    if (selectedDeliveryState && (VALID_DELIVERY_STATES as readonly string[]).includes(selectedDeliveryState)) {
+      setIsStateModalOpen(false);
+    }
+  };
 
   const setSelectedDeliveryState = (state: string | null) => {
     setSelectedDeliveryStateState(state);
     if (state) {
+      localStorage.setItem(`${STORAGE_KEY}_deliveryState`, state);
+      localStorage.setItem('7seasons_deliveryState', state);
       addToast({
         type: 'info',
-        title: `Location: ${state}`,
-        message: `Catalog updated to show plants deliverable to ${state}.`,
+        title: `Delivery Location: ${state}`,
+        message: `Catalog updated to show plant combos deliverable to ${state}.`,
         duration: 3500,
       });
     }

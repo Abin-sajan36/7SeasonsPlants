@@ -103,6 +103,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     addToast,
     storeSettings,
     combos,
+    selectedDeliveryState,
   } = useStore();
 
   // Form State
@@ -112,9 +113,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     email: currentUser?.email || '',
     street: '',
     apartment: '',
-    city: 'Ernakulam',
-    district: 'Ernakulam',
-    state: 'Kerala',
+    city: selectedDeliveryState === 'Tamil Nadu' ? 'Chennai' : selectedDeliveryState === 'Karnataka' ? 'Bengaluru' : 'Ernakulam',
+    district: selectedDeliveryState === 'Tamil Nadu' ? 'Chennai' : selectedDeliveryState === 'Karnataka' ? 'Bengaluru Urban' : 'Ernakulam',
+    state: selectedDeliveryState || 'Kerala',
     pincode: '',
     notes: '',
   });
@@ -196,6 +197,25 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     'Tiruvallur',
   ];
 
+  // Karnataka Districts
+  const karnatakaDistricts = [
+    'Bengaluru Urban',
+    'Bengaluru Rural',
+    'Mysuru',
+    'Mangaluru',
+    'Belagavi',
+    'Hubballi-Dharwad',
+    'Tumakuru',
+    'Udupi',
+    'Shivamogga',
+    'Ballari',
+    'Davanagere',
+    'Vijayapura',
+    'Kalaburagi',
+    'Hassan',
+    'Bidar',
+  ];
+
   if (cart.length === 0) {
     return (
       <div className="min-h-[70vh] bg-[#F4FAF5] py-16 flex items-center justify-center">
@@ -232,12 +252,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   };
 
   const handleStateChange = (newState: string) => {
-    const validState: 'Kerala' | 'Tamil Nadu' = newState === 'Tamil Nadu' ? 'Tamil Nadu' : 'Kerala';
+    const validState = newState === 'Tamil Nadu' ? 'Tamil Nadu' : newState === 'Karnataka' ? 'Karnataka' : 'Kerala';
+    const defaultCity = validState === 'Kerala' ? 'Ernakulam' : validState === 'Tamil Nadu' ? 'Chennai' : 'Bengaluru';
+    const defaultDistrict = validState === 'Kerala' ? 'Ernakulam' : validState === 'Tamil Nadu' ? 'Chennai' : 'Bengaluru Urban';
     setFormData((prev) => ({
       ...prev,
       state: validState,
-      city: validState === 'Kerala' ? 'Ernakulam' : 'Chennai',
-      district: validState === 'Kerala' ? 'Ernakulam' : 'Chennai',
+      city: defaultCity,
+      district: defaultDistrict,
     }));
   };
 
@@ -579,13 +601,16 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                       }
                       className="w-full px-3 py-2.5 bg-[#F4FAF5] text-xs font-semibold text-emerald-950 rounded-full border border-emerald-900/15 focus:bg-white outline-hidden"
                     >
-                      {(formData.state === 'Kerala' ? keralaDistricts : tamilNaduDistricts).map(
-                        (dist) => (
-                          <option key={dist} value={dist}>
-                            {dist}
-                          </option>
-                        )
-                      )}
+                      {(formData.state === 'Kerala'
+                        ? keralaDistricts
+                        : formData.state === 'Tamil Nadu'
+                        ? tamilNaduDistricts
+                        : karnatakaDistricts
+                      ).map((dist) => (
+                        <option key={dist} value={dist}>
+                          {dist}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

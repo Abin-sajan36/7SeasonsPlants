@@ -79,7 +79,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
   const [phoneInput, setPhoneInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
-  const [selectedState, setSelectedState] = useState<'Kerala' | 'Tamil Nadu'>('Kerala');
+  const [selectedState, setSelectedState] = useState<'Kerala' | 'Tamil Nadu' | 'Karnataka'>('Kerala');
   const [selectedDistrict, setSelectedDistrict] = useState('Ernakulam');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,7 +137,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
     addressLine2: '',
     city: 'Ernakulam',
     district: 'Ernakulam',
-    state: 'Kerala' as 'Kerala' | 'Tamil Nadu',
+    state: 'Kerala' as 'Kerala' | 'Tamil Nadu' | 'Karnataka',
     pincode: '',
     isDefault: false,
   });
@@ -212,6 +212,24 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
     'Kanyakumari',
     'Kanchipuram',
     'Tiruvallur',
+  ];
+
+  const karnatakaDistricts = [
+    'Bengaluru Urban',
+    'Bengaluru Rural',
+    'Mysuru',
+    'Mangaluru',
+    'Belagavi',
+    'Hubballi-Dharwad',
+    'Tumakuru',
+    'Udupi',
+    'Shivamogga',
+    'Ballari',
+    'Davanagere',
+    'Vijayapura',
+    'Kalaburagi',
+    'Hassan',
+    'Bidar',
   ];
 
   // Filter orders related to current user
@@ -491,7 +509,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
           city: selectedDistrict,
           district: selectedDistrict,
           state: selectedState,
-          pincode: selectedState === 'Kerala' ? '682030' : '641001',
+          pincode: selectedState === 'Kerala' ? '682030' : selectedState === 'Karnataka' ? '560001' : '641001',
           isDefault: true,
         },
       ];
@@ -1147,14 +1165,15 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                   <select
                     value={selectedState}
                     onChange={(e) => {
-                      const st = e.target.value as 'Kerala' | 'Tamil Nadu';
+                      const st = e.target.value as 'Kerala' | 'Tamil Nadu' | 'Karnataka';
                       setSelectedState(st);
-                      setSelectedDistrict(st === 'Kerala' ? 'Ernakulam' : 'Chennai');
+                      setSelectedDistrict(st === 'Kerala' ? 'Ernakulam' : st === 'Karnataka' ? 'Bengaluru Urban' : 'Chennai');
                     }}
                     className="w-full px-3 py-2.5 bg-[#F4FAF5] text-emerald-950 font-medium rounded-xl border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden text-xs"
                   >
                     <option value="Kerala">Kerala (24-48h Delivery)</option>
                     <option value="Tamil Nadu">Tamil Nadu (48-72h Delivery)</option>
+                    <option value="Karnataka">Karnataka (48-72h Delivery)</option>
                   </select>
                 </div>
 
@@ -1167,7 +1186,12 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                     onChange={(e) => setSelectedDistrict(e.target.value)}
                     className="w-full px-3 py-2.5 bg-[#F4FAF5] text-emerald-950 font-medium rounded-xl border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden text-xs"
                   >
-                    {(selectedState === 'Kerala' ? keralaDistricts : tamilNaduDistricts).map((d) => (
+                    {(selectedState === 'Kerala'
+                      ? keralaDistricts
+                      : selectedState === 'Tamil Nadu'
+                      ? tamilNaduDistricts
+                      : karnatakaDistricts
+                    ).map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -1866,18 +1890,19 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                   <select
                     value={newAddressData.state}
                     onChange={(e) => {
-                      const st = e.target.value as 'Kerala' | 'Tamil Nadu';
+                      const st = e.target.value as 'Kerala' | 'Tamil Nadu' | 'Karnataka';
                       setNewAddressData({
                         ...newAddressData,
                         state: st,
-                        district: st === 'Kerala' ? 'Ernakulam' : 'Chennai',
-                        city: st === 'Kerala' ? 'Ernakulam' : 'Chennai',
+                        district: st === 'Kerala' ? 'Ernakulam' : st === 'Karnataka' ? 'Bengaluru Urban' : 'Chennai',
+                        city: st === 'Kerala' ? 'Ernakulam' : st === 'Karnataka' ? 'Bengaluru Urban' : 'Chennai',
                       });
                     }}
                     className="w-full px-3 py-2 bg-[#F4FAF5] text-emerald-950 font-medium rounded-xl border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden"
                   >
                     <option value="Kerala">Kerala</option>
                     <option value="Tamil Nadu">Tamil Nadu</option>
+                    <option value="Karnataka">Karnataka</option>
                   </select>
                 </div>
 
@@ -1894,7 +1919,12 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                     }
                     className="w-full px-3 py-2 bg-[#F4FAF5] text-emerald-950 font-medium rounded-xl border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden"
                   >
-                    {(newAddressData.state === 'Kerala' ? keralaDistricts : tamilNaduDistricts).map((d) => (
+                    {(newAddressData.state === 'Kerala'
+                      ? keralaDistricts
+                      : newAddressData.state === 'Tamil Nadu'
+                      ? tamilNaduDistricts
+                      : karnatakaDistricts
+                    ).map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
