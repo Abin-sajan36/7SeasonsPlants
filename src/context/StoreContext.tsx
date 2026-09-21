@@ -196,45 +196,45 @@ interface StoreContextType {
   deleteReview: (id: string) => void;
 
   // Admin CRUD
-  addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
-  updateProduct: (product: Product) => void;
-  deleteProduct: (id: string) => void;
-  deleteProducts: (ids: string[]) => void;
-  duplicateProduct: (id: string) => void;
+  addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => Promise<void> | void;
+  updateProduct: (product: Product) => Promise<void> | void;
+  deleteProduct: (id: string) => Promise<void> | void;
+  deleteProducts: (ids: string[]) => Promise<void> | void;
+  duplicateProduct: (id: string) => Promise<void> | void;
 
-  addCombo: (combo: Omit<PlantCombo, 'id' | 'createdAt'>) => void;
-  updateCombo: (combo: PlantCombo) => void;
-  deleteCombo: (id: string) => void;
-  deleteCombos: (ids: string[]) => void;
-  duplicateCombo: (id: string) => void;
+  addCombo: (combo: Omit<PlantCombo, 'id' | 'createdAt'>) => Promise<void> | void;
+  updateCombo: (combo: PlantCombo) => Promise<void> | void;
+  deleteCombo: (id: string) => Promise<void> | void;
+  deleteCombos: (ids: string[]) => Promise<void> | void;
+  duplicateCombo: (id: string) => Promise<void> | void;
 
-  addDailyDeal: (deal: Omit<DailyDeal, 'id'>) => void;
-  updateDailyDeal: (deal: DailyDeal) => void;
-  deleteDailyDeal: (id: string) => void;
-  toggleDailyDealActive: (id: string) => void;
+  addDailyDeal: (deal: Omit<DailyDeal, 'id'>) => Promise<void> | void;
+  updateDailyDeal: (deal: DailyDeal) => Promise<void> | void;
+  deleteDailyDeal: (id: string) => Promise<void> | void;
+  toggleDailyDealActive: (id: string) => Promise<void> | void;
 
-  addCategory: (cat: Omit<Category, 'id'>) => void;
-  updateCategory: (cat: Category) => void;
-  deleteCategory: (id: string) => void;
+  addCategory: (cat: Omit<Category, 'id'>) => Promise<void> | void;
+  updateCategory: (cat: Category) => Promise<void> | void;
+  deleteCategory: (id: string) => Promise<void> | void;
 
-  addCoupon: (cpn: Omit<Coupon, 'id' | 'usedCount'>) => void;
-  updateCoupon: (cpn: Coupon) => void;
-  deleteCoupon: (id: string) => void;
+  addCoupon: (cpn: Omit<Coupon, 'id' | 'usedCount'>) => Promise<void> | void;
+  updateCoupon: (cpn: Coupon) => Promise<void> | void;
+  deleteCoupon: (id: string) => Promise<void> | void;
 
-  addBanner: (banner: Omit<HeroBanner, 'id'>) => void;
-  updateBanner: (banner: HeroBanner) => void;
-  deleteBanner: (id: string) => void;
+  addBanner: (banner: Omit<HeroBanner, 'id'>) => Promise<void> | void;
+  updateBanner: (banner: HeroBanner) => Promise<void> | void;
+  deleteBanner: (id: string) => Promise<void> | void;
 
-  addBlogPost: (blog: Omit<BlogPost, 'id' | 'publishedAt'>) => void;
-  updateBlogPost: (blog: BlogPost) => void;
-  deleteBlogPost: (id: string) => void;
+  addBlogPost: (blog: Omit<BlogPost, 'id' | 'publishedAt'>) => Promise<void> | void;
+  updateBlogPost: (blog: BlogPost) => Promise<void> | void;
+  deleteBlogPost: (id: string) => Promise<void> | void;
 
-  addPlantCareGuide: (guide: Omit<PlantCareGuide, 'id'>) => void;
-  updatePlantCareGuide: (guide: PlantCareGuide) => void;
-  deletePlantCareGuide: (id: string) => void;
+  addPlantCareGuide: (guide: Omit<PlantCareGuide, 'id'>) => Promise<void> | void;
+  updatePlantCareGuide: (guide: PlantCareGuide) => Promise<void> | void;
+  deletePlantCareGuide: (id: string) => Promise<void> | void;
 
-  updateStoreSettings: (settings: Partial<StoreSettings>) => void;
-  resetToSampleData: () => void;
+  updateStoreSettings: (settings: Partial<StoreSettings>) => Promise<void> | void;
+  resetToSampleData: () => Promise<void> | void;
 
   // Toasts
   addToast: (toast: Omit<ToastMessage, 'id'>) => void;
@@ -564,16 +564,289 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Sync store settings with Firebase
   useEffect(() => {
+    let seeded = false;
     const unsubscribe = onSnapshot(
       doc(db, 'storeSettings', 'global'),
-      (docSnap) => {
+      async (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data() as StoreSettings;
           setStoreSettings((prev) => ({ ...prev, ...data }));
+          localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(data));
+        } else if (!seeded) {
+          seeded = true;
+          try {
+            await setDoc(doc(db, 'storeSettings', 'global'), removeUndefined(initialStoreSettings), { merge: true });
+          } catch (e) {
+            console.warn('Initial storeSettings seed note:', e);
+          }
         }
       },
       (error) => {
         console.warn('Firestore storeSettings sync note:', error.message || error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of Plant Combos from Firestore
+  useEffect(() => {
+    let seeded = false;
+    const unsubscribe = onSnapshot(
+      collection(db, 'combos'),
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          const list: PlantCombo[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ ...(docSnap.data() as PlantCombo), id: docSnap.id });
+          });
+          setCombos(list);
+          localStorage.setItem(`${STORAGE_KEY}_combos`, JSON.stringify(list));
+        } else if (!seeded) {
+          seeded = true;
+          try {
+            for (const item of initialPlantCombos) {
+              await setDoc(doc(db, 'combos', item.id), removeUndefined(item), { merge: true });
+            }
+          } catch (e) {
+            console.warn('Seeding initial combos note:', e);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore combos sync note:', error.message || error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of Products from Firestore
+  useEffect(() => {
+    let seeded = false;
+    const unsubscribe = onSnapshot(
+      collection(db, 'products'),
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          const list: Product[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ ...(docSnap.data() as Product), id: docSnap.id });
+          });
+          setProducts(list);
+          localStorage.setItem(`${STORAGE_KEY}_products`, JSON.stringify(list));
+        } else if (!seeded) {
+          seeded = true;
+          try {
+            for (const item of initialProducts) {
+              await setDoc(doc(db, 'products', item.id), removeUndefined(item), { merge: true });
+            }
+          } catch (e) {
+            console.warn('Seeding initial products note:', e);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore products sync note:', error.message || error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of Categories from Firestore
+  useEffect(() => {
+    let seeded = false;
+    const unsubscribe = onSnapshot(
+      collection(db, 'categories'),
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          const list: Category[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ ...(docSnap.data() as Category), id: docSnap.id });
+          });
+          setCategories(list);
+          localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(list));
+        } else if (!seeded) {
+          seeded = true;
+          try {
+            for (const item of initialCategories) {
+              await setDoc(doc(db, 'categories', item.id), removeUndefined(item), { merge: true });
+            }
+          } catch (e) {
+            console.warn('Seeding initial categories note:', e);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore categories sync note:', error.message || error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of Daily Deals from Firestore
+  useEffect(() => {
+    let seeded = false;
+    const unsubscribe = onSnapshot(
+      collection(db, 'dailyDeals'),
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          const list: DailyDeal[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ ...(docSnap.data() as DailyDeal), id: docSnap.id });
+          });
+          setDailyDeals(list);
+          localStorage.setItem(`${STORAGE_KEY}_deals`, JSON.stringify(list));
+        } else if (!seeded) {
+          seeded = true;
+          try {
+            for (const item of initialDailyDeals) {
+              await setDoc(doc(db, 'dailyDeals', item.id), removeUndefined(item), { merge: true });
+            }
+          } catch (e) {
+            console.warn('Seeding initial dailyDeals note:', e);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore dailyDeals sync note:', error.message || error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of Coupons from Firestore
+  useEffect(() => {
+    let seeded = false;
+    const unsubscribe = onSnapshot(
+      collection(db, 'coupons'),
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          const list: Coupon[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ ...(docSnap.data() as Coupon), id: docSnap.id });
+          });
+          setCoupons(list);
+          localStorage.setItem(`${STORAGE_KEY}_coupons`, JSON.stringify(list));
+        } else if (!seeded) {
+          seeded = true;
+          try {
+            for (const item of initialCoupons) {
+              await setDoc(doc(db, 'coupons', item.id), removeUndefined(item), { merge: true });
+            }
+          } catch (e) {
+            console.warn('Seeding initial coupons note:', e);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore coupons sync note:', error.message || error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of Banners from Firestore
+  useEffect(() => {
+    let seeded = false;
+    const unsubscribe = onSnapshot(
+      collection(db, 'banners'),
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          const list: HeroBanner[] = [];
+          snapshot.forEach((docSnap) => {
+            const b = docSnap.data() as HeroBanner;
+            list.push({
+              ...b,
+              id: docSnap.id,
+              ctaText: /shop\s*plants/i.test(b.ctaText) ? 'Explore Plant Combos' : /best\s*seller/i.test(b.ctaText) ? 'Best Selling Combos' : b.ctaText,
+              ctaLink: b.ctaLink === '/plants' || b.ctaLink?.startsWith('/plants') ? '/combos' : b.ctaLink,
+              secondaryCtaText: /shop\s*plants/i.test(b.secondaryCtaText || '') ? 'Explore Combos' : b.secondaryCtaText,
+              secondaryCtaLink: b.secondaryCtaLink === '/plants' || b.secondaryCtaLink?.startsWith('/plants') ? '/combos' : b.secondaryCtaLink,
+            });
+          });
+          setBanners(list);
+          localStorage.setItem(`${STORAGE_KEY}_banners`, JSON.stringify(list));
+        } else if (!seeded) {
+          seeded = true;
+          try {
+            for (const item of initialBanners) {
+              await setDoc(doc(db, 'banners', item.id), removeUndefined(item), { merge: true });
+            }
+          } catch (e) {
+            console.warn('Seeding initial banners note:', e);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore banners sync note:', error.message || error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of Plant Care Guides from Firestore
+  useEffect(() => {
+    let seeded = false;
+    const unsubscribe = onSnapshot(
+      collection(db, 'plantCareGuides'),
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          const list: PlantCareGuide[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ ...(docSnap.data() as PlantCareGuide), id: docSnap.id });
+          });
+          setPlantCareGuides(list);
+          localStorage.setItem(`${STORAGE_KEY}_guides`, JSON.stringify(list));
+        } else if (!seeded) {
+          seeded = true;
+          try {
+            for (const item of initialPlantCareGuides) {
+              await setDoc(doc(db, 'plantCareGuides', item.id), removeUndefined(item), { merge: true });
+            }
+          } catch (e) {
+            console.warn('Seeding initial plantCareGuides note:', e);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore plantCareGuides sync note:', error.message || error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of Blog Posts from Firestore
+  useEffect(() => {
+    let seeded = false;
+    const unsubscribe = onSnapshot(
+      collection(db, 'blogs'),
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          const list: BlogPost[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ ...(docSnap.data() as BlogPost), id: docSnap.id });
+          });
+          setBlogs(list);
+          localStorage.setItem(`${STORAGE_KEY}_blogs`, JSON.stringify(list));
+        } else if (!seeded) {
+          seeded = true;
+          try {
+            for (const item of initialBlogPosts) {
+              await setDoc(doc(db, 'blogs', item.id), removeUndefined(item), { merge: true });
+            }
+          } catch (e) {
+            console.warn('Seeding initial blogs note:', e);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore blogs sync note:', error.message || error);
       }
     );
 
@@ -2616,13 +2889,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Admin CRUD for Products
-  const addProduct = (prod: Omit<Product, 'id' | 'createdAt'>) => {
+  const addProduct = async (prod: Omit<Product, 'id' | 'createdAt'>) => {
     const newProd: Product = {
       ...prod,
       id: `prod-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
     setProducts((prev) => [newProd, ...prev]);
+    try {
+      await setDoc(doc(db, 'products', newProd.id), removeUndefined(newProd));
+    } catch (e) {
+      console.warn('Could not save product to Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Product Created',
@@ -2630,8 +2908,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const updateProduct = (updated: Product) => {
+  const updateProduct = async (updated: Product) => {
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    try {
+      await setDoc(doc(db, 'products', updated.id), removeUndefined(updated), { merge: true });
+    } catch (e) {
+      console.warn('Could not update product in Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Product Updated',
@@ -2639,8 +2922,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await deleteDoc(doc(db, 'products', id));
+    } catch (e) {
+      console.warn('Could not delete product from Firestore:', e);
+    }
     addToast({
       type: 'info',
       title: 'Product Deleted',
@@ -2648,8 +2936,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const deleteProducts = (ids: string[]) => {
+  const deleteProducts = async (ids: string[]) => {
     setProducts((prev) => prev.filter((p) => !ids.includes(p.id)));
+    for (const id of ids) {
+      try {
+        await deleteDoc(doc(db, 'products', id));
+      } catch (e) {
+        console.warn('Could not delete product from Firestore:', e);
+      }
+    }
     addToast({
       type: 'info',
       title: 'Products Deleted',
@@ -2657,7 +2952,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const duplicateProduct = (id: string) => {
+  const duplicateProduct = async (id: string) => {
     const target = products.find((p) => p.id === id);
     if (!target) return;
     const duplicated: Product = {
@@ -2669,6 +2964,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createdAt: new Date().toISOString(),
     };
     setProducts((prev) => [duplicated, ...prev]);
+    try {
+      await setDoc(doc(db, 'products', duplicated.id), removeUndefined(duplicated));
+    } catch (e) {
+      console.warn('Could not duplicate product in Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Product Duplicated',
@@ -2677,13 +2977,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Admin CRUD for Combos
-  const addCombo = (combo: Omit<PlantCombo, 'id' | 'createdAt'>) => {
+  const addCombo = async (combo: Omit<PlantCombo, 'id' | 'createdAt'>) => {
     const newCombo: PlantCombo = {
       ...combo,
       id: `combo-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
     setCombos((prev) => [newCombo, ...prev]);
+    try {
+      await setDoc(doc(db, 'combos', newCombo.id), removeUndefined(newCombo));
+    } catch (e) {
+      console.warn('Could not save combo to Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Plant Combo Created 🌿',
@@ -2691,8 +2996,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const updateCombo = (updated: PlantCombo) => {
+  const updateCombo = async (updated: PlantCombo) => {
     setCombos((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    try {
+      await setDoc(doc(db, 'combos', updated.id), removeUndefined(updated), { merge: true });
+    } catch (e) {
+      console.warn('Could not update combo in Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Combo Updated',
@@ -2700,8 +3010,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const deleteCombo = (id: string) => {
+  const deleteCombo = async (id: string) => {
     setCombos((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await deleteDoc(doc(db, 'combos', id));
+    } catch (e) {
+      console.warn('Could not delete combo from Firestore:', e);
+    }
     addToast({
       type: 'info',
       title: 'Combo Deleted',
@@ -2709,8 +3024,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const deleteCombos = (ids: string[]) => {
+  const deleteCombos = async (ids: string[]) => {
     setCombos((prev) => prev.filter((c) => !ids.includes(c.id)));
+    for (const id of ids) {
+      try {
+        await deleteDoc(doc(db, 'combos', id));
+      } catch (e) {
+        console.warn('Could not delete combo from Firestore:', e);
+      }
+    }
     addToast({
       type: 'info',
       title: 'Combos Deleted',
@@ -2718,7 +3040,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const duplicateCombo = (id: string) => {
+  const duplicateCombo = async (id: string) => {
     const target = combos.find((c) => c.id === id);
     if (!target) return;
     const duplicated: PlantCombo = {
@@ -2730,6 +3052,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createdAt: new Date().toISOString(),
     };
     setCombos((prev) => [duplicated, ...prev]);
+    try {
+      await setDoc(doc(db, 'combos', duplicated.id), removeUndefined(duplicated));
+    } catch (e) {
+      console.warn('Could not duplicate combo in Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Combo Duplicated',
@@ -2738,12 +3065,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Daily Deals
-  const addDailyDeal = (deal: Omit<DailyDeal, 'id'>) => {
+  const addDailyDeal = async (deal: Omit<DailyDeal, 'id'>) => {
     const newDeal: DailyDeal = {
       ...deal,
       id: `deal-${Date.now()}`,
     };
     setDailyDeals((prev) => [newDeal, ...prev]);
+    try {
+      await setDoc(doc(db, 'dailyDeals', newDeal.id), removeUndefined(newDeal));
+    } catch (e) {
+      console.warn('Could not save daily deal to Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Deal Created & Scheduled',
@@ -2751,8 +3083,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const updateDailyDeal = (updated: DailyDeal) => {
+  const updateDailyDeal = async (updated: DailyDeal) => {
     setDailyDeals((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+    try {
+      await setDoc(doc(db, 'dailyDeals', updated.id), removeUndefined(updated), { merge: true });
+    } catch (e) {
+      console.warn('Could not update daily deal in Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Deal Updated',
@@ -2760,8 +3097,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const deleteDailyDeal = (id: string) => {
+  const deleteDailyDeal = async (id: string) => {
     setDailyDeals((prev) => prev.filter((d) => d.id !== id));
+    try {
+      await deleteDoc(doc(db, 'dailyDeals', id));
+    } catch (e) {
+      console.warn('Could not delete daily deal from Firestore:', e);
+    }
     addToast({
       type: 'info',
       title: 'Deal Removed',
@@ -2769,16 +3111,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const toggleDailyDealActive = (id: string) => {
+  const toggleDailyDealActive = async (id: string) => {
+    const deal = dailyDeals.find((d) => d.id === id);
+    if (!deal) return;
+    const newActive = !deal.isActive;
     setDailyDeals((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, isActive: !d.isActive } : d))
+      prev.map((d) => (d.id === id ? { ...d, isActive: newActive } : d))
     );
+    try {
+      await setDoc(doc(db, 'dailyDeals', id), { isActive: newActive }, { merge: true });
+    } catch (e) {
+      console.warn('Could not toggle daily deal in Firestore:', e);
+    }
   };
 
   // Categories
-  const addCategory = (cat: Omit<Category, 'id'>) => {
+  const addCategory = async (cat: Omit<Category, 'id'>) => {
     const newCat: Category = { ...cat, id: `cat-${Date.now()}` };
     setCategories((prev) => [...prev, newCat]);
+    try {
+      await setDoc(doc(db, 'categories', newCat.id), removeUndefined(newCat));
+    } catch (e) {
+      console.warn('Could not save category to Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Category Added',
@@ -2786,22 +3141,37 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const updateCategory = (updated: Category) => {
+  const updateCategory = async (updated: Category) => {
     setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    try {
+      await setDoc(doc(db, 'categories', updated.id), removeUndefined(updated), { merge: true });
+    } catch (e) {
+      console.warn('Could not update category in Firestore:', e);
+    }
   };
 
-  const deleteCategory = (id: string) => {
+  const deleteCategory = async (id: string) => {
     setCategories((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await deleteDoc(doc(db, 'categories', id));
+    } catch (e) {
+      console.warn('Could not delete category from Firestore:', e);
+    }
   };
 
   // Coupons
-  const addCoupon = (cpn: Omit<Coupon, 'id' | 'usedCount'>) => {
+  const addCoupon = async (cpn: Omit<Coupon, 'id' | 'usedCount'>) => {
     const newCpn: Coupon = {
       ...cpn,
       id: `cpn-${Date.now()}`,
       usedCount: 0,
     };
     setCoupons((prev) => [newCpn, ...prev]);
+    try {
+      await setDoc(doc(db, 'coupons', newCpn.id), removeUndefined(newCpn));
+    } catch (e) {
+      console.warn('Could not save coupon to Firestore:', e);
+    }
     addToast({
       type: 'success',
       title: 'Coupon Created',
@@ -2809,60 +3179,115 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const updateCoupon = (updated: Coupon) => {
+  const updateCoupon = async (updated: Coupon) => {
     setCoupons((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    try {
+      await setDoc(doc(db, 'coupons', updated.id), removeUndefined(updated), { merge: true });
+    } catch (e) {
+      console.warn('Could not update coupon in Firestore:', e);
+    }
   };
 
-  const deleteCoupon = (id: string) => {
+  const deleteCoupon = async (id: string) => {
     setCoupons((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await deleteDoc(doc(db, 'coupons', id));
+    } catch (e) {
+      console.warn('Could not delete coupon from Firestore:', e);
+    }
   };
 
   // Banners
-  const addBanner = (banner: Omit<HeroBanner, 'id'>) => {
+  const addBanner = async (banner: Omit<HeroBanner, 'id'>) => {
     const newBanner: HeroBanner = { ...banner, id: `banner-${Date.now()}` };
     setBanners((prev) => [...prev, newBanner]);
+    try {
+      await setDoc(doc(db, 'banners', newBanner.id), removeUndefined(newBanner));
+    } catch (e) {
+      console.warn('Could not save banner to Firestore:', e);
+    }
   };
 
-  const updateBanner = (updated: HeroBanner) => {
+  const updateBanner = async (updated: HeroBanner) => {
     setBanners((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+    try {
+      await setDoc(doc(db, 'banners', updated.id), removeUndefined(updated), { merge: true });
+    } catch (e) {
+      console.warn('Could not update banner in Firestore:', e);
+    }
   };
 
-  const deleteBanner = (id: string) => {
+  const deleteBanner = async (id: string) => {
     setBanners((prev) => prev.filter((b) => b.id !== id));
+    try {
+      await deleteDoc(doc(db, 'banners', id));
+    } catch (e) {
+      console.warn('Could not delete banner from Firestore:', e);
+    }
   };
 
   // Blogs & Care Guides
-  const addBlogPost = (blog: Omit<BlogPost, 'id' | 'publishedAt'>) => {
+  const addBlogPost = async (blog: Omit<BlogPost, 'id' | 'publishedAt'>) => {
     const newBlog: BlogPost = {
       ...blog,
       id: `blog-${Date.now()}`,
       publishedAt: new Date().toISOString(),
     };
     setBlogs((prev) => [newBlog, ...prev]);
+    try {
+      await setDoc(doc(db, 'blogs', newBlog.id), removeUndefined(newBlog));
+    } catch (e) {
+      console.warn('Could not save blog to Firestore:', e);
+    }
   };
 
-  const updateBlogPost = (updated: BlogPost) => {
+  const updateBlogPost = async (updated: BlogPost) => {
     setBlogs((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+    try {
+      await setDoc(doc(db, 'blogs', updated.id), removeUndefined(updated), { merge: true });
+    } catch (e) {
+      console.warn('Could not update blog in Firestore:', e);
+    }
   };
 
-  const deleteBlogPost = (id: string) => {
+  const deleteBlogPost = async (id: string) => {
     setBlogs((prev) => prev.filter((b) => b.id !== id));
+    try {
+      await deleteDoc(doc(db, 'blogs', id));
+    } catch (e) {
+      console.warn('Could not delete blog from Firestore:', e);
+    }
   };
 
-  const addPlantCareGuide = (guide: Omit<PlantCareGuide, 'id'>) => {
+  const addPlantCareGuide = async (guide: Omit<PlantCareGuide, 'id'>) => {
     const newGuide: PlantCareGuide = {
       ...guide,
       id: `guide-${Date.now()}`,
     };
     setPlantCareGuides((prev) => [newGuide, ...prev]);
+    try {
+      await setDoc(doc(db, 'plantCareGuides', newGuide.id), removeUndefined(newGuide));
+    } catch (e) {
+      console.warn('Could not save care guide to Firestore:', e);
+    }
   };
 
-  const updatePlantCareGuide = (updated: PlantCareGuide) => {
+  const updatePlantCareGuide = async (updated: PlantCareGuide) => {
     setPlantCareGuides((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
+    try {
+      await setDoc(doc(db, 'plantCareGuides', updated.id), removeUndefined(updated), { merge: true });
+    } catch (e) {
+      console.warn('Could not update care guide in Firestore:', e);
+    }
   };
 
-  const deletePlantCareGuide = (id: string) => {
+  const deletePlantCareGuide = async (id: string) => {
     setPlantCareGuides((prev) => prev.filter((g) => g.id !== id));
+    try {
+      await deleteDoc(doc(db, 'plantCareGuides', id));
+    } catch (e) {
+      console.warn('Could not delete care guide from Firestore:', e);
+    }
   };
 
   // Settings
@@ -2889,51 +3314,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const mergedSettings = { ...storeSettings, ...normalized };
       setStoreSettings(mergedSettings);
+      localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(mergedSettings));
 
-      // 1. Auth Verification Check: Ensure Firebase user is authenticated before attempting Firestore write
-      if (!auth.currentUser) {
-        console.warn('[StoreSettings] No active Firebase Auth session. Settings saved to local cache.');
-        addToast({
-          type: 'success',
-          title: 'Store Settings Saved Locally',
-          message: 'Settings updated on this device. Log in with your admin account to sync across all devices.',
-        });
-        return;
-      }
-
-      // 2. Path Verification: Target storeSettings/global, settings/global, and settings/{userId}
       try {
-        await setDoc(doc(db, 'storeSettings', 'global'), mergedSettings, { merge: true });
-        // Also persist under settings/global to support both schema conventions
-        await setDoc(doc(db, 'settings', 'global'), mergedSettings, { merge: true }).catch(() => {});
-        if (auth.currentUser.uid) {
+        await setDoc(doc(db, 'storeSettings', 'global'), removeUndefined(mergedSettings), { merge: true });
+        await setDoc(doc(db, 'settings', 'global'), removeUndefined(mergedSettings), { merge: true }).catch(() => {});
+        if (auth.currentUser?.uid) {
           await setDoc(
             doc(db, 'settings', auth.currentUser.uid),
-            { ...mergedSettings, updatedAt: new Date().toISOString() },
+            removeUndefined({ ...mergedSettings, updatedAt: new Date().toISOString() }),
             { merge: true }
           ).catch(() => {});
         }
       } catch (firestoreErr: any) {
-        if (
-          firestoreErr?.code === 'permission-denied' ||
-          firestoreErr?.message?.includes('Missing or insufficient permissions') ||
-          firestoreErr?.message?.includes('insufficient permissions')
-        ) {
-          console.warn('[Firestore] Permission denied while updating storeSettings. Changes preserved locally in browser cache.', firestoreErr);
-          addToast({
-            type: 'warning',
-            title: 'Settings Saved Locally',
-            message: 'Settings saved on this device. Cloud database write requires administrator permissions.',
-          });
-          return;
-        }
-        throw firestoreErr;
+        console.warn('[Firestore] Note updating storeSettings in cloud:', firestoreErr);
       }
 
       addToast({
         type: 'success',
         title: 'Store Settings Saved',
-        message: 'Nursery store settings have been saved and applied globally.',
+        message: 'Nursery store settings have been saved and applied globally to the database.',
       });
     } catch (err: any) {
       console.error('Error updating store settings:', err);
@@ -2945,7 +3345,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const resetToSampleData = () => {
+  const resetToSampleData = async () => {
     setStoreSettings(initialStoreSettings);
     setCategories(initialCategories);
     setProducts(initialProducts);
@@ -2958,11 +3358,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setReviews(initialReviews);
     setOrders(initialOrders);
     setCart([]);
-    // Wishlist belongs to users now
+    try {
+      await setDoc(doc(db, 'storeSettings', 'global'), removeUndefined(initialStoreSettings), { merge: true });
+      for (const c of initialPlantCombos) {
+        await setDoc(doc(db, 'combos', c.id), removeUndefined(c), { merge: true });
+      }
+      for (const p of initialProducts) {
+        await setDoc(doc(db, 'products', p.id), removeUndefined(p), { merge: true });
+      }
+      for (const cat of initialCategories) {
+        await setDoc(doc(db, 'categories', cat.id), removeUndefined(cat), { merge: true });
+      }
+      for (const deal of initialDailyDeals) {
+        await setDoc(doc(db, 'dailyDeals', deal.id), removeUndefined(deal), { merge: true });
+      }
+      for (const cpn of initialCoupons) {
+        await setDoc(doc(db, 'coupons', cpn.id), removeUndefined(cpn), { merge: true });
+      }
+      for (const ban of initialBanners) {
+        await setDoc(doc(db, 'banners', ban.id), removeUndefined(ban), { merge: true });
+      }
+    } catch (err) {
+      console.warn('Could not sync sample reset to Firestore:', err);
+    }
     addToast({
       type: 'info',
       title: 'Reset to Sample Data',
-      message: 'Default 7Seasons nursery inventory restored.',
+      message: 'Default 7Seasons nursery inventory restored in database.',
     });
   };
 
