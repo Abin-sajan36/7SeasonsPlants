@@ -42,6 +42,7 @@ import {
   Undo2,
   Store,
   Megaphone,
+  Tag,
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
@@ -49,6 +50,7 @@ import { auth } from '../lib/firebase';
 import { UserManagementTab } from '../components/admin/UserManagementTab';
 import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus, StoreSettings } from '../types';
 import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
+import { ComboCategoryManagerModal } from '../components/admin/ComboCategoryManagerModal';
 import { ImageUploadPicker } from '../components/admin/ImageUploadPicker';
 import { AdminLoginGate } from '../components/admin/AdminLoginGate';
 
@@ -60,6 +62,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const {
     products,
     combos,
+    categories,
     orders,
     storeSettings,
     currentAdmin,
@@ -99,6 +102,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const offlineOrdersList = orders.filter(o => o.source === 'offline');
   const [productSearch, setProductSearch] = useState('');
   const [comboSearch, setComboSearch] = useState('');
+  const [selectedComboCategoryFilter, setSelectedComboCategoryFilter] = useState<string>('all');
+  const [isComboCategoryModalOpen, setIsComboCategoryModalOpen] = useState(false);
   const [orderSearch, setOrderSearch] = useState('');
 
   // Bulk selection state
@@ -474,12 +479,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       p.category.toLowerCase().includes(productSearch.toLowerCase())
   );
 
-  const filteredCombos = combos.filter(
-    (c) =>
+  const adminComboCategories = React.useMemo(() => {
+    const list = categories.filter((c) => c.type === 'combo' || c.type === 'both');
+    return list;
+  }, [categories]);
+
+  const filteredCombos = combos.filter((c) => {
+    const matchesSearch =
       c.name.toLowerCase().includes(comboSearch.toLowerCase()) ||
       c.category.toLowerCase().includes(comboSearch.toLowerCase()) ||
-      c.items.some((it) => it.productName.toLowerCase().includes(comboSearch.toLowerCase()))
-  );
+      c.items.some((it) => it.productName.toLowerCase().includes(comboSearch.toLowerCase()));
+    if (!matchesSearch) return false;
+    if (selectedComboCategoryFilter !== 'all') {
+      return c.category.toLowerCase() === selectedComboCategoryFilter.toLowerCase();
+    }
+    return true;
+  });
 
   const filteredOrders = onlineOrders.filter((o) => {
     // Status filter
@@ -1148,6 +1163,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </button>
                 )}
                 <button
+                  onClick={() => setIsComboCategoryModalOpen(true)}
+                  className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-full text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                  title="Create and manage categories specifically for combo bundles"
+                >
+                  <Tag className="w-4 h-4 text-emerald-700" />
+                  <span>Manage Categories</span>
+                </button>
+                <button
                   onClick={handleOpenNewCombo}
                   className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
@@ -1155,6 +1178,60 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   <span>+ Create Plant Combo Bundle</span>
                 </button>
               </div>
+            </div>
+
+            {/* Category Filter Pills & Create Category Quick Action */}
+            <div className="bg-white p-3 sm:p-4 rounded-3xl border border-gray-200 shadow-2xs flex items-center justify-between gap-3 overflow-x-auto">
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <span className="text-xs font-bold text-gray-500 mr-1 flex items-center gap-1 shrink-0">
+                  <Tag className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Category:</span>
+                </span>
+                <button
+                  onClick={() => setSelectedComboCategoryFilter('all')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                    selectedComboCategoryFilter === 'all'
+                      ? 'bg-emerald-800 text-white shadow-2xs'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  All ({combos.length})
+                </button>
+                {adminComboCategories.map((cat) => {
+                  const count = combos.filter(
+                    (c) => c.category?.toLowerCase() === cat.name.toLowerCase()
+                  ).length;
+                  const isSelected = selectedComboCategoryFilter.toLowerCase() === cat.name.toLowerCase();
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedComboCategoryFilter(cat.name)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-emerald-800 text-white shadow-2xs'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <span>{cat.name}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                          isSelected ? 'bg-emerald-950 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setIsComboCategoryModalOpen(true)}
+                className="text-xs text-emerald-800 hover:text-emerald-950 font-bold flex items-center gap-1 cursor-pointer bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full border border-emerald-200 shrink-0 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ New Category</span>
+              </button>
             </div>
 
             {/* Combos Grid */}
@@ -3018,6 +3095,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         comboToEdit={editingCombo}
         products={products}
         onSaveCombo={handleSaveCombo}
+      />
+
+      {/* Combo Category Manager Modal */}
+      <ComboCategoryManagerModal
+        isOpen={isComboCategoryModalOpen}
+        onClose={() => setIsComboCategoryModalOpen(false)}
       />
 
       {/* Export Orders Modal */}

@@ -7,9 +7,20 @@ import {
   AlertCircle,
   Tag,
   ShieldCheck,
+  MapPin,
+  CheckCircle2,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { CustomerAddress, OrderItem } from '../types';
+import {
+  SUPPORTED_DELIVERY_STATES,
+  SupportedDeliveryState,
+  STATE_PIN_CONFIG,
+  getDistrictsForState,
+  detectStateFromPincode,
+  checkAddressTextMismatch,
+  validateDeliveryAddress,
+} from '../lib/stateValidation';
 
 // --- PAYMENT MODAL COMPONENT ---
 const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; total: number; onConfirm: (method: string) => void; }> = ({ isOpen, onClose, total, onConfirm }) => {
@@ -104,33 +115,127 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     storeSettings,
     combos,
     selectedDeliveryState,
+    setSelectedDeliveryState,
   } = useStore();
 
   // Form State
-  const [formData, setFormData] = useState({
+  const initialDeliveryState: SupportedDeliveryState =
+    selectedDeliveryState === 'Tamil Nadu'
+      ? 'Tamil Nadu'
+      : selectedDeliveryState === 'Karnataka'
+      ? 'Karnataka'
+      : 'Kerala';
+
+  interface CheckoutFormData {
+    fullName: string;
+    phone: string;
+    email: string;
+    street: string;
+    apartment: string;
+    city: string;
+    district: string;
+    state: SupportedDeliveryState;
+    pincode: string;
+    notes: string;
+  }
+
+  const [formData, setFormData] = useState<CheckoutFormData>({
     fullName: currentUser?.name || '',
     phone: currentUser?.phone || '',
     email: currentUser?.email || '',
     street: '',
     apartment: '',
-    city: selectedDeliveryState === 'Tamil Nadu' ? 'Chennai' : selectedDeliveryState === 'Karnataka' ? 'Bengaluru' : 'Ernakulam',
-    district: selectedDeliveryState === 'Tamil Nadu' ? 'Chennai' : selectedDeliveryState === 'Karnataka' ? 'Bengaluru Urban' : 'Ernakulam',
-    state: selectedDeliveryState || 'Kerala',
+    city: STATE_PIN_CONFIG[initialDeliveryState].defaultCity,
+    district: STATE_PIN_CONFIG[initialDeliveryState].defaultDistrict,
+    state: initialDeliveryState,
     pincode: '',
     notes: '',
   });
 
+  // Keep state synchronized if selectedDeliveryState updates from header
+  useEffect(() => {
+    if (selectedDeliveryState && SUPPORTED_DELIVERY_STATES.includes(selectedDeliveryState as SupportedDeliveryState)) {
+      const validState = selectedDeliveryState as SupportedDeliveryState;
+      setFormData((prev) => {
+        if (prev.state === validState) return prev;
+        const config = STATE_PIN_CONFIG[validState];
+        return {
+          ...prev,
+          state: validState,
+          city: config.defaultCity,
+          district: config.defaultDistrict,
+        };
+      });
+    }
+  }, [selectedDeliveryState]);
+
   const invalidCartItems = React.useMemo(() => {
-    return cart.filter(item => {
+    return cart.filter((item) => {
       if (item.type !== 'combo') return false;
-      const combo = combos.find(c => c.id === item.id);
+      const combo = combos.find((c) => c.id === item.id);
       if (!combo || !combo.sellableStates || combo.sellableStates.length === 0) return false;
       return !combo.sellableStates.includes(formData.state);
     });
   }, [cart, combos, formData.state]);
 
+  // Real-time PIN code state match feedback
+  const pinValidationFeedback = React.useMemo(() => {
+    const clean = formData.pincode.replace(/\D/g, '');
+    const stateConfig = STATE_PIN_CONFIG[formData.state as SupportedDeliveryState];
+    if (!clean) {
+      return {
+        message: `${formData.state} PIN ${stateConfig?.prefixLabel || ''}`,
+        isInvalid: false,
+        isValid: false,
+      };
+    }
+    if (clean.length < 2) {
+      return {
+        message: `${formData.state} PIN ${stateConfig?.prefixLabel || ''}`,
+        isInvalid: false,
+        isValid: false,
+      };
+    }
+    const { detectedState } = detectStateFromPincode(clean);
+    if (detectedState && detectedState !== formData.state) {
+      return {
+        message: `⚠️ PIN code belongs to ${detectedState}, but selected delivery state is ${formData.state}!`,
+        isInvalid: true,
+        isValid: false,
+      };
+    }
+    if (clean.length === 6) {
+      if (detectedState === formData.state) {
+        return {
+          message: `✓ Valid 6-digit postal PIN for ${formData.state}`,
+          isInvalid: false,
+          isValid: true,
+        };
+      } else {
+        return {
+          message: `⚠️ PIN code does not match ${formData.state} (${stateConfig?.prefixLabel})`,
+          isInvalid: true,
+          isValid: false,
+        };
+      }
+    }
+    return {
+      message: `${formData.state} PIN ${stateConfig?.prefixLabel || ''}`,
+      isInvalid: false,
+      isValid: false,
+    };
+  }, [formData.pincode, formData.state]);
 
-  // Form State
+  // Real-time address cross-state text mismatch feedback
+  const addressTextMismatchFeedback = React.useMemo(() => {
+    const fullText = `${formData.street} ${formData.apartment}`;
+    if (!fullText.trim()) return null;
+    const result = checkAddressTextMismatch(fullText, formData.state as SupportedDeliveryState);
+    if (result.hasMismatch) {
+      return `⚠️ Warning: Your address mentions "${result.conflictingTerm}" (${result.conflictingState}), but selected delivery state is ${formData.state}. Live plant delivery will only dispatch to ${formData.state}.`;
+    }
+    return null;
+  }, [formData.street, formData.apartment, formData.state]);
 
   const [couponCodeInput, setCouponCodeInput] = useState('');
   const [couponError, setCouponError] = useState('');
@@ -142,79 +247,29 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   useEffect(() => {
     if (currentUser) {
       const defaultAddr = currentUser.addresses?.find((a) => a.isDefault) || currentUser.addresses?.[0];
-      setFormData((prev) => ({
-        ...prev,
-        fullName: prev.fullName || currentUser.name || '',
-        phone: prev.phone || currentUser.phone || '',
-        email: prev.email || currentUser.email || '',
-        street: prev.street || defaultAddr?.addressLine1 || '',
-        apartment: prev.apartment || defaultAddr?.addressLine2 || '',
-        city: defaultAddr?.city || prev.city,
-        district: defaultAddr?.district || prev.district,
-        state: defaultAddr?.state || prev.state,
-        pincode: prev.pincode || defaultAddr?.pincode || '',
-      }));
+      if (defaultAddr) {
+        const addrState: SupportedDeliveryState =
+          defaultAddr.state === 'Tamil Nadu'
+            ? 'Tamil Nadu'
+            : defaultAddr.state === 'Karnataka'
+            ? 'Karnataka'
+            : 'Kerala';
+
+        setFormData((prev) => ({
+          ...prev,
+          fullName: prev.fullName || currentUser.name || '',
+          phone: prev.phone || currentUser.phone || '',
+          email: prev.email || currentUser.email || '',
+          street: prev.street || defaultAddr.addressLine1 || '',
+          apartment: prev.apartment || defaultAddr.addressLine2 || '',
+          city: defaultAddr.city || prev.city,
+          district: defaultAddr.district || prev.district,
+          state: addrState,
+          pincode: prev.pincode || defaultAddr.pincode || '',
+        }));
+      }
     }
   }, [currentUser]);
-
-  // Kerala Districts
-  const keralaDistricts = [
-    'Alappuzha',
-    'Ernakulam',
-    'Idukki',
-    'Kannur',
-    'Kasaragod',
-    'Kollam',
-    'Kottayam',
-    'Kozhikode',
-    'Malappuram',
-    'Palakkad',
-    'Pathanamthitta',
-    'Thiruvananthapuram',
-    'Thrissur',
-    'Wayanad',
-  ];
-
-  // Tamil Nadu Districts
-  const tamilNaduDistricts = [
-    'Chennai',
-    'Coimbatore',
-    'Madurai',
-    'Tiruchirappalli',
-    'Salem',
-    'Tirunelveli',
-    'Erode',
-    'Vellore',
-    'Thoothukudi',
-    'Dindigul',
-    'Thanjavur',
-    'Ranipet',
-    'Virudhunagar',
-    'Karur',
-    'Nilgiris',
-    'Kanyakumari',
-    'Kanchipuram',
-    'Tiruvallur',
-  ];
-
-  // Karnataka Districts
-  const karnatakaDistricts = [
-    'Bengaluru Urban',
-    'Bengaluru Rural',
-    'Mysuru',
-    'Mangaluru',
-    'Belagavi',
-    'Hubballi-Dharwad',
-    'Tumakuru',
-    'Udupi',
-    'Shivamogga',
-    'Ballari',
-    'Davanagere',
-    'Vijayapura',
-    'Kalaburagi',
-    'Hassan',
-    'Bidar',
-  ];
 
   if (cart.length === 0) {
     return (
@@ -252,14 +307,15 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   };
 
   const handleStateChange = (newState: string) => {
-    const validState = newState === 'Tamil Nadu' ? 'Tamil Nadu' : newState === 'Karnataka' ? 'Karnataka' : 'Kerala';
-    const defaultCity = validState === 'Kerala' ? 'Ernakulam' : validState === 'Tamil Nadu' ? 'Chennai' : 'Bengaluru';
-    const defaultDistrict = validState === 'Kerala' ? 'Ernakulam' : validState === 'Tamil Nadu' ? 'Chennai' : 'Bengaluru Urban';
+    const validState: SupportedDeliveryState =
+      newState === 'Tamil Nadu' ? 'Tamil Nadu' : newState === 'Karnataka' ? 'Karnataka' : 'Kerala';
+    const config = STATE_PIN_CONFIG[validState];
+    setSelectedDeliveryState(validState);
     setFormData((prev) => ({
       ...prev,
       state: validState,
-      city: defaultCity,
-      district: defaultDistrict,
+      city: config.defaultCity,
+      district: config.defaultDistrict,
     }));
   };
 
@@ -298,8 +354,29 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
       scrollToError();
       return;
     }
-    if (!formData.pincode.trim() || formData.pincode.length !== 6) {
-      setFormError('Please enter a valid 6-digit postal PIN code.');
+
+    // Comprehensive State & Address Consistency Validation
+    const addressValidation = validateDeliveryAddress({
+      state: formData.state,
+      district: formData.district,
+      pincode: formData.pincode,
+      street: formData.street,
+      apartment: formData.apartment,
+      selectedDeliveryState: selectedDeliveryState,
+    });
+
+    if (!addressValidation.valid) {
+      setFormError(addressValidation.error || 'Please provide a valid delivery address matching your chosen state.');
+      scrollToError();
+      return;
+    }
+
+    if (invalidCartItems.length > 0) {
+      setFormError(
+        `The following items in your cart cannot be delivered to ${formData.state}: ${invalidCartItems
+          .map((i) => i.name)
+          .join(', ')}. Please remove them or choose a supported delivery state.`
+      );
       scrollToError();
       return;
     }
@@ -312,6 +389,21 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     setIsProcessing(true);
 
     try {
+      // Re-verify address state match before committing order
+      const addressValidation = validateDeliveryAddress({
+        state: formData.state,
+        district: formData.district,
+        pincode: formData.pincode,
+        street: formData.street,
+        apartment: formData.apartment,
+        selectedDeliveryState: selectedDeliveryState,
+      });
+
+      if (!addressValidation.valid) {
+        setFormError(addressValidation.error || 'Address state mismatch detected.');
+        setIsProcessing(false);
+        return;
+      }
       // 1. Prepare Shipping Address
       const shippingAddress: CustomerAddress = {
         id: `addr_${Date.now()}`,
@@ -433,7 +525,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
             <div className="p-4 bg-emerald-50/80 rounded-3xl border border-emerald-200 flex items-start gap-3">
               <Truck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
               <div className="text-xs">
-                <h4 className="font-bold text-emerald-950">Direct Shipping to Kerala & Tamil Nadu</h4>
+                <h4 className="font-bold text-emerald-950">Direct Express Shipping to Kerala, Tamil Nadu & Karnataka</h4>
                 <p className="text-gray-600 mt-0.5 leading-relaxed">
                   Carefully packed in 5-ply cartons from Mannaratharayil Gardens LLP and dispatched directly to your doorstep.
                 </p>
@@ -448,51 +540,86 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               </h2>
 
               {formError && (
-                <div className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{formError}</span>
+                <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{formError}</span>
+                </div>
+              )}
+
+              {/* Undeliverable Cart Items Alert */}
+              {invalidCartItems.length > 0 && (
+                <div className="mb-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block mb-0.5">Item(s) Not Deliverable to {formData.state}:</strong>
+                    <span>
+                      {invalidCartItems.map((i) => i.name).join(', ')} cannot be shipped to {formData.state}.
+                      Please change delivery state or update your cart before proceeding.
+                    </span>
+                  </div>
                 </div>
               )}
 
               {/* Quick Saved Address Select for Logged In Customer */}
               {currentUser && currentUser.addresses && currentUser.addresses.length > 0 && (
                 <div className="mb-4 p-3 bg-emerald-50/70 rounded-2xl border border-emerald-900/10 space-y-2">
-                  <span className="text-[11px] font-bold text-emerald-950 block">
-                    📍 Fill from Saved Addresses:
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-950 block">
+                      📍 Fill from Saved Addresses:
+                    </span>
+                    <span className="text-[10px] text-emerald-700 font-medium">Click to populate form</span>
+                  </div>
                   <div className="flex flex-wrap gap-2">
-                    {currentUser.addresses.map((addr) => (
-                      <button
-                        type="button"
-                        key={addr.id}
-                        onClick={() => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            fullName: addr.fullName,
-                            phone: addr.phoneNumber,
-                            street: addr.addressLine1,
-                            apartment: addr.addressLine2 || '',
-                            city: addr.city,
-                            district: addr.district,
-                            state: addr.state,
-                            pincode: addr.pincode,
-                          }));
-                          addToast({
-                            type: 'info',
-                            title: 'Address Applied',
-                            message: `Filled shipping details for ${addr.fullName} (${addr.city}).`,
-                          });
-                        }}
-                        className="px-3 py-1.5 bg-white text-emerald-950 hover:bg-emerald-100/70 rounded-xl text-xs font-semibold border border-emerald-900/15 transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <span>{addr.fullName} ({addr.district})</span>
-                        {addr.isDefault && (
-                          <span className="text-[9px] bg-emerald-700 text-white px-1.5 py-0.2 rounded-full">
-                            Default
+                    {currentUser.addresses.map((addr) => {
+                      const addrState: SupportedDeliveryState =
+                        addr.state === 'Tamil Nadu'
+                          ? 'Tamil Nadu'
+                          : addr.state === 'Karnataka'
+                          ? 'Karnataka'
+                          : 'Kerala';
+                      const isSameState = formData.state === addrState;
+
+                      return (
+                        <button
+                          type="button"
+                          key={addr.id}
+                          onClick={() => {
+                            handleStateChange(addrState);
+                            setFormData((prev) => ({
+                              ...prev,
+                              fullName: addr.fullName,
+                              phone: addr.phoneNumber,
+                              street: addr.addressLine1,
+                              apartment: addr.addressLine2 || '',
+                              city: addr.city,
+                              district: addr.district,
+                              state: addrState,
+                              pincode: addr.pincode,
+                            }));
+                            addToast({
+                              type: 'info',
+                              title: 'Address Applied',
+                              message: `Filled address in ${addr.district}, ${addrState}.`,
+                            });
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer ${
+                            isSameState
+                              ? 'bg-white text-emerald-950 border-emerald-500 ring-2 ring-emerald-500/20'
+                              : 'bg-white/80 text-emerald-900 hover:bg-white border-emerald-900/15'
+                          }`}
+                        >
+                          <span>{addr.fullName} ({addr.district})</span>
+                          <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
+                            {addrState}
                           </span>
-                        )}
-                      </button>
-                    ))}
+                          {addr.isDefault && (
+                            <span className="text-[9px] bg-emerald-700 text-white px-1.5 py-0.2 rounded-full">
+                              Default
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -560,8 +687,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
 
                 {/* Landmark / Apartment (Mandatory) */}
                 <div>
-                  <label className="font-bold text-emerald-950 block mb-1.5">
-                    Landmark / Nearby Location *
+                  <label className="font-bold text-emerald-950 block mb-1.5 flex items-center justify-between">
+                    <span>Landmark / Nearby Location *</span>
+                    <span className="text-[10px] text-emerald-700 font-medium">Helps delivery agent</span>
                   </label>
                   <input
                     type="text"
@@ -573,24 +701,49 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                   />
                 </div>
 
+                {/* Cross-state address text mismatch warning */}
+                {addressTextMismatchFeedback && (
+                  <div className="p-3 bg-amber-50 rounded-2xl border border-amber-300 text-amber-900 text-xs flex items-start gap-2 animate-in fade-in duration-200">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span className="font-medium leading-relaxed">{addressTextMismatchFeedback}</span>
+                  </div>
+                )}
+
                 {/* State & District & PIN */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="font-bold text-emerald-950 block mb-1.5">State *</label>
+                    <label className="font-bold text-emerald-950 block mb-1.5 flex items-center justify-between text-xs">
+                      <span>Delivery State *</span>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        Mandatory
+                      </span>
+                    </label>
                     <select
+                      id="checkout-delivery-state-select"
+                      required
                       value={formData.state}
                       onChange={(e) => handleStateChange(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-[#F4FAF5] text-xs font-semibold text-emerald-950 rounded-full border border-emerald-900/15 focus:bg-white outline-hidden"
+                      className="w-full px-3 py-2.5 bg-[#F4FAF5] text-xs font-bold text-emerald-950 rounded-full border-2 border-emerald-600/50 focus:bg-white focus:border-emerald-600 outline-hidden transition-all shadow-xs cursor-pointer"
                     >
-                      {storeSettings.supportedStates?.map(st => (
-                        <option key={st} value={st}>{st}</option>
-                      ))}
+                      <option value="Kerala">Kerala (1-2 Days)</option>
+                      <option value="Tamil Nadu">Tamil Nadu (2-3 Days)</option>
+                      <option value="Karnataka">Karnataka (2-3 Days)</option>
                     </select>
+                    <p className="text-[10px] text-emerald-700 mt-1 font-medium">
+                      Select delivery state (Mandatory)
+                    </p>
                   </div>
 
                   <div>
-                    <label className="font-bold text-emerald-950 block mb-1.5">District *</label>
+                    <label className="font-bold text-emerald-950 block mb-1.5 flex items-center justify-between text-xs">
+                      <span>District *</span>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        Mandatory
+                      </span>
+                    </label>
                     <select
+                      id="checkout-delivery-district-select"
+                      required
                       value={formData.district}
                       onChange={(e) =>
                         setFormData({
@@ -599,32 +752,51 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                           city: e.target.value,
                         })
                       }
-                      className="w-full px-3 py-2.5 bg-[#F4FAF5] text-xs font-semibold text-emerald-950 rounded-full border border-emerald-900/15 focus:bg-white outline-hidden"
+                      className="w-full px-3 py-2.5 bg-[#F4FAF5] text-xs font-semibold text-emerald-950 rounded-full border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden cursor-pointer"
                     >
-                      {(formData.state === 'Kerala'
-                        ? keralaDistricts
-                        : formData.state === 'Tamil Nadu'
-                        ? tamilNaduDistricts
-                        : karnatakaDistricts
-                      ).map((dist) => (
+                      {getDistrictsForState(formData.state).map((dist) => (
                         <option key={dist} value={dist}>
                           {dist}
                         </option>
                       ))}
                     </select>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      {formData.state} District
+                    </p>
                   </div>
 
                   <div>
-                    <label className="font-bold text-emerald-950 block mb-1.5">Postal PIN *</label>
+                    <label className="font-bold text-emerald-950 block mb-1.5 flex items-center justify-between text-xs">
+                      <span>Postal PIN *</span>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        6 Digits
+                      </span>
+                    </label>
                     <input
+                      id="checkout-delivery-pincode-input"
                       type="text"
                       required
                       maxLength={6}
                       value={formData.pincode}
-                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                      placeholder="6-digit PIN"
-                      className="w-full px-4 py-2.5 bg-[#F4FAF5] text-xs text-emerald-950 font-medium rounded-full border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden"
+                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '') })}
+                      placeholder={STATE_PIN_CONFIG[formData.state as SupportedDeliveryState]?.sample.split(' ')[0] || '682030'}
+                      className={`w-full px-4 py-2.5 bg-[#F4FAF5] text-xs font-medium rounded-full border outline-hidden transition-all ${
+                        pinValidationFeedback.isInvalid
+                          ? 'border-red-500 bg-red-50/50 text-red-950 focus:border-red-600'
+                          : pinValidationFeedback.isValid
+                          ? 'border-emerald-600 bg-emerald-50/30 text-emerald-950'
+                          : 'border-emerald-900/15 focus:border-emerald-600 focus:bg-white text-emerald-950'
+                      }`}
                     />
+                    {pinValidationFeedback.message && (
+                      <p
+                        className={`text-[10px] mt-1 font-semibold leading-tight ${
+                          pinValidationFeedback.isInvalid ? 'text-red-600' : 'text-emerald-700'
+                        }`}
+                      >
+                        {pinValidationFeedback.message}
+                      </p>
+                    )}
                   </div>
                 </div>
               </form>

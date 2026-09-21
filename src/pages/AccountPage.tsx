@@ -34,6 +34,14 @@ import {
 import { useStore } from '../context/StoreContext';
 import { CustomerAddress } from '../types';
 import { Logo } from '../components/common/Logo';
+import {
+  SUPPORTED_DELIVERY_STATES,
+  SupportedDeliveryState,
+  STATE_PIN_CONFIG,
+  getDistrictsForState,
+  validateDeliveryAddress,
+  detectStateFromPincode,
+} from '../lib/stateValidation';
 
 interface AccountPageProps {
   initialParam?: string;
@@ -568,6 +576,23 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
       addToast({
         title: 'Incomplete Address',
         message: 'Please fill in all mandatory address fields.',
+        type: 'error',
+      });
+      return;
+    }
+
+    const validation = validateDeliveryAddress({
+      state: newAddressData.state,
+      district: newAddressData.district,
+      pincode: newAddressData.pincode,
+      street: newAddressData.addressLine1,
+      apartment: newAddressData.addressLine2,
+    });
+
+    if (!validation.valid) {
+      addToast({
+        title: 'Address State Mismatch',
+        message: validation.error || 'The entered address details do not match the selected state.',
         type: 'error',
       });
       return;
@@ -1890,12 +1915,13 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                   <select
                     value={newAddressData.state}
                     onChange={(e) => {
-                      const st = e.target.value as 'Kerala' | 'Tamil Nadu' | 'Karnataka';
+                      const st = e.target.value as SupportedDeliveryState;
+                      const config = STATE_PIN_CONFIG[st];
                       setNewAddressData({
                         ...newAddressData,
                         state: st,
-                        district: st === 'Kerala' ? 'Ernakulam' : st === 'Karnataka' ? 'Bengaluru Urban' : 'Chennai',
-                        city: st === 'Kerala' ? 'Ernakulam' : st === 'Karnataka' ? 'Bengaluru Urban' : 'Chennai',
+                        district: config.defaultDistrict,
+                        city: config.defaultCity,
                       });
                     }}
                     className="w-full px-3 py-2 bg-[#F4FAF5] text-emerald-950 font-medium rounded-xl border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden"
@@ -1919,12 +1945,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                     }
                     className="w-full px-3 py-2 bg-[#F4FAF5] text-emerald-950 font-medium rounded-xl border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden"
                   >
-                    {(newAddressData.state === 'Kerala'
-                      ? keralaDistricts
-                      : newAddressData.state === 'Tamil Nadu'
-                      ? tamilNaduDistricts
-                      : karnatakaDistricts
-                    ).map((d) => (
+                    {getDistrictsForState(newAddressData.state).map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -1934,14 +1955,19 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
               </div>
 
               <div>
-                <label className="font-bold text-emerald-950 block mb-1">6-Digit PIN Code *</label>
+                <label className="font-bold text-emerald-950 block mb-1 flex items-center justify-between">
+                  <span>6-Digit PIN Code *</span>
+                  <span className="text-[10px] text-emerald-700 font-normal">
+                    {STATE_PIN_CONFIG[newAddressData.state as SupportedDeliveryState]?.prefixLabel}
+                  </span>
+                </label>
                 <input
                   type="text"
                   required
                   maxLength={6}
                   value={newAddressData.pincode}
                   onChange={(e) => setNewAddressData({ ...newAddressData, pincode: e.target.value.replace(/\D/g, '') })}
-                  placeholder="682030"
+                  placeholder={STATE_PIN_CONFIG[newAddressData.state as SupportedDeliveryState]?.sample.split(' ')[0] || '682030'}
                   className="w-full px-3 py-2 bg-[#F4FAF5] text-emerald-950 font-medium rounded-xl border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden"
                 />
               </div>

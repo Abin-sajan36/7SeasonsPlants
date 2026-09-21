@@ -267,7 +267,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [categories, setCategories] = useState<Category[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_categories`);
-    return saved ? JSON.parse(saved) : initialCategories;
+    if (!saved) return initialCategories;
+    try {
+      const parsed: Category[] = JSON.parse(saved);
+      const existingNames = new Set(parsed.map((c) => c.name.toLowerCase()));
+      const missingInitial = initialCategories.filter((ic) => !existingNames.has(ic.name.toLowerCase()));
+      return missingInitial.length > 0 ? [...parsed, ...missingInitial] : parsed;
+    } catch {
+      return initialCategories;
+    }
   });
 
   const [products, setProducts] = useState<Product[]>(() => {
@@ -3159,17 +3167,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
     try {
       await setDoc(doc(db, 'categories', updated.id), removeUndefined(updated), { merge: true });
+      addToast({
+        type: 'success',
+        title: 'Category Updated',
+        message: `${updated.name} category has been updated.`,
+      });
     } catch (e) {
       console.warn('Could not update category in Firestore:', e);
+      addToast({
+        type: 'error',
+        title: 'Update Failed',
+        message: 'Could not sync category changes to database.',
+      });
     }
   };
 
   const deleteCategory = async (id: string) => {
+    const target = categories.find((c) => c.id === id);
     setCategories((prev) => prev.filter((c) => c.id !== id));
     try {
       await deleteDoc(doc(db, 'categories', id));
+      addToast({
+        type: 'info',
+        title: 'Category Deleted',
+        message: `${target?.name || 'Category'} removed from catalog.`,
+      });
     } catch (e) {
       console.warn('Could not delete category from Firestore:', e);
+      addToast({
+        type: 'error',
+        title: 'Deletion Failed',
+        message: 'Could not delete category from database.',
+      });
     }
   };
 

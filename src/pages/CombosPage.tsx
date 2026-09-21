@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Sparkles, ShieldCheck, CheckCircle2, MessageCircle, Package, ArrowRight, MapPin } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { ComboCard } from '../components/common/ComboCard';
@@ -9,27 +9,44 @@ interface CombosPageProps {
 }
 
 export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCategory }) => {
-  const { combos, selectedDeliveryState, storeSettings, isItemDeliverable, openStateModal } = useStore();
+  const { combos, categories, selectedDeliveryState, storeSettings, isItemDeliverable, openStateModal } = useStore();
   const whatsappNum = storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403';
   const digits = whatsappNum.replace(/[^0-9]/g, '');
   const waNum = digits.startsWith('91') ? digits : digits.length === 10 ? `91${digits}` : digits;
-  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'All');
 
-  const comboCategories = [
-    'All',
-    'Air Purifying Combos',
-    'Living Room & Balcony',
-    'Low Maintenance Combos',
-    'Desk & Workspace',
-    'Hanging Basket Duos',
-    'Flowering Balcony Pairs',
-  ];
+  const parsedInitial = initialCategory
+    ? (initialCategory.startsWith('category:') ? initialCategory.replace('category:', '') : initialCategory)
+    : 'All';
+
+  const [selectedCategory, setSelectedCategory] = useState<string>(parsedInitial);
+
+  useEffect(() => {
+    if (initialCategory) {
+      const clean = initialCategory.startsWith('category:') ? initialCategory.replace('category:', '') : initialCategory;
+      setSelectedCategory(clean);
+    }
+  }, [initialCategory]);
+
+  const comboCategories = useMemo(() => {
+    const storeComboCategories = categories
+      .filter((c) => c.type === 'combo' || c.type === 'both')
+      .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
+      .map((c) => c.name);
+
+    const comboNamesFromCombos = combos.map((c) => c.category?.trim()).filter(Boolean) as string[];
+
+    const combinedSet = new Set<string>();
+    storeComboCategories.forEach((cat) => combinedSet.add(cat));
+    comboNamesFromCombos.forEach((cat) => combinedSet.add(cat));
+
+    return ['All', ...Array.from(combinedSet)];
+  }, [categories, combos]);
 
   const filteredCombos = combos.filter((combo) => {
     if (combo.status !== 'published') return false;
     if (!isItemDeliverable(combo)) return false;
     if (selectedCategory === 'All') return true;
-    return combo.category === selectedCategory;
+    return combo.category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase();
   });
 
   return (

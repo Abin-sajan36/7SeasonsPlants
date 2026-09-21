@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { PlantCombo, ComboItem, Product } from '../../types';
 import { ImageUploadPicker, compressImageFile } from './ImageUploadPicker';
+import { useStore } from '../../context/StoreContext';
+import { ComboCategoryManagerModal } from './ComboCategoryManagerModal';
 
 interface ComboCustomizerModalProps {
   isOpen: boolean;
@@ -91,6 +93,21 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
   onSaveCombo,
 }) => {
   if (!isOpen) return null;
+
+  const { categories, addCategory } = useStore();
+
+  // Dynamic available categories merged from categories database and defaults
+  const availableCategories = React.useMemo(() => {
+    const fromStore = categories
+      .filter((c) => c.type === 'combo' || c.type === 'both')
+      .map((c) => c.name);
+    return Array.from(new Set([...fromStore, ...DEFAULT_CATEGORIES]));
+  }, [categories]);
+
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [showQuickAddCategory, setShowQuickAddCategory] = useState(false);
+  const [quickCatName, setQuickCatName] = useState('');
+  const [quickCatDesc, setQuickCatDesc] = useState('');
 
   // Form State
   const [name, setName] = useState(comboToEdit?.name || '');
@@ -340,8 +357,25 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
       return;
     }
 
-    const finalCategory = customCategory.trim() || category;
+    const finalCategory = (category === 'custom' ? customCategory.trim() : category) || 'Air Purifying Combos';
     const finalSlug = slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+    // Auto-create category in store if not present
+    if (finalCategory) {
+      const exists = categories.some((c) => c.name.toLowerCase() === finalCategory.toLowerCase());
+      if (!exists) {
+        addCategory({
+          name: finalCategory,
+          slug: finalCategory.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+          description: `Curated ${finalCategory} plant combos`,
+          image: images[0] || 'https://images.unsplash.com/photo-1512428813834-c702c7702b78?auto=format&fit=crop&w=800&q=80',
+          itemCount: 1,
+          displayOrder: categories.length + 1,
+          isFeatured: true,
+          type: 'combo',
+        });
+      }
+    }
 
     const finalCombo: PlantCombo = {
       id: comboToEdit ? comboToEdit.id : `combo-${Date.now()}`,
@@ -861,18 +895,106 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="font-bold text-[#4A3E31] block mb-1">Category</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-[#4A3E31]">Category *</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickAddCategory((prev) => !prev)}
+                        className="text-xs text-emerald-800 hover:text-emerald-950 font-bold flex items-center gap-1 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>{showQuickAddCategory ? 'Close' : '+ New Category'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsCategoryManagerOpen(true)}
+                        className="text-xs text-gray-500 hover:text-emerald-800 underline cursor-pointer"
+                      >
+                        Manage
+                      </button>
+                    </div>
+                  </div>
+
+                  {showQuickAddCategory && (
+                    <div className="mb-3 p-3 bg-emerald-50/80 rounded-2xl border border-emerald-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-emerald-950">Quick Create Combo Category</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickAddCategory(false)}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={quickCatName}
+                        onChange={(e) => setQuickCatName(e.target.value)}
+                        placeholder="New category name (e.g. Rare Aroids Bundles)"
+                        className="w-full px-3 py-1.5 bg-white text-[#4A3E31] rounded-lg border border-emerald-300 text-xs outline-hidden focus:ring-1 focus:ring-emerald-600"
+                      />
+                      <input
+                        type="text"
+                        value={quickCatDesc}
+                        onChange={(e) => setQuickCatDesc(e.target.value)}
+                        placeholder="Brief description (optional)"
+                        className="w-full px-3 py-1.5 bg-white text-[#4A3E31] rounded-lg border border-emerald-200 text-xs outline-hidden focus:ring-1 focus:ring-emerald-600"
+                      />
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const trimmed = quickCatName.trim();
+                            if (!trimmed) return;
+                            const exists = categories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
+                            if (exists) {
+                              setCategory(trimmed);
+                              setShowQuickAddCategory(false);
+                              setQuickCatName('');
+                              setQuickCatDesc('');
+                              return;
+                            }
+                            const slugVal = trimmed
+                              .toLowerCase()
+                              .trim()
+                              .replace(/[^\w\s-]/g, '')
+                              .replace(/[\s_-]+/g, '-');
+                            await addCategory({
+                              name: trimmed,
+                              slug: slugVal || `combo-cat-${Date.now()}`,
+                              description: quickCatDesc.trim() || `Curated ${trimmed} plant combos`,
+                              image: images[0] || 'https://images.unsplash.com/photo-1512428813834-c702c7702b78?auto=format&fit=crop&w=800&q=80',
+                              itemCount: 1,
+                              displayOrder: categories.length + 1,
+                              isFeatured: true,
+                              type: 'combo',
+                            });
+                            setCategory(trimmed);
+                            setShowQuickAddCategory(false);
+                            setQuickCatName('');
+                            setQuickCatDesc('');
+                          }}
+                          className="px-3 py-1 bg-emerald-800 hover:bg-emerald-900 text-white rounded-md text-[11px] font-bold cursor-pointer transition-colors"
+                        >
+                          Save & Select
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full px-4 py-2.5 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-full border border-[#4A3E31]/15 focus:bg-white outline-hidden font-semibold"
                   >
-                    {DEFAULT_CATEGORIES.map((cat) => (
+                    {availableCategories.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
                       </option>
                     ))}
-                    <option value="custom">-- Custom Category --</option>
+                    <option value="custom">-- Custom Category (Type Below) --</option>
                   </select>
                 </div>
 
@@ -1171,6 +1293,15 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
           </div>
         </form>
       </div>
+
+      <ComboCategoryManagerModal
+        isOpen={isCategoryManagerOpen}
+        onClose={() => setIsCategoryManagerOpen(false)}
+        onSelectCategory={(catName) => {
+          setCategory(catName);
+          setIsCategoryManagerOpen(false);
+        }}
+      />
     </div>
   );
 };

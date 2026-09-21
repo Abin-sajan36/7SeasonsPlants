@@ -61,12 +61,17 @@
     },
     {
       "name": "categories",
-      "description": "Product categories",
+      "description": "Product and combo categories",
       "auth_dependency": "false",
       "fields": [
         { "name": "name", "type": "string" },
         { "name": "slug", "type": "string" },
-        { "name": "description", "type": "string" }
+        { "name": "description", "type": "string" },
+        { "name": "image", "type": "string", "optional": true },
+        { "name": "itemCount", "type": "number", "optional": true },
+        { "name": "isFeatured", "type": "boolean", "optional": true },
+        { "name": "displayOrder", "type": "number", "optional": true },
+        { "name": "type", "type": "string", "optional": true }
       ],
       "access_patterns": [
         "Anyone can read categories",

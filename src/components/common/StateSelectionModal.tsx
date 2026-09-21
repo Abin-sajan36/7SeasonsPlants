@@ -75,27 +75,28 @@ export const StateSelectionModal: React.FC = () => {
     }
   }, [selectedDeliveryState]);
 
-  // Lock body scroll when modal is open or when selection is mandatory
+  // Lock body scroll whenever modal is open
   useEffect(() => {
-    if (isStateModalOpen || isMandatory) {
+    if (isStateModalOpen || !selectedDeliveryState) {
       const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return () => {
         document.body.style.overflow = prevOverflow;
       };
     }
-  }, [isStateModalOpen, isMandatory]);
+  }, [isStateModalOpen, selectedDeliveryState]);
 
-  // Close on Escape only if not mandatory (i.e. user already has a selected state)
+  // Trap and prevent Escape key from closing modal - only confirmation button closes it
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isStateModalOpen && !isMandatory) {
-        setIsStateModalOpen(false);
+      if (e.key === 'Escape' && (isStateModalOpen || !selectedDeliveryState)) {
+        e.preventDefault();
+        e.stopPropagation();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isStateModalOpen, isMandatory, setIsStateModalOpen]);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isStateModalOpen, selectedDeliveryState]);
 
   // Available combos count for a state
   const getComboCountForState = (stateName: string) => {
@@ -111,28 +112,23 @@ export const StateSelectionModal: React.FC = () => {
     setIsStateModalOpen(false);
   };
 
-  // If already selected and modal not opened, don't show
-  if (!isStateModalOpen && !isMandatory) {
+  // If already selected and modal not explicitly opened, don't show
+  if (!isStateModalOpen && selectedDeliveryState) {
     return null;
   }
 
   return (
     <div
       id="state-selection-modal-overlay"
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
-      onClick={(e) => {
-        // Prevent closing overlay if selection is mandatory
-        if (e.target === e.currentTarget && !isMandatory) {
-          setIsStateModalOpen(false);
-        }
-      }}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 select-none"
     >
       <div
         id="state-selection-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="state-selection-title"
-        className="bg-white dark:bg-[#071711] rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl border border-emerald-900/20 dark:border-emerald-800/40 overflow-hidden relative"
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-[#071711] rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl border border-emerald-900/20 dark:border-emerald-800/40 overflow-hidden relative select-text"
       >
         {/* Modal Header */}
         <div className="relative bg-gradient-to-br from-[#062919] via-[#0D4A2B] to-[#0A3D22] text-white p-6 sm:p-7 shrink-0">
