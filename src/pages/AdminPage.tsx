@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
+import { auth } from '../lib/firebase';
 import { UserManagementTab } from '../components/admin/UserManagementTab';
 import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus, StoreSettings } from '../types';
 import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
@@ -2360,7 +2361,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                {auth.currentUser ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold rounded-full"
+                    title={`Cloud synced to Firestore as ${auth.currentUser.email || auth.currentUser.uid}`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Firestore Cloud Synced
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-600 text-[10px] font-bold rounded-full"
+                    title="Active in local browser cache. Login to sync globally to Firestore."
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    Local Storage Active
+                  </span>
+                )}
                 {isSettingsDirty && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold rounded-full animate-pulse">
                     Unsaved Changes

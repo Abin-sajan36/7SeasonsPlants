@@ -175,6 +175,19 @@
         "Anyone can read storeSettings",
         "Only admins can write storeSettings"
       ]
+    },
+    {
+      "name": "settings",
+      "description": "User profile settings and store preferences",
+      "auth_dependency": "true",
+      "fields": [
+        { "name": "userId", "type": "string", "optional": true },
+        { "name": "updatedAt", "type": "string", "optional": true }
+      ],
+      "access_patterns": [
+        "Users can read and update their own settings document",
+        "Admins can read and write all settings documents"
+      ]
     }
   ]
 }

@@ -26,6 +26,40 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
 
   const currentBanner = activeBanners[currentIndex];
 
+  // Helper to resolve button text and links so customers cannot access individual plants
+  const resolveCta = (rawText: string | undefined, rawLink: string | undefined, isSecondary = false) => {
+    let text = (rawText || '').trim();
+    let link = (rawLink || '').replace(/^\//, '').trim();
+
+    // Prevent any access to individual plant listings (redirect to curated combos or care guides)
+    if (!link || link === 'plants' || link.startsWith('plants?') || link.startsWith('product-detail')) {
+      link = isSecondary ? 'plant-care' : 'combos';
+    }
+
+    if (!text || /shop\s*plants/i.test(text) || /buy\s*plants/i.test(text)) {
+      text = isSecondary ? 'Explore Combos' : 'Explore Plant Combos';
+      link = 'combos';
+    } else if (/best\s*sellers?/i.test(text)) {
+      text = isSecondary ? 'Top Combos' : 'Best Selling Combos';
+      link = 'combos';
+    } else if (/all\s*plants/i.test(text)) {
+      text = 'View All Combos';
+      link = 'combos';
+    }
+
+    return { text, link };
+  };
+
+  const primaryCta = resolveCta(currentBanner.ctaText, currentBanner.ctaLink, false);
+  const secondaryCta = currentBanner.secondaryCtaText
+    ? resolveCta(currentBanner.secondaryCtaText, currentBanner.secondaryCtaLink, true)
+    : null;
+
+  // Sanitize subtitle if it references shopping individual plants
+  const displaySubtitle = currentBanner.subtitle
+    ? currentBanner.subtitle.replace(/beautiful plants and /i, 'Curated plant collections and ')
+    : currentBanner.subtitle;
+
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % activeBanners.length);
   };
@@ -76,30 +110,26 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
 
             {/* Subtitle */}
             <p className="text-base sm:text-lg text-[#D1FAE5]/90 mt-4 leading-relaxed font-normal max-w-xl">
-              {currentBanner.subtitle}
+              {displaySubtitle}
             </p>
 
-            {/* CTA Buttons */}
+            {/* CTA Buttons - Strictly Plant Combos & Nursery Care, No Individual Plants */}
             <div className="flex flex-wrap items-center gap-3.5 mt-8">
               <button
-                onClick={() => onNavigate(currentBanner.ctaLink.replace('/', '') || 'plants')}
+                onClick={() => onNavigate(primaryCta.link)}
                 className="px-7 py-3.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-full font-black text-sm shadow-lg hover:shadow-emerald-500/25 transition-all flex items-center gap-2 cursor-pointer group"
               >
-                <span>{currentBanner.ctaText}</span>
+                <span>{primaryCta.text}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
 
-              {currentBanner.secondaryCtaText && (
+              {secondaryCta && (
                 <button
-                  onClick={() =>
-                    onNavigate(
-                      currentBanner.secondaryCtaLink?.replace('/', '') || 'combos'
-                    )
-                  }
+                  onClick={() => onNavigate(secondaryCta.link)}
                   className="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold text-sm border border-white/20 backdrop-blur-xs transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>{currentBanner.secondaryCtaText}</span>
+                  <span>{secondaryCta.text}</span>
                 </button>
               )}
             </div>

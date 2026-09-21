@@ -8,12 +8,16 @@ service cloud.firestore {
 
     function isSuperAdmin() {
       return isAuthenticated() && (
-        request.auth.token.email == 'abinsajan36@gmail.com' ||
-        request.auth.token.email == 'annanvasu36@gmail.com' ||
+        ('email' in request.auth.token && (
+          request.auth.token.email == 'abinsajan36@gmail.com' ||
+          request.auth.token.email == 'annanvasu36@gmail.com'
+        )) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'abinsajan36@gmail.com' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'annanvasu36@gmail.com'
+          ('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin') ||
+          ('email' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+            (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'abinsajan36@gmail.com' ||
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'annanvasu36@gmail.com'))
         ))
       );
     }
@@ -21,11 +25,14 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && (
         isSuperAdmin() ||
-        request.auth.token.email == 'admin@7seasons.com' ||
+        ('email' in request.auth.token && request.auth.token.email == 'admin@7seasons.com') ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'admin@7seasons.com'
+          ('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin'
+          )) ||
+          ('email' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'admin@7seasons.com')
         ))
       );
     }
@@ -92,6 +99,13 @@ service cloud.firestore {
     
     match /newsletter_subscribers/{subscriberId} {
       allow read, write: if true;
+    }
+
+    match /settings/{userId} {
+      // Allow users to read and update only their own settings document; allow admins full management
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create, update: if (isAuthenticated() && request.auth.uid == userId) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /storeSettings/{settingId} {

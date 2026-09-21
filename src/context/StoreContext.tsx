@@ -274,7 +274,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [banners, setBanners] = useState<HeroBanner[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_banners`);
-    return saved ? JSON.parse(saved) : initialBanners;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((b: HeroBanner) => ({
+            ...b,
+            ctaText: /shop\s*plants/i.test(b.ctaText) ? 'Explore Plant Combos' : /best\s*seller/i.test(b.ctaText) ? 'Best Selling Combos' : b.ctaText,
+            ctaLink: b.ctaLink === '/plants' || b.ctaLink?.startsWith('/plants') ? '/combos' : b.ctaLink,
+            secondaryCtaText: /shop\s*plants/i.test(b.secondaryCtaText || '') ? 'Explore Combos' : b.secondaryCtaText,
+            secondaryCtaLink: b.secondaryCtaLink === '/plants' || b.secondaryCtaLink?.startsWith('/plants') ? '/combos' : b.secondaryCtaLink,
+          }));
+        }
+      } catch {
+        return initialBanners;
+      }
+    }
+    return initialBanners;
   });
 
   const [plantCareGuides, setPlantCareGuides] = useState<PlantCareGuide[]>(() => {
@@ -1915,6 +1931,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map((a) => (a.email.toLowerCase() === cleanEmail ? updatedAccount : a))
     );
 
+    // If not currently authenticated with Firebase Auth, attempt sign-in to attach request.auth context
+    if (!auth.currentUser && cleanPass) {
+      try {
+        await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+      } catch {
+        // Fallback: If Firebase user doesn't exist with this exact password yet,
+        // local admin authentication still succeeds.
+      }
+    }
+
     addToast({
       type: 'success',
       title: 'Admin Access Granted 🌿',
@@ -2593,19 +2619,57 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const mergedSettings = { ...storeSettings, ...normalized };
       setStoreSettings(mergedSettings);
 
-      await setDoc(doc(db, 'storeSettings', 'global'), mergedSettings, { merge: true });
+      // 1. Auth Verification Check: Ensure Firebase user is authenticated before attempting Firestore write
+      if (!auth.currentUser) {
+        console.warn('[StoreSettings] No active Firebase Auth session. Settings saved to local cache.');
+        addToast({
+          type: 'success',
+          title: 'Store Settings Saved Locally',
+          message: 'Settings updated on this device. Log in with your admin account to sync across all devices.',
+        });
+        return;
+      }
+
+      // 2. Path Verification: Target storeSettings/global, settings/global, and settings/{userId}
+      try {
+        await setDoc(doc(db, 'storeSettings', 'global'), mergedSettings, { merge: true });
+        // Also persist under settings/global to support both schema conventions
+        await setDoc(doc(db, 'settings', 'global'), mergedSettings, { merge: true }).catch(() => {});
+        if (auth.currentUser.uid) {
+          await setDoc(
+            doc(db, 'settings', auth.currentUser.uid),
+            { ...mergedSettings, updatedAt: new Date().toISOString() },
+            { merge: true }
+          ).catch(() => {});
+        }
+      } catch (firestoreErr: any) {
+        if (
+          firestoreErr?.code === 'permission-denied' ||
+          firestoreErr?.message?.includes('Missing or insufficient permissions') ||
+          firestoreErr?.message?.includes('insufficient permissions')
+        ) {
+          console.warn('[Firestore] Permission denied while updating storeSettings. Changes preserved locally in browser cache.', firestoreErr);
+          addToast({
+            type: 'warning',
+            title: 'Settings Saved Locally',
+            message: 'Settings saved on this device. Cloud database write requires administrator permissions.',
+          });
+          return;
+        }
+        throw firestoreErr;
+      }
 
       addToast({
         type: 'success',
         title: 'Store Settings Saved',
         message: 'Nursery store settings have been saved and applied globally.',
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating store settings:', err);
       addToast({
         type: 'error',
         title: 'Save Failed',
-        message: 'Could not update store settings.',
+        message: 'Could not update store settings: ' + (err?.message || 'Error occurred'),
       });
     }
   };
