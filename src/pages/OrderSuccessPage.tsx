@@ -40,11 +40,19 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderId, onN
                 <span>Estimated Delivery Time</span>
               </span>
               <span className="font-bold text-emerald-700">
-                2 – 4 Business Days ({order?.shippingAddress?.state})
+                {order?.estimatedDelivery || '2 – 4 Business Days'} ({order?.shippingAddress?.state})
               </span>
             </div>
 
             <div className="text-xs text-gray-600 space-y-1">
+              {order?.courierPartner && (
+                <p>
+                  <strong>Courier Partner:</strong>{' '}
+                  <span className="text-emerald-900 font-bold bg-emerald-100/60 px-2 py-0.5 rounded-md">
+                    {order.courierPartner}
+                  </span>
+                </p>
+              )}
               <p>
                 <strong>Deliver To:</strong> {order?.shippingAddress?.fullName},{' '}
                 {order?.shippingAddress?.street}, {order?.shippingAddress?.district},{' '}

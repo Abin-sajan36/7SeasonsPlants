@@ -92,12 +92,11 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
-  const [manualDomainHelp, setManualDomainHelp] = useState(false);
 
   const currentHostname =
     typeof window !== 'undefined' && window.location.hostname
       ? window.location.hostname
-      : '7-seasons-plants.vercel.app';
+      : '7seasonsplants.com';
 
   const handleCopyDomain = (domainToCopy: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -817,7 +816,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
               </div>
 
               {/* DOMAIN AUTHORIZATION GUIDANCE BANNER */}
-              {(authDomainNotice?.show || manualDomainHelp) && (
+              {authDomainNotice?.show && (
                 <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 shadow-sm text-left">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold text-xs">
@@ -828,7 +827,6 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                       type="button"
                       onClick={() => {
                         dismissAuthDomainNotice();
-                        setManualDomainHelp(false);
                       }}
                       className="text-amber-700 hover:text-amber-950 dark:text-amber-400 dark:hover:text-amber-100 p-1 cursor-pointer"
                       title="Dismiss notice"
@@ -847,7 +845,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                       <li>
                         Open{' '}
                         <a
-                          href={authDomainNotice?.consoleUrl || `https://console.firebase.google.com/project/master-snowfall-7xfhk/authentication/settings`}
+                          href={authDomainNotice?.consoleUrl || `https://console.firebase.google.com/project/${authDomainNotice?.projectId || 'season-445ff'}/authentication/settings`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-emerald-700 dark:text-emerald-400 underline font-semibold inline-flex items-center gap-1 hover:text-emerald-900"
@@ -900,17 +898,6 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 Sign in with Google
               </button>
 
-              <div className="flex items-center justify-between text-[11px] text-gray-500 mb-4 px-1">
-                <span>Domain authorization notice?</span>
-                <button
-                  type="button"
-                  onClick={() => setManualDomainHelp((prev) => !prev)}
-                  className="text-emerald-700 dark:text-emerald-400 hover:underline font-semibold cursor-pointer"
-                >
-                  {manualDomainHelp ? 'Hide Domain Guide' : 'Domain Setup Guide'}
-                </button>
-              </div>
-              
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-200"></div>
                 <span className="text-gray-400 font-medium">OR</span>
@@ -1104,17 +1091,6 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 Sign up with Google
               </button>
 
-              <div className="flex items-center justify-between text-[11px] text-gray-500 mb-4 px-1">
-                <span>Domain authorization notice?</span>
-                <button
-                  type="button"
-                  onClick={() => setManualDomainHelp((prev) => !prev)}
-                  className="text-emerald-700 dark:text-emerald-400 hover:underline font-semibold cursor-pointer"
-                >
-                  {manualDomainHelp ? 'Hide Domain Guide' : 'Domain Setup Guide'}
-                </button>
-              </div>
-              
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-200"></div>
                 <span className="text-gray-400 font-medium">OR USE EMAIL</span>

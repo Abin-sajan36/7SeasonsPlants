@@ -11,7 +11,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { CustomerAddress, OrderItem } from '../types';
+import { CustomerAddress, OrderItem, COURIER_SERVICES, CourierServiceOption } from '../types';
 import {
   SUPPORTED_DELIVERY_STATES,
   SupportedDeliveryState,
@@ -151,6 +151,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     pincode: '',
     notes: '',
   });
+
+  // Courier selection state
+  const [selectedCourierId, setSelectedCourierId] = useState<string>('dtdc');
+  const selectedCourier = React.useMemo(() => {
+    return COURIER_SERVICES.find((c) => c.id === selectedCourierId) || COURIER_SERVICES[0];
+  }, [selectedCourierId]);
 
   // Keep state synchronized if selectedDeliveryState updates from header
   useEffect(() => {
@@ -479,9 +485,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         razorpayOrderId,
         razorpayPaymentId: paymentId,
         orderStatus: 'Payment Confirmed',
-        courierPartner: 'Express Nursery Logistics',
-        estimatedDelivery: '2 - 4 Business Days',
-        notes: formData.notes || undefined,
+        courierPartner: selectedCourier.displayName,
+        estimatedDelivery: selectedCourier.deliveryTime,
+        notes: formData.notes
+          ? `${formData.notes} | Preferred Courier: ${selectedCourier.displayName}`
+          : `Preferred Courier: ${selectedCourier.displayName}`,
       });
 
       addToast({
@@ -802,10 +810,97 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               </form>
             </div>
 
-            {/* Payment Method Notice Box */}
+            {/* 2. Choose Courier Service */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-emerald-900/10 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-emerald-900/10">
+                <h2 className="text-lg font-bold text-emerald-950 flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-emerald-700" />
+                  <span>2. Choose Courier Service</span>
+                </h2>
+                <span className="text-xs bg-emerald-50 text-emerald-800 font-bold px-3 py-1 rounded-full border border-emerald-200">
+                  Doorstep Live Plant Logistics
+                </span>
+              </div>
+
+              <p className="text-xs text-gray-600 leading-relaxed">
+                Choose your preferred courier service for transit to{' '}
+                <strong className="text-emerald-950">{formData.district || 'Your District'}, {formData.state}</strong>. Live plants are packed with breathable corrugated safeguards.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {COURIER_SERVICES.map((courier) => {
+                  const isSelected = selectedCourierId === courier.id;
+                  return (
+                    <div
+                      key={courier.id}
+                      onClick={() => setSelectedCourierId(courier.id)}
+                      className={`relative p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-emerald-700 bg-emerald-50/60 shadow-xs ring-1 ring-emerald-700'
+                          : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-gray-50/50'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="courierPartner"
+                              value={courier.id}
+                              checked={isSelected}
+                              onChange={() => setSelectedCourierId(courier.id)}
+                              className="w-4 h-4 text-emerald-700 accent-emerald-700 cursor-pointer"
+                            />
+                            <span className="text-xs font-bold text-emerald-950">
+                              {courier.name}
+                            </span>
+                          </label>
+                          {courier.badge && (
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                isSelected
+                                  ? 'bg-emerald-800 text-white'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {courier.badge}
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-gray-600 mt-2 leading-relaxed">
+                          {courier.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 pt-2.5 border-t border-emerald-900/10 flex items-center justify-between text-[11px]">
+                        <span className="text-gray-500 font-medium">Est. Delivery:</span>
+                        <span className="font-bold text-emerald-900">
+                          {courier.deliveryTime}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="p-3 bg-emerald-50/60 rounded-2xl border border-emerald-200 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>
+                    Selected Partner: <strong>{selectedCourier.displayName}</strong>
+                  </span>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-1 rounded-full border border-emerald-200 w-fit">
+                  Transit: {selectedCourier.deliveryTime}
+                </span>
+              </div>
+            </div>
+
+            {/* 3. Payment Method Notice Box */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-emerald-900/10 shadow-xs space-y-4">
               <h2 className="text-lg font-bold text-emerald-950 pb-3 border-b border-emerald-900/10 flex items-center justify-between">
-                <span>2. Payment Method</span>
+                <span>3. Payment Method</span>
                 <span className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-100">
                   <Lock className="w-3 h-3" />
                   Razorpay Verified
@@ -928,6 +1023,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                   ) : (
                     <span className="font-semibold text-emerald-950">₹{cartDeliveryFee}</span>
                   )}
+                </div>
+
+                <div className="flex justify-between text-gray-600">
+                  <span>Courier Service</span>
+                  <span className="font-semibold text-emerald-950 text-right">{selectedCourier.name}</span>
                 </div>
 
                 <div className="flex justify-between text-base font-black text-emerald-950 pt-3 border-t border-emerald-900/10">

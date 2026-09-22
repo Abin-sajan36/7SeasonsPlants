@@ -1737,9 +1737,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
       return true;
     } catch (error: any) {
-      console.error('Google sign-in error:', error);
       const errMsg = (error?.message || '').toLowerCase();
       const errCode = error?.code || '';
+      
+      // If user simply closed the popup or cancelled, treat as benign notice
+      if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
+        console.info('Google sign-in popup closed by user.');
+        addToast({
+          type: 'info',
+          title: 'Sign-In Cancelled',
+          message: 'The Google sign-in window was closed.',
+        });
+        return false;
+      }
+
+      console.error('Google sign-in error:', error);
       const isDomainUnauthorized =
         errCode === 'auth/unauthorized-domain' ||
         errCode === 'auth/configuration-not-found' ||
@@ -1751,8 +1763,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const currentHostname =
           typeof window !== 'undefined' && window.location.hostname
             ? window.location.hostname
-            : '7-seasons-plants.vercel.app';
-        const targetProjId = firebaseConfig.projectId || 'master-snowfall-7xfhk';
+            : '7seasonsplants.com';
+        const targetProjId = firebaseConfig.projectId || 'season-445ff';
         const primaryAuthDomain = firebaseConfig.authDomain || `${targetProjId}.firebaseapp.com`;
         const consoleLink = `https://console.firebase.google.com/project/${targetProjId}/authentication/settings`;
 

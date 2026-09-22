@@ -1674,7 +1674,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                               setEditingTrackingOrderId(ord.id);
                               setTrackingNumberInput(ord.trackingNumber || '');
                               setCourierPartnerInput(
-                                ord.courierPartner || 'ST Courier / Kerala Express'
+                                ord.courierPartner || 'DTDC Express Courier'
                               );
                             }}
                             className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full font-bold transition-colors cursor-pointer"
@@ -3463,11 +3463,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   onChange={(e) => setCourierPartnerInput(e.target.value)}
                   className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-full border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-medium"
                 >
+                  <option value="India Post (Speed Post / Parcel)">India Post (Speed Post / Parcel)</option>
+                  <option value="DTDC Express Courier">DTDC Express Courier</option>
                   <option value="ST Courier / Kerala Express">ST Courier (Kerala & Tamil Nadu Express)</option>
-                  <option value="Professional Courier Express">The Professional Couriers</option>
-                  <option value="Delhivery Express">Delhivery Express Plant Logistics</option>
-                  <option value="Blue Dart Nursery Care">Blue Dart Safe Express</option>
-                  <option value="7Seasons Direct Nursery Van">7Seasons Direct Nursery Van (Local)</option>
+                  <option value="The Professional Couriers (TPC)">The Professional Couriers</option>
+                  <option value="7Seasons Nursery Priority Dispatch">7Seasons Nursery Priority Dispatch</option>
+                  <option value="Delhivery Express Plant Logistics">Delhivery Express Plant Logistics</option>
+                  <option value="Blue Dart Safe Express">Blue Dart Safe Express</option>
+                  <option value="7Seasons Direct Nursery Van (Local)">7Seasons Direct Nursery Van (Local)</option>
                 </select>
               </div>
 

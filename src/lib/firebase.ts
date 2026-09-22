@@ -23,15 +23,14 @@ export const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
+const rawDbId = firebaseConfig.firestoreDatabaseId;
+const targetDbId = rawDbId && rawDbId !== '(default)' ? rawDbId : undefined;
+
 // Use initializeFirestore with experimentalForceLongPolling to eliminate the 10-second backend connection timeout
 // in browser iframes and sandboxed proxy environments
-const db = initializeFirestore(
-  app,
-  {
-    experimentalForceLongPolling: true,
-  },
-  firebaseConfig.firestoreDatabaseId
-);
+const db = targetDbId
+  ? initializeFirestore(app, { experimentalForceLongPolling: true }, targetDbId)
+  : initializeFirestore(app, { experimentalForceLongPolling: true });
 
 // Set local persistence for auth
 if (typeof window !== 'undefined') {

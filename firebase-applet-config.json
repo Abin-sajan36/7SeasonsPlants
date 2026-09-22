@@ -1,12 +1,12 @@
 {
-  "projectId": "master-snowfall-7xfhk",
-  "appId": "1:36614193320:web:30f48adc1296f95857c29d",
-  "apiKey": "AIzaSyCpKmxB72aiBqwxphYNPlnrPr4sq6M0JKk",
-  "authDomain": "master-snowfall-7xfhk.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-7seasonsplants-ef567b3e-5ee6-4bbd-8972-3d19e84ccb3c",
-  "storageBucket": "master-snowfall-7xfhk.firebasestorage.app",
-  "messagingSenderId": "36614193320",
-  "measurementId": "",
-  "oAuthClientId": "36614193320-lcj6k3ocm4os83j56vrbs3dvoqjhq8iq.apps.googleusercontent.com",
+  "projectId": "season-445ff",
+  "appId": "1:952572050101:web:0ed7fbef1663cb7c22dcfc",
+  "apiKey": "AIzaSyCUF7JnqPCNLwjhOajtsjSAa0-LjGz9CCA",
+  "authDomain": "season-445ff.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "season-445ff.firebasestorage.app",
+  "messagingSenderId": "952572050101",
+  "measurementId": "G-6R378KK6SV",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

@@ -170,9 +170,14 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ initialOrderId, 
                 <span className="inline-block mt-0.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
                   {searchedOrder.orderStatus}
                 </span>
+                {searchedOrder.courierPartner && (
+                  <p className="text-xs text-emerald-900 font-semibold mt-1">
+                    Courier: <strong>{searchedOrder.courierPartner}</strong>
+                  </p>
+                )}
                 {searchedOrder.trackingNumber && (
-                  <p className="text-xs text-gray-500 font-mono mt-1">
-                    AWB: {searchedOrder.trackingNumber} {searchedOrder.courierPartner ? `(${searchedOrder.courierPartner})` : ''}
+                  <p className="text-xs text-gray-600 font-mono mt-0.5">
+                    AWB: {searchedOrder.trackingNumber}
                   </p>
                 )}
               </div>

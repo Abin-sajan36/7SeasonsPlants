@@ -249,6 +249,63 @@ export interface Order {
   updatedAt?: string;
 }
 
+export interface CourierServiceOption {
+  id: string;
+  name: string;
+  displayName: string;
+  badge?: string;
+  deliveryTime: string;
+  description: string;
+  trackingUrlPattern?: string;
+}
+
+export const COURIER_SERVICES: CourierServiceOption[] = [
+  {
+    id: 'india-post',
+    name: 'India Post',
+    displayName: 'India Post (Speed Post / Parcel)',
+    badge: 'Pan-India & Deep Rural',
+    deliveryTime: '2 - 5 Business Days',
+    description: 'National postal service delivering safely to every pincode across Kerala, South India & pan-India.',
+    trackingUrlPattern: 'https://www.indiapost.gov.in/_layouts/15/dpt.cept.tracking/trackconsignment.aspx',
+  },
+  {
+    id: 'dtdc',
+    name: 'DTDC',
+    displayName: 'DTDC Express Courier',
+    badge: 'Fast Express Tracking',
+    deliveryTime: '2 - 3 Business Days',
+    description: 'Nationwide express courier partner with doorstep delivery and prompt SMS / online tracking.',
+    trackingUrlPattern: 'https://www.dtdc.in/tracking.asp',
+  },
+  {
+    id: 'st-courier',
+    name: 'ST Courier',
+    displayName: 'ST Courier / Kerala Express',
+    badge: 'Kerala & TN Specialist',
+    deliveryTime: '1 - 2 Business Days',
+    description: 'Specialized southern express courier providing fast next-day service across Kerala & Tamil Nadu.',
+    trackingUrlPattern: 'https://stcourier.com/track',
+  },
+  {
+    id: 'professional-courier',
+    name: 'Professional Courier',
+    displayName: 'The Professional Couriers (TPC)',
+    badge: 'Reliable Regional Network',
+    deliveryTime: '2 - 4 Business Days',
+    description: 'Extensive regional network with careful handling for delicate nursery plant packages.',
+    trackingUrlPattern: 'https://www.tpcindia.com',
+  },
+  {
+    id: '7seasons-care',
+    name: '7Seasons Nursery Care',
+    displayName: '7Seasons Nursery Priority Dispatch',
+    badge: 'Nursery Recommended',
+    deliveryTime: '1 - 3 Business Days',
+    description: 'Our nursery logistics specialists automatically dispatch via the fastest route for your district.',
+  },
+];
+
 export type AdminRole = 'super_admin' | 'admin' | 'nursery_manager' | 'inventory_staff';
 export type UserRole = 'customer' | 'admin' | 'super_admin';
 
