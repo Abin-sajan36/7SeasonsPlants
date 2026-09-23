@@ -21,6 +21,7 @@ import {
   checkAddressTextMismatch,
   validateDeliveryAddress,
 } from '../lib/stateValidation';
+import { startRazorpayCheckout } from '../lib/razorpay';
 
 // --- PAYMENT MODAL COMPONENT ---
 const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; total: number; onConfirm: (method: string) => void; }> = ({ isOpen, onClose, total, onConfirm }) => {
@@ -387,15 +388,123 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
       return;
     }
 
-    setShowPaymentModal(true);
+    // 1. Prepare Shipping Address
+    const shippingAddress: CustomerAddress = {
+      id: `addr_${Date.now()}`,
+      fullName: formData.fullName,
+      phoneNumber: formData.phone,
+      addressLine1: formData.street,
+      addressLine2: formData.apartment || undefined,
+      landmark: formData.apartment || undefined,
+      city: formData.city || formData.district,
+      district: formData.district,
+      state: formData.state,
+      pincode: formData.pincode,
+      isDefault: true,
+    };
+
+    // 2. Prepare Order Items
+    const orderItems: OrderItem[] = cart.map((item) => ({
+      id: item.id,
+      type: item.type,
+      name: item.name,
+      slug: item.slug,
+      price: item.price,
+      quantity: item.quantity,
+      image: item.image,
+    }));
+
+    setIsProcessing(true);
+
+    // Launch official Razorpay Standard Web Checkout Modal
+    await startRazorpayCheckout({
+      amountInPaise: Math.round(cartTotal * 100),
+      currency: 'INR',
+      receipt: `rcpt_${Date.now()}`,
+      prefill: {
+        name: formData.fullName,
+        email: formData.email,
+        contact: formData.phone,
+      },
+      notes: {
+        customer_name: formData.fullName,
+        customer_phone: formData.phone,
+        customer_email: formData.email,
+        state: formData.state,
+        district: formData.district,
+        pincode: formData.pincode,
+        courier: selectedCourier.displayName,
+      },
+      onSuccess: async (verifyResult, paymentPayload) => {
+        try {
+          const createdOrder = await createOrder({
+            customer: {
+              name: formData.fullName,
+              email: formData.email,
+              phone: formData.phone,
+              shippingAddress,
+            },
+            items: orderItems,
+            subtotal: cartSubtotal,
+            discount: cartDiscount,
+            couponCode: appliedCoupon?.code,
+            deliveryFee: cartDeliveryFee,
+            total: cartTotal,
+            paymentStatus: 'paid',
+            paymentMethod: 'razorpay',
+            razorpayOrderId: paymentPayload.razorpay_order_id,
+            razorpayPaymentId: paymentPayload.razorpay_payment_id,
+            orderStatus: 'Payment Confirmed',
+            courierPartner: selectedCourier.displayName,
+            estimatedDelivery: selectedCourier.deliveryTime,
+            notes: formData.notes
+              ? `${formData.notes} | Preferred Courier: ${selectedCourier.displayName} | Razorpay Verified`
+              : `Preferred Courier: ${selectedCourier.displayName} | Razorpay Verified`,
+          });
+
+          addToast({
+            title: 'Payment Successful! 🌿',
+            message: `Order #${createdOrder.orderNumber} confirmed. Payment verified via Razorpay.`,
+            type: 'success',
+            duration: 8000,
+          });
+
+          setIsProcessing(false);
+          onNavigate('order-success', createdOrder.id);
+        } catch (err: any) {
+          setIsProcessing(false);
+          setFormError(
+            'Payment was verified via Razorpay, but registering the order encountered an issue. Please contact support with payment ID: ' +
+              paymentPayload.razorpay_payment_id
+          );
+        }
+      },
+      onError: (errorMessage) => {
+        setIsProcessing(false);
+        setFormError(errorMessage);
+        addToast({
+          title: 'Payment Failed',
+          message: errorMessage,
+          type: 'error',
+          duration: 9000,
+        });
+      },
+      onDismiss: () => {
+        setIsProcessing(false);
+        addToast({
+          title: 'Checkout Cancelled',
+          message: 'Razorpay payment window was closed. You can retry payment whenever you are ready.',
+          type: 'info',
+        });
+      },
+    });
   };
 
-  const processOrder = async (method: string) => {
+  const processManualOrder = async (method: string) => {
     setShowPaymentModal(false);
     setIsProcessing(true);
 
     try {
-      // Re-verify address state match before committing order
       const addressValidation = validateDeliveryAddress({
         state: formData.state,
         district: formData.district,
@@ -410,7 +519,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         setIsProcessing(false);
         return;
       }
-      // 1. Prepare Shipping Address
+
       const shippingAddress: CustomerAddress = {
         id: `addr_${Date.now()}`,
         fullName: formData.fullName,
@@ -425,7 +534,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         isDefault: true,
       };
 
-      // 2. Prepare Order Items
       const orderItems: OrderItem[] = cart.map((item) => ({
         id: item.id,
         type: item.type,
@@ -436,37 +544,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         image: item.image,
       }));
 
-      // 3. Try creating Razorpay Order via backend
-      let razorpayOrderId = `order_sim_${Date.now()}`;
-      try {
-        const orderRes = await fetch('/api/razorpay/create-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: Math.round(cartTotal),
-            currency: 'INR',
-            notes: {
-              customer_name: formData.fullName,
-              customer_phone: formData.phone,
-              customer_email: formData.email,
-              state: formData.state,
-            },
-          }),
-        });
-
-        if (orderRes.ok) {
-          const data = await orderRes.json();
-          if (data.order && data.order.id) {
-            razorpayOrderId = data.order.id;
-          }
-        }
-      } catch (err) {
-        console.log('Using simulated Razorpay order ID:', razorpayOrderId);
-      }
-
       const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
-      // 4. Create order via StoreContext
       const createdOrder = await createOrder({
         customer: {
           name: formData.fullName,
@@ -482,7 +561,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         total: cartTotal,
         paymentStatus: 'paid',
         paymentMethod: method === 'qr' ? 'UPI QR' : method === 'upi' ? 'UPI ID' : 'Net Banking',
-        razorpayOrderId,
         razorpayPaymentId: paymentId,
         orderStatus: 'Payment Confirmed',
         courierPartner: selectedCourier.displayName,
@@ -907,14 +985,49 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                 </span>
               </h2>
 
-              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 text-xs space-y-2">
-                <div className="flex items-center gap-2 font-bold text-emerald-950">
-                  <CreditCard className="w-4 h-4 text-emerald-700" />
-                  <span>100% Secure Online Payment (UPI, Cards, NetBanking)</span>
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 text-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-emerald-950">
+                    <CreditCard className="w-4 h-4 text-emerald-700" />
+                    <span>Razorpay Standard Web Checkout</span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                    Instant & Automated
+                  </span>
                 </div>
-                <p className="text-gray-600 leading-relaxed">
-                  Support for Google Pay, PhonePe, Paytm, all Debit/Credit cards, and NetBanking.
+                <p className="text-gray-600 leading-relaxed text-[11px]">
+                  All major payment methods are supported via Razorpay's secure checkout modal:
                 </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] font-medium text-emerald-950">
+                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-emerald-100 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>UPI (GPay / PhonePe)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-emerald-100 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span>Cards (Debit/Credit)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-emerald-100 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                    <span>Net Banking (50+)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-emerald-100 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span>Wallets & CRED</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Optional Manual UPI Fallback trigger */}
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-600">
+                <span>Prefer scanning a direct UPI QR code?</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(true)}
+                  className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                >
+                  Open QR Code
+                </button>
               </div>
 
               {/* No COD Policy Note */}
@@ -1057,11 +1170,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
-          <PaymentModal 
+      <PaymentModal 
         isOpen={showPaymentModal} 
         onClose={() => setShowPaymentModal(false)} 
         total={Math.round(cartTotal)} 
-        onConfirm={processOrder} 
+        onConfirm={processManualOrder} 
       />
     </div>
   );

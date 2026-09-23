@@ -58,9 +58,10 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
   onClose,
   onSelectCategory,
 }) => {
-  const { categories, combos, addCategory, updateCategory, deleteCategory, addToast } = useStore();
+  const { categories, products, combos, addCategory, updateCategory, deleteCategory, addToast } = useStore();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'combo' | 'plant' | 'both'>('all');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -74,24 +75,31 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
   const [formImage, setFormImage] = useState(PRESET_COMBO_IMAGES[0].url);
   const [formDisplayOrder, setFormDisplayOrder] = useState(1);
   const [formIsFeatured, setFormIsFeatured] = useState(true);
+  const [formType, setFormType] = useState<'combo' | 'plant' | 'both'>('combo');
   const [formError, setFormError] = useState('');
 
   const fileInputId = useId();
 
   if (!isOpen) return null;
 
-  // Filter categories relevant to combos
-  const comboCategories = categories.filter((c) => c.type === 'combo' || c.type === 'both');
-
   // Count combos assigned to each category
   const getComboCountForCategory = (catName: string) => {
     return combos.filter((c) => c.category?.trim().toLowerCase() === catName.trim().toLowerCase()).length;
   };
 
-  const filteredCategories = comboCategories.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Count products assigned to each category
+  const getProductCountForCategory = (catName: string) => {
+    return products.filter((p) => p.category?.trim().toLowerCase() === catName.trim().toLowerCase()).length;
+  };
+
+  const filteredCategories = categories.filter((c) => {
+    if (typeFilter !== 'all' && c.type !== typeFilter) return false;
+    return (
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.slug?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   const slugify = (text: string) => {
     return text
@@ -115,8 +123,9 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
     setIsSlugCustomized(false);
     setFormDescription('');
     setFormImage(PRESET_COMBO_IMAGES[0].url);
-    setFormDisplayOrder(comboCategories.length + 1);
+    setFormDisplayOrder(categories.length + 1);
     setFormIsFeatured(true);
+    setFormType('combo');
     setFormError('');
     setEditingCategory(null);
     setIsCreatingNew(false);
@@ -136,6 +145,7 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
     setFormImage(cat.image || PRESET_COMBO_IMAGES[0].url);
     setFormDisplayOrder(cat.displayOrder || 1);
     setFormIsFeatured(cat.isFeatured ?? true);
+    setFormType(cat.type || 'combo');
     setFormError('');
     setIsCreatingNew(true);
   };
@@ -173,18 +183,20 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
     const finalSlug = (formSlug.trim() || slugify(trimmedName)) || `combo-${Date.now()}`;
 
     // Duplicate check
-    const isDuplicate = comboCategories.some(
+    const isDuplicate = categories.some(
       (c) =>
         c.name.toLowerCase() === trimmedName.toLowerCase() &&
         c.id !== editingCategory?.id
     );
 
     if (isDuplicate) {
-      setFormError(`A combo category named "${trimmedName}" already exists.`);
+      setFormError(`A category named "${trimmedName}" already exists.`);
       return;
     }
 
-    const assignedCount = getComboCountForCategory(trimmedName);
+    const assignedComboCount = getComboCountForCategory(trimmedName);
+    const assignedProductCount = getProductCountForCategory(trimmedName);
+    const assignedCount = formType === 'combo' ? assignedComboCount : (assignedProductCount || assignedComboCount);
 
     if (editingCategory) {
       const updatedCat: Category = {
@@ -195,7 +207,7 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
         image: formImage.trim() || PRESET_COMBO_IMAGES[0].url,
         displayOrder: Number(formDisplayOrder) || 1,
         isFeatured: formIsFeatured,
-        type: 'combo',
+        type: formType,
         itemCount: assignedCount,
       };
 
@@ -203,7 +215,7 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
       addToast({
         type: 'success',
         title: 'Category Updated',
-        message: `Combo category "${trimmedName}" has been updated.`,
+        message: `Category "${trimmedName}" has been updated.`,
       });
       if (onSelectCategory) {
         onSelectCategory(trimmedName);
@@ -215,9 +227,9 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
         slug: finalSlug,
         description: formDescription.trim(),
         image: formImage.trim() || PRESET_COMBO_IMAGES[0].url,
-        displayOrder: Number(formDisplayOrder) || comboCategories.length + 1,
+        displayOrder: Number(formDisplayOrder) || categories.length + 1,
         isFeatured: formIsFeatured,
-        type: 'combo',
+        type: formType,
         itemCount: assignedCount,
       };
 
@@ -225,7 +237,7 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
       addToast({
         type: 'success',
         title: 'Category Created',
-        message: `New combo category "${trimmedName}" is now active.`,
+        message: `New category "${trimmedName}" is now active and visible on the site.`,
       });
       if (onSelectCategory) {
         onSelectCategory(trimmedName);
@@ -236,12 +248,18 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
 
   const handleDeleteCategory = async (cat: Category) => {
     const activeCombos = getComboCountForCategory(cat.name);
-    if (activeCombos > 0 && deleteConfirmId !== cat.id) {
+    const activeProducts = getProductCountForCategory(cat.name);
+    if ((activeCombos > 0 || activeProducts > 0) && deleteConfirmId !== cat.id) {
       setDeleteConfirmId(cat.id);
       return;
     }
 
     await deleteCategory(cat.id);
+    addToast({
+      type: 'info',
+      title: 'Category Removed',
+      message: `"${cat.name}" has been deleted and removed from the site.`,
+    });
     setDeleteConfirmId(null);
     if (editingCategory?.id === cat.id) {
       resetForm();
@@ -264,13 +282,13 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
             </div>
             <div>
               <h2 id="combo-category-manager-title" className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <span>Combo Categories Manager</span>
+                <span>Site Categories Manager</span>
                 <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/20">
-                  {comboCategories.length} Categories
+                  {categories.length} Total
                 </span>
               </h2>
               <p className="text-xs text-emerald-200/80">
-                Create and organize botanical collections for bundled combo offerings
+                Manage categories for plants and combos. Changes update the homepage instantly.
               </p>
             </div>
           </div>
@@ -286,38 +304,91 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          {/* Top Bar: Action & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F4FAF5] p-3.5 rounded-2xl border border-emerald-900/10">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search combo categories..."
-                className="w-full pl-9 pr-3 py-2 bg-white text-xs font-semibold text-emerald-950 rounded-full border border-emerald-900/15 focus:border-emerald-600 focus:outline-hidden"
-              />
+          {/* Top Bar: Action & Search & Filters */}
+          <div className="flex flex-col gap-3 bg-[#F4FAF5] p-3.5 rounded-2xl border border-emerald-900/10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search categories by name, slug..."
+                  className="w-full pl-9 pr-3 py-2 bg-white text-xs font-semibold text-emerald-950 rounded-full border border-emerald-900/15 focus:border-emerald-600 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                {!isCreatingNew ? (
+                  <button
+                    type="button"
+                    onClick={handleStartCreate}
+                    className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Create New Category</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-bold rounded-full transition-all cursor-pointer"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {!isCreatingNew ? (
-                <button
-                  type="button"
-                  onClick={handleStartCreate}
-                  className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Create New Category</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-bold rounded-full transition-all cursor-pointer"
-                >
-                  Cancel Edit
-                </button>
-              )}
+            {/* Type Filter Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pt-1 border-t border-emerald-900/5">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider shrink-0 mr-1">
+                Filter:
+              </span>
+              <button
+                type="button"
+                onClick={() => setTypeFilter('all')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  typeFilter === 'all'
+                    ? 'bg-emerald-800 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                All ({categories.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTypeFilter('combo')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  typeFilter === 'combo'
+                    ? 'bg-emerald-800 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                Combos ({categories.filter((c) => c.type === 'combo').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTypeFilter('plant')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  typeFilter === 'plant'
+                    ? 'bg-emerald-800 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                Plants ({categories.filter((c) => c.type === 'plant').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTypeFilter('both')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  typeFilter === 'both'
+                    ? 'bg-emerald-800 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                Both ({categories.filter((c) => c.type === 'both').length})
+              </button>
             </div>
           </div>
 
@@ -461,6 +532,48 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
                   </div>
                 </div>
 
+                {/* Category Type / Scope */}
+                <div>
+                  <label className="text-xs font-bold text-emerald-950 block mb-1.5">
+                    Category Scope *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormType('combo')}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                        formType === 'combo'
+                          ? 'bg-emerald-800 text-white border-emerald-800 shadow-2xs'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      🌿 Combo Packs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormType('plant')}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                        formType === 'plant'
+                          ? 'bg-emerald-800 text-white border-emerald-800 shadow-2xs'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      🌱 Botanical Plant
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormType('both')}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                        formType === 'both'
+                          ? 'bg-emerald-800 text-white border-emerald-800 shadow-2xs'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      🌸 Both
+                    </button>
+                  </div>
+                </div>
+
                 {/* Additional Settings */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                   <div>
@@ -486,7 +599,7 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
                         className="w-4 h-4 rounded text-emerald-700 focus:ring-emerald-500 border-gray-300"
                       />
                       <span className="text-xs font-bold text-emerald-950">
-                        Feature in Combo Category showcase
+                        Feature in Category showcase
                       </span>
                     </label>
                   </div>
@@ -518,7 +631,7 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-wider text-emerald-950 flex items-center gap-2">
                 <Tag className="w-3.5 h-3.5 text-emerald-700" />
-                <span>Existing Combo Categories ({filteredCategories.length})</span>
+                <span>Existing Categories ({filteredCategories.length})</span>
               </h3>
               <span className="text-[11px] text-gray-500">
                 Sorted by display priority
@@ -528,11 +641,11 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
             {filteredCategories.length === 0 ? (
               <div className="p-8 text-center bg-gray-50 rounded-3xl border border-dashed border-gray-300 space-y-3">
                 <Layers className="w-8 h-8 text-gray-400 mx-auto" />
-                <div className="text-xs font-bold text-gray-700">No combo categories found</div>
+                <div className="text-xs font-bold text-gray-700">No categories found</div>
                 <p className="text-[11px] text-gray-500 max-w-sm mx-auto">
                   {searchQuery
                     ? `No categories match "${searchQuery}".`
-                    : 'Click "+ Create New Category" above to add your first combo collection category.'}
+                    : 'Click "+ Create New Category" above to add your first category.'}
                 </p>
                 <button
                   type="button"
@@ -548,7 +661,15 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
                   .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
                   .map((cat) => {
                     const comboCount = getComboCountForCategory(cat.name);
+                    const prodCount = getProductCountForCategory(cat.name);
                     const isDeleting = deleteConfirmId === cat.id;
+
+                    const typeBadgeText = cat.type === 'combo' ? 'Combo' : cat.type === 'plant' ? 'Plant' : 'Both';
+                    const typeBadgeColor = cat.type === 'combo'
+                      ? 'bg-rose-100 text-rose-800 border-rose-200'
+                      : cat.type === 'plant'
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                      : 'bg-amber-100 text-amber-800 border-amber-200';
 
                     return (
                       <div
@@ -581,14 +702,23 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
                               <h4 className="font-extrabold text-xs sm:text-sm text-emerald-950 truncate">
                                 {cat.name}
                               </h4>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 shrink-0">
-                                {comboCount} {comboCount === 1 ? 'Combo' : 'Combos'}
+                              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${typeBadgeColor}`}>
+                                {typeBadgeText}
                               </span>
                             </div>
 
-                            <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">
-                              /{cat.slug}
-                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-gray-400 font-mono truncate">
+                                /{cat.slug}
+                              </span>
+                              <span className="text-[10px] text-gray-500 font-semibold">
+                                • {cat.type === 'combo'
+                                  ? `${comboCount} Combos`
+                                  : cat.type === 'plant'
+                                  ? `${prodCount} Plants`
+                                  : `${comboCount} Combos, ${prodCount} Plants`}
+                              </span>
+                            </div>
 
                             {cat.description && (
                               <p className="text-[11px] text-gray-600 line-clamp-2 mt-1 leading-snug">

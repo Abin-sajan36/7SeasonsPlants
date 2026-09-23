@@ -214,7 +214,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
               <span>Super Administrator Privilege Required</span>
             </h4>
             <p className="text-amber-800 leading-relaxed">
-              Only authorized Super Administrators (<strong className="font-mono">annanvasu36@gmail.com</strong> / <strong className="font-mono">abinsajan36@gmail.com</strong>) have security authorization to promote registered user accounts to administrator roles or revoke administrative privileges.
+              Only authorized Super Administrators have security authorization to promote registered user accounts to administrator roles or revoke administrative privileges.
             </p>
             <p className="text-[11px] text-amber-700 font-medium">
               You are currently logged in as {currentAdmin?.name || 'Nursery Staff'} ({currentAdmin?.role?.replace('_', ' ').toUpperCase() || 'ADMIN'}). You can view registered users, but role modification controls are locked.
@@ -508,7 +508,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                             </button>
                           )
                         ) : (
-                          <div className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-xl border border-gray-200" title="Only authorized Super Administrators (annanvasu36@gmail.com / abinsajan36@gmail.com) can modify roles">
+                          <div className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-xl border border-gray-200" title="Only authorized Super Administrators can modify roles">
                             <Lock className="w-3 h-3 text-gray-400" />
                             <span>Super Admin Only</span>
                           </div>

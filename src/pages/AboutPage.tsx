@@ -48,8 +48,8 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* 4 Core Pillars */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Core Pillars */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-3xl border border-emerald-900/10 shadow-xs space-y-2 hover:border-emerald-500/30 transition-all">
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-lg">
               🌿
@@ -77,16 +77,6 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
             <h3 className="text-sm font-black text-emerald-950">Curated Combos</h3>
             <p className="text-xs text-gray-600 leading-relaxed">
               Harmoniously paired bundles with synchronized watering and up to 35% savings.
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl border border-emerald-900/10 shadow-xs space-y-2 hover:border-emerald-500/30 transition-all">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-lg">
-              🩺
-            </div>
-            <h3 className="text-sm font-black text-emerald-950">AI Plant Clinic</h3>
-            <p className="text-xs text-gray-600 leading-relaxed">
-              24/7 Gemini-powered diagnosis plus direct WhatsApp horticulturist guidance.
             </p>
           </div>
         </div>

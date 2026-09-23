@@ -28,6 +28,7 @@ import {
   Clock,
   Box,
   AlertTriangle,
+  AlertCircle,
   Copy,
   X,
 } from 'lucide-react';
@@ -284,6 +285,12 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
     setIsSubmitting(false);
     if (success) {
       setResetStep('verify');
+      addToast({
+        type: 'info',
+        title: 'Verification Code Sent',
+        message: 'Check your email for the code. If the mail is not there, check your spam folder.',
+        duration: 9000,
+      });
     }
   };
 
@@ -404,6 +411,12 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
         setRegisterStep('verify_otp');
         setRegistrationOtp(['', '', '', '', '', '']);
         setOtpResendCountdown(60);
+        addToast({
+          type: 'info',
+          title: 'OTP Sent to Your Email',
+          message: 'Please check your email, and if the mail is not there, check your spam folder.',
+          duration: 9000,
+        });
         if (result.previewOtp) {
           console.log("OTP logic active via backend");
         }
@@ -432,6 +445,12 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
       const result = await sendRegistrationOtp(emailInput.trim(), nameInput.trim());
       if (result.success) {
         setOtpResendCountdown(60);
+        addToast({
+          type: 'info',
+          title: 'New OTP Sent',
+          message: 'Please check your email, and if the mail is not there, check your spam folder.',
+          duration: 9000,
+        });
         if (result.previewOtp) {
           console.log("OTP Resent via backend");
         }
@@ -695,9 +714,15 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
               )}
               {resetStep === 'verify' && (
                 <form onSubmit={handleResetVerify} className="space-y-4">
-                  <p className="text-gray-500 dark:text-gray-400 text-center text-sm mb-4">
+                  <p className="text-gray-500 dark:text-gray-400 text-center text-sm mb-2">
                     Enter the 6-digit verification code sent to {resetIdentifier}.
                   </p>
+                  <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex items-start gap-2.5 text-left text-amber-900 dark:text-amber-200">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed font-medium">
+                      Check your email, and if the mail is not there, check your <strong>spam</strong> folder.
+                    </p>
+                  </div>
                   <div>
                     <label className="font-bold text-emerald-950 dark:text-emerald-100 block mb-1.5">
                       OTP Code <span className="text-rose-500">*</span>
@@ -994,6 +1019,13 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                   >
                     Change
                   </button>
+                </div>
+
+                <div className="mt-3.5 p-3 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-start gap-2.5 text-left text-amber-950 max-w-sm mx-auto shadow-2xs">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-900 leading-relaxed font-medium">
+                    Check your email, and if the mail is not there, check your <strong>spam</strong> folder.
+                  </p>
                 </div>
               </div>
 

@@ -38,6 +38,8 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
     addToast,
     selectedDeliveryState,
     openStateModal,
+    currentUser,
+    openAuthModal,
   } = useStore();
 
   const combo = combos.find((c) => c.slug === slug) || combos[0];
@@ -61,6 +63,10 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
   };
 
   const handleBuyNow = () => {
+    if (!currentUser) {
+      openAuthModal('Please sign in or create an account to purchase this combo.');
+      return;
+    }
     addToCart(combo, 'combo', quantity);
     setIsCartOpen(false);
     onNavigate('checkout');

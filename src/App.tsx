@@ -13,6 +13,7 @@ import { StateSelectionModal } from './components/common/StateSelectionModal';
 import { ToastContainer } from './components/common/ToastContainer';
 import { GardenerAIChat } from './components/common/GardenerAIChat';
 import { BottomNav } from './components/common/BottomNav';
+import { LoginModal } from './components/common/LoginModal';
 import { Logo } from './components/common/Logo';
 
 // Pages
@@ -127,7 +128,7 @@ const AppContent: React.FC = () => {
   };
 
   const renderCurrentView = () => {
-    const protectedViews = ['checkout', 'order-success', 'track-order', 'wishlist', 'account'];
+    const protectedViews = ['checkout', 'order-success', 'track-order', 'account'];
 
     if (!isAuthenticated && protectedViews.includes(currentView)) {
       return <AccountPage initialParam={viewParam === 'register' ? 'register' : 'login'} onNavigate={handleNavigate} />;
@@ -204,6 +205,7 @@ const AppContent: React.FC = () => {
       {/* 4. Drawers, Modals & Floating Helpers */}
       <CartDrawer onNavigate={handleNavigate} />
       <QuickViewModal onNavigate={handleNavigate} />
+      <LoginModal onNavigate={handleNavigate} />
       <StateSelectionModal />
       <ToastContainer />
       <GardenerAIChat />

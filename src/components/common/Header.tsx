@@ -41,6 +41,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
     logoutCustomer,
     logoutAdmin,
     setIsCartOpen,
+    openAuthModal,
     products,
     combos,
     categories,
@@ -391,7 +392,13 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
             {storeSettings.menuVisibility?.wishlist !== false && (
             
                         <button
-                          onClick={() => onNavigate('wishlist')}
+                          onClick={() => {
+                            if (!currentUser) {
+                              openAuthModal('Please sign in to access your saved botanical wishlist.');
+                            } else {
+                              onNavigate('wishlist');
+                            }
+                          }}
                           className="hidden md:block relative p-2.5 rounded-full text-emerald-950 dark:text-emerald-50 hover:bg-emerald-50 dark:bg-[#0a1f18] transition-colors cursor-pointer"
                           aria-label="Wishlist"
                           title="Saved Wishlist"
@@ -535,7 +542,11 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                     <button
                                           onClick={() => {
                                             setAccountMenuOpen(false);
-                                            onNavigate('wishlist');
+                                            if (!currentUser) {
+                                              openAuthModal('Please sign in to access your saved botanical wishlist.');
+                                            } else {
+                                              onNavigate('wishlist');
+                                            }
                                           }}
                                           className="w-full text-left px-4 py-2 hover:bg-emerald-50 dark:bg-[#0a1f18]/70 flex items-center gap-2.5 text-emerald-950 dark:text-emerald-50 cursor-pointer"
                                         >

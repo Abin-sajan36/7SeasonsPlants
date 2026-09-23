@@ -8,7 +8,7 @@ interface BottomNavProps {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate }) => {
-  const { cartCount, wishlist, isCartOpen, setIsCartOpen, storeSettings } = useStore();
+  const { cartCount, wishlist, isCartOpen, setIsCartOpen, storeSettings, currentUser, openAuthModal } = useStore();
   const visibility = storeSettings.menuVisibility || {};
 
   return (
@@ -38,7 +38,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate })
         )}
         {visibility.wishlist !== false && (
           <button
-            onClick={() => onNavigate('wishlist')}
+            onClick={() => {
+              if (!currentUser) {
+                openAuthModal('Please sign in to access your saved botanical wishlist.');
+              } else {
+                onNavigate('wishlist');
+              }
+            }}
             className={`relative flex flex-col items-center py-1 px-2.5 rounded-xl transition-colors cursor-pointer ${
               currentView === 'wishlist' ? 'text-emerald-700 font-bold' : 'text-gray-500'
             }`}
@@ -54,7 +60,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate })
         )}
         {visibility.cart !== false && (
           <button
-            onClick={() => setIsCartOpen(true)}
+            onClick={() => {
+              if (!currentUser) {
+                openAuthModal('Please sign in to access your shopping cart.');
+              } else {
+                setIsCartOpen(true);
+              }
+            }}
             className={`relative flex flex-col items-center py-1 px-2.5 rounded-xl transition-colors cursor-pointer ${
               isCartOpen ? 'text-emerald-700 font-bold' : 'text-gray-500'
             }`}

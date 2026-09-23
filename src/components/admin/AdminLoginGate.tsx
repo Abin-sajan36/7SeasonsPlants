@@ -116,9 +116,10 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
       });
 
       addToast({
-        type: 'success',
-        title: 'New Verification Email Dispatched',
-        message: `Fresh verification email with code ${code} displayed on screen.`,
+        type: 'info',
+        title: 'Verification Code Dispatched',
+        message: 'Please check your email, and if the mail is not there, check your spam folder.',
+        duration: 9000,
       });
     } catch (err: any) {
       console.error('Error resending OTP:', err);
@@ -217,8 +218,9 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
           setOtpStep(true);
           addToast({
             type: 'info',
-            title: 'Verification Email Dispatched',
-            message: `Dispatched security verification email for ${cleanEmail} is displayed on screen below.`,
+            title: 'Verification Code Dispatched',
+            message: 'Please check your email, and if the mail is not there, check your spam folder.',
+            duration: 9000,
           });
         } catch (err: any) { 
           console.error("Login error while requesting OTP:", err); 
@@ -438,7 +440,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onNavigate }) =>
                       <div className="space-y-1 text-xs text-gray-700">
                         <p>Hello <strong>{sentMail.greeting}</strong>,</p>
                         <p className="text-[11px] text-gray-600 leading-relaxed">
-                          A sign-in request was received for your nursery administrator portal. Please use this one-time verification code to proceed:
+                          A sign-in request was received for your nursery administrator portal. Please check your email, and if the mail is not there, check your <strong>spam</strong> folder. Use this one-time code to proceed:
                         </p>
                       </div>
 

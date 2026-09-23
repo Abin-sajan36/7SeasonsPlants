@@ -121,6 +121,12 @@ interface StoreContextType {
   isInWishlist: (id: string) => boolean;
   clearWishlist: () => void;
 
+  // Auth Modal
+  isAuthModalOpen: boolean;
+  authModalReason: string;
+  openAuthModal: (reason?: string) => void;
+  closeAuthModal: () => void;
+
   // Quick View
   openQuickView: (item: Product | PlantCombo, type: 'product' | 'combo') => void;
   closeQuickView: () => void;
@@ -270,9 +276,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!saved) return initialCategories;
     try {
       const parsed: Category[] = JSON.parse(saved);
-      const existingNames = new Set(parsed.map((c) => c.name.toLowerCase()));
-      const missingInitial = initialCategories.filter((ic) => !existingNames.has(ic.name.toLowerCase()));
-      return missingInitial.length > 0 ? [...parsed, ...missingInitial] : parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_category_ids`) || '[]');
+        const deletedSet = new Set(deletedIds);
+        const filtered = parsed.filter((c) => !deletedSet.has(c.id) && !deletedSet.has(c.slug));
+        return filtered.length > 0 ? filtered : initialCategories;
+      }
+      return initialCategories;
     } catch {
       return initialCategories;
     }
@@ -487,6 +497,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     type: 'product' | 'combo';
   } | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalReason, setAuthModalReason] = useState('Please sign in to continue.');
+
+  const openAuthModal = useCallback((reason?: string) => {
+    if (reason) setAuthModalReason(reason);
+    setIsAuthModalOpen(true);
+  }, []);
+
+  const closeAuthModal = useCallback(() => {
+    setIsAuthModalOpen(false);
+  }, []);
+
+  const handleSetIsCartOpen = useCallback((open: boolean) => {
+    if (open && !currentUser && !isAdminAuthenticated) {
+      openAuthModal('Please sign in to access your shopping cart.');
+      return;
+    }
+    setIsCartOpen(open);
+  }, [currentUser, isAdminAuthenticated, openAuthModal]);
+
+  // Automatically close auth modal upon user authentication
+  useEffect(() => {
+    if (currentUser) {
+      setIsAuthModalOpen(false);
+    }
+  }, [currentUser]);
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const VALID_DELIVERY_STATES = ['Kerala', 'Tamil Nadu', 'Karnataka'] as const;
@@ -681,18 +718,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribe = onSnapshot(
       collection(db, 'categories'),
       async (snapshot) => {
+        const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_category_ids`) || '[]');
+        const deletedSet = new Set(deletedIds);
+
         if (!snapshot.empty) {
           const list: Category[] = [];
           snapshot.forEach((docSnap) => {
-            list.push({ ...(docSnap.data() as Category), id: docSnap.id });
+            const cat = { ...(docSnap.data() as Category), id: docSnap.id };
+            if (!deletedSet.has(cat.id) && !deletedSet.has(cat.slug)) {
+              list.push(cat);
+            }
           });
-          setCategories(list);
-          localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(list));
+          if (list.length > 0) {
+            setCategories(list);
+            localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(list));
+          }
         } else if (!seeded) {
           seeded = true;
           try {
             for (const item of initialCategories) {
-              await setDoc(doc(db, 'categories', item.id), removeUndefined(item), { merge: true });
+              if (!deletedSet.has(item.id) && !deletedSet.has(item.slug)) {
+                await setDoc(doc(db, 'categories', item.id), removeUndefined(item), { merge: true });
+              }
             }
           } catch (e) {
             console.warn('Seeding initial categories note:', e);
@@ -1212,11 +1259,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     options?: { potColor?: string }
   ) => {
     if (!currentUser && !isAdminAuthenticated) {
-      addToast({
-        type: 'error',
-        title: 'Login Required',
-        message: 'Please sign in or create an account to add items to your cart.',
-      });
+      openAuthModal('Please sign in or create an account to add plant combos to your cart.');
       return;
     }
 
@@ -1370,7 +1413,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const toggleWishlist = (id: string) => {
     if (!currentUser) {
-      addToast({ type: 'error', title: 'Login Required', message: 'Please sign in to add items to your wishlist.' });
+      openAuthModal('Please sign in to save botanical plants to your wishlist.');
       return;
     }
     
@@ -1751,7 +1794,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return false;
       }
 
-      console.error('Google sign-in error:', error);
       const isDomainUnauthorized =
         errCode === 'auth/unauthorized-domain' ||
         errCode === 'auth/configuration-not-found' ||
@@ -1768,6 +1810,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const primaryAuthDomain = firebaseConfig.authDomain || `${targetProjId}.firebaseapp.com`;
         const consoleLink = `https://console.firebase.google.com/project/${targetProjId}/authentication/settings`;
 
+        console.warn(
+          `[Firebase Auth] Domain "${currentHostname}" is not yet in Authorized Domains for Firebase project "${targetProjId}". Guide shown to user in UI.`
+        );
+
         setAuthDomainNotice({
           show: true,
           domain: currentHostname,
@@ -1778,23 +1824,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         addToast({
           type: 'error',
-          title: 'Domain Not Authorized in Firebase',
-          message: `The domain "${currentHostname}" must be added to Authorized Domains in the Firebase Console (Authentication > Settings > Authorized domains). You can sign in using Email / Password or OTP below in the meantime.`,
+          title: 'Google Sign-In: Domain Whitelist Required',
+          message: `The domain "${currentHostname}" must be added to Authorized Domains in Firebase Console. You can also sign in with Email / Password below!`,
           duration: 12000,
         });
-      } else if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
-        addToast({
-          type: 'info',
-          title: 'Sign-In Cancelled',
-          message: 'The Google sign-in window was closed.',
-        });
-      } else {
-        addToast({
-          type: 'error',
-          title: 'Authentication Failed',
-          message: error.message || 'Could not complete Google sign-in.',
-        });
+        return false;
       }
+
+      console.error('Google sign-in error:', error);
+      addToast({
+        type: 'error',
+        title: 'Authentication Failed',
+        message: error.message || 'Could not complete Google sign-in.',
+      });
       return false;
     }
   };
@@ -1808,8 +1850,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return false;
     }
 
-    // Check if this is the dedicated admin account
-    if (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'abinsajan36@gmail.com') {
+    // Check if this is a dedicated administrator / super administrator account
+    if (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com') {
       const isPasswordValid =
         cleanPass === adminMasterPassword ||
         cleanPass === 'Admin@123' ||
@@ -1820,25 +1862,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addToast({
           type: 'error',
           title: 'Admin Authentication Failed',
-          message: 'Incorrect password for administrator account. Use Admin@123.',
+          message: 'Incorrect password for administrator account.',
         });
         return false;
       }
 
+      const isSuper = cleanEmail === 'annanvasu36@gmail.com' || cleanEmail === 'abinsajan36@gmail.com';
       await loginAdmin(cleanEmail, cleanPass || 'Admin@123');
 
       const adminUser: User = {
-        id: 'usr-admin-7seasons',
-        name: '7Seasons Nursery Admin',
+        id: cleanEmail === 'annanvasu36@gmail.com' ? 'usr-annanvasu' : 'usr-admin-7seasons',
+        name: cleanEmail === 'annanvasu36@gmail.com' ? 'Super Administrator (Annan Vasu)' : '7Seasons Nursery Admin',
         email: cleanEmail,
         phone: '08848276403',
-        role: 'admin',
+        role: isSuper ? 'super_admin' : 'admin',
         addresses: [],
         wishlist: [],
         createdAt: new Date().toISOString(),
       };
       setCurrentUser(adminUser);
       localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(adminUser));
+      addToast({
+        type: 'success',
+        title: 'Welcome Back! 🌿',
+        message: `Signed in as ${adminUser.name}`,
+      });
       return true;
     }
 
@@ -2038,7 +2086,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const isJson = (response.headers.get('content-type') || '').includes('application/json');
       if (!isJson) {
-        return { success: true, message: 'OTP sent (fallback)' };
+        return {
+          success: true,
+          message: 'Verification code sent. Please check your email and if the mail is not there check the spam folder.',
+        };
       }
 
       const data = await response.json();
@@ -2233,9 +2284,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await sendPasswordResetEmail(auth, identifier.trim());
       addToast({
         type: 'info',
-        title: 'Reset Email Sent',
-        message: 'Check your email for password reset instructions.',
-        duration: 8000,
+        title: 'Reset Instructions Sent',
+        message: 'Check your email for reset instructions. If the mail is not in your inbox, please check your spam folder.',
+        duration: 9000,
       });
       return true;
     } catch (error: any) {
@@ -2409,7 +2460,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         title: 'Access Denied',
         message: 'Invalid administrator password. Access restricted to authorized nursery staff only.',
       });
-      return { success: false, message: 'Incorrect administrator password. (Admin@123)' };
+      return { success: false, message: 'Incorrect administrator password.' };
     }
 
     // Find or match admin account
@@ -2551,7 +2602,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToast({
         type: 'error',
         title: 'Permission Denied',
-        message: 'Only the Super Administrator (abinsajan36@gmail.com) can add new administrator accounts.',
+        message: 'Only authorized Super Administrators can add new administrator accounts.',
       });
       return;
     }
@@ -2584,7 +2635,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToast({
         type: 'error',
         title: 'Permission Denied',
-        message: 'Only the Super Administrator (abinsajan36@gmail.com) can revoke administrator accounts.',
+        message: 'Only authorized Super Administrators can revoke administrator accounts.',
       });
       return;
     }
@@ -2594,7 +2645,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToast({
         type: 'error',
         title: 'Action Prohibited',
-        message: 'Cannot delete the Super Administrator (abinsajan36@gmail.com).',
+        message: 'Cannot delete the Super Administrator.',
       });
       return;
     }
@@ -2689,7 +2740,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToast({
         type: 'error',
         title: 'Authorization Restricted',
-        message: 'Only authorized Super Administrators (annanvasu36@gmail.com / abinsajan36@gmail.com) can grant admin privileges.',
+        message: 'Only authorized Super Administrators can grant admin privileges.',
       });
       return {
         success: false,
@@ -2788,7 +2839,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToast({
         type: 'error',
         title: 'Authorization Restricted',
-        message: 'Only authorized Super Administrators (annanvasu36@gmail.com / abinsajan36@gmail.com) can revoke admin privileges.',
+        message: 'Only authorized Super Administrators can revoke admin privileges.',
       });
       return {
         success: false,
@@ -3161,8 +3212,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Categories
   const addCategory = async (cat: Omit<Category, 'id'>) => {
-    const newCat: Category = { ...cat, id: `cat-${Date.now()}` };
-    setCategories((prev) => [...prev, newCat]);
+    const newCat: Category = {
+      ...cat,
+      id: `cat-${Date.now()}`,
+      itemCount: cat.itemCount || 0,
+      displayOrder: cat.displayOrder || categories.length + 1,
+    };
+    setCategories((prev) => {
+      const next = [...prev, newCat];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(next));
+        const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_category_ids`) || '[]');
+        const filteredDeleted = deletedIds.filter(
+          (dId) => dId !== newCat.id && dId !== newCat.name && dId !== newCat.slug
+        );
+        localStorage.setItem(`${STORAGE_KEY}_deleted_category_ids`, JSON.stringify(filteredDeleted));
+      } catch (err) {
+        console.warn('LocalStorage error:', err);
+      }
+      return next;
+    });
     try {
       await setDoc(doc(db, 'categories', newCat.id), removeUndefined(newCat));
     } catch (e) {
@@ -3170,46 +3239,73 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     addToast({
       type: 'success',
-      title: 'Category Added',
-      message: `${cat.name} added.`,
+      title: 'Category Created',
+      message: `"${newCat.name}" is now live on the site.`,
     });
   };
 
   const updateCategory = async (updated: Category) => {
-    setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    setCategories((prev) => {
+      const next = prev.map((c) => (c.id === updated.id ? updated : c));
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(next));
+      } catch (err) {
+        console.warn('LocalStorage error:', err);
+      }
+      return next;
+    });
     try {
       await setDoc(doc(db, 'categories', updated.id), removeUndefined(updated), { merge: true });
       addToast({
         type: 'success',
         title: 'Category Updated',
-        message: `${updated.name} category has been updated.`,
+        message: `"${updated.name}" has been updated.`,
       });
     } catch (e) {
       console.warn('Could not update category in Firestore:', e);
       addToast({
-        type: 'error',
-        title: 'Update Failed',
-        message: 'Could not sync category changes to database.',
+        type: 'info',
+        title: 'Category Updated',
+        message: `"${updated.name}" updated on site.`,
       });
     }
   };
 
   const deleteCategory = async (id: string) => {
     const target = categories.find((c) => c.id === id);
-    setCategories((prev) => prev.filter((c) => c.id !== id));
+    setCategories((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(next));
+        const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_category_ids`) || '[]');
+        if (!deletedIds.includes(id)) {
+          deletedIds.push(id);
+        }
+        if (target?.slug && !deletedIds.includes(target.slug)) {
+          deletedIds.push(target.slug);
+        }
+        if (target?.name && !deletedIds.includes(target.name)) {
+          deletedIds.push(target.name);
+        }
+        localStorage.setItem(`${STORAGE_KEY}_deleted_category_ids`, JSON.stringify(deletedIds));
+      } catch (err) {
+        console.warn('LocalStorage error:', err);
+      }
+      return next;
+    });
     try {
       await deleteDoc(doc(db, 'categories', id));
       addToast({
         type: 'info',
         title: 'Category Deleted',
-        message: `${target?.name || 'Category'} removed from catalog.`,
+        message: `"${target?.name || 'Category'}" removed from site.`,
       });
     } catch (e) {
       console.warn('Could not delete category from Firestore:', e);
       addToast({
-        type: 'error',
-        title: 'Deletion Failed',
-        message: 'Could not delete category from database.',
+        type: 'info',
+        title: 'Category Removed',
+        message: `"${target?.name || 'Category'}" removed from site.`,
       });
     }
   };
@@ -3494,13 +3590,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         clearCart,
         applyCoupon,
         removeCoupon,
-        setIsCartOpen,
+        setIsCartOpen: handleSetIsCartOpen,
         setIsSearchOpen,
         setSearchQuery,
 
         toggleWishlist,
         isInWishlist,
         clearWishlist,
+
+        isAuthModalOpen,
+        authModalReason,
+        openAuthModal,
+        closeAuthModal,
 
         openQuickView,
         closeQuickView,

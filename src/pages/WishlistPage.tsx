@@ -1,5 +1,5 @@
-import React from 'react';
-import { Heart, ShoppingBag, Trash2, ArrowRight, Sparkles } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { Heart, ShoppingBag, Trash2, ArrowRight, Sparkles, LogIn } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/common/ProductCard';
 import { ComboCard } from '../components/common/ComboCard';
@@ -9,7 +9,36 @@ interface WishlistPageProps {
 }
 
 export const WishlistPage: React.FC<WishlistPageProps> = ({ onNavigate }) => {
-  const { wishlist, products, combos, clearWishlist, addToCart, addToast } = useStore();
+  const { wishlist, products, combos, clearWishlist, addToCart, addToast, currentUser, openAuthModal } = useStore();
+
+  useEffect(() => {
+    if (!currentUser) {
+      openAuthModal('Please sign in to access your saved botanical wishlist.');
+    }
+  }, [currentUser, openAuthModal]);
+
+  if (!currentUser) {
+    return (
+      <div className="bg-[#F4FAF5] dark:bg-[#010a07] min-h-[70vh] flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-[#0a1f18] rounded-3xl p-8 sm:p-12 border border-emerald-900/10 dark:border-emerald-900/40 text-center max-w-md mx-auto space-y-4 shadow-sm">
+          <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/40 rounded-full flex items-center justify-center text-3xl mx-auto text-rose-500 border border-rose-100 dark:border-rose-900/40">
+            <Heart className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-emerald-950 dark:text-emerald-50">Sign In to View Wishlist</h2>
+          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+            Please sign in or create an account to view, save, and access your botanical combos and plants across all devices.
+          </p>
+          <button
+            onClick={() => openAuthModal('Please sign in to access your saved botanical wishlist.')}
+            className="w-full py-3 bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white rounded-full text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+          >
+            <LogIn className="w-4 h-4" />
+            <span>Sign In to Continue</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const savedProducts = products.filter((p) => wishlist.includes(p.id));
   const savedCombos = combos.filter((c) => wishlist.includes(c.id));
