@@ -268,7 +268,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Load persisted state or initial seed
   const [storeSettings, setStoreSettings] = useState<StoreSettings>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_settings`);
-    return saved ? JSON.parse(saved) : initialStoreSettings;
+    if (!saved) return initialStoreSettings;
+    try {
+      const parsed: StoreSettings = JSON.parse(saved);
+      if (!parsed.email || parsed.email === '7seasonsplants@gmail.com') {
+        parsed.email = 'mannaratharayil@gmail.com';
+      }
+      return { ...initialStoreSettings, ...parsed, email: parsed.email };
+    } catch {
+      return initialStoreSettings;
+    }
   });
 
   const [categories, setCategories] = useState<Category[]>(() => {
@@ -629,7 +638,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       async (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data() as StoreSettings;
-          setStoreSettings((prev) => ({ ...prev, ...data }));
+          if (!data.email || data.email === '7seasonsplants@gmail.com') {
+            data.email = 'mannaratharayil@gmail.com';
+            setDoc(doc(db, 'storeSettings', 'global'), { email: 'mannaratharayil@gmail.com' }, { merge: true }).catch(() => {});
+          }
+          setStoreSettings((prev) => ({ ...prev, ...data, email: data.email || 'mannaratharayil@gmail.com' }));
           localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(data));
         } else if (!seeded) {
           seeded = true;

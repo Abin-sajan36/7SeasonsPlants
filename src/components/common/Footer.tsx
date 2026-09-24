@@ -236,7 +236,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               {(() => {
                 const phone = storeSettings?.phone || '08848276403';
                 const whatsapp = storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403';
-                const email = storeSettings?.email || '7seasonsplants@gmail.com';
+                const email = storeSettings?.email || 'mannaratharayil@gmail.com';
                 const digits = whatsapp.replace(/[^0-9]/g, '');
                 const waNum = digits.startsWith('91') ? digits : digits.length === 10 ? `91${digits}` : digits;
 

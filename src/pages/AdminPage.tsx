@@ -289,7 +289,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     tagline: storeSettings?.tagline || 'Vibrant Plants & Curated Green Combos',
     parentNursery: storeSettings?.parentNursery || '7Seasons By Mannaratharayil Gardens LLP',
     phone: storeSettings?.phone || '08848276403',
-    email: storeSettings?.email || '7seasonsplants@gmail.com',
+    email: storeSettings?.email || 'mannaratharayil@gmail.com',
     whatsapp: storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403',
     whatsappNumber: storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403',
     instagram: storeSettings?.instagram || '@7seasonsplants',
@@ -332,7 +332,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         tagline: storeSettings.tagline || 'Vibrant Plants & Curated Green Combos',
         parentNursery: storeSettings.parentNursery || '7Seasons By Mannaratharayil Gardens LLP',
         phone: storeSettings.phone || '08848276403',
-        email: storeSettings.email || '7seasonsplants@gmail.com',
+        email: storeSettings.email || 'mannaratharayil@gmail.com',
         whatsapp: storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403',
         whatsappNumber: storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403',
         instagram: storeSettings.instagram || '@7seasonsplants',
@@ -407,7 +407,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       tagline: storeSettings.tagline || 'Vibrant Plants & Curated Green Combos',
       parentNursery: storeSettings.parentNursery || '7Seasons By Mannaratharayil Gardens LLP',
       phone: storeSettings.phone || '08848276403',
-      email: storeSettings.email || '7seasonsplants@gmail.com',
+      email: storeSettings.email || 'mannaratharayil@gmail.com',
       whatsapp: storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403',
       whatsappNumber: storeSettings.whatsapp || storeSettings.whatsappNumber || '+91 88482 76403',
       instagram: storeSettings.instagram || '@7seasonsplants',
@@ -3165,7 +3165,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         setSettingsForm((prev) => ({ ...prev, email: e.target.value }));
                         setIsSettingsDirty(true);
                       }}
-                      placeholder="7seasonsplants@gmail.com"
+                      placeholder="mannaratharayil@gmail.com"
                       className="w-full px-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-semibold transition-colors"
                     />
                   </div>

@@ -210,9 +210,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
             </button>
           </div>
           <div className="hidden lg:flex items-center gap-3 shrink-0 text-[11px] font-medium text-emerald-100 pr-2">
-            <a href="mailto:mannaratharayil@gmail.com" className="hover:text-white flex items-center gap-1 transition-colors">
+            <a href={`mailto:${storeSettings?.email || 'mannaratharayil@gmail.com'}`} className="hover:text-white flex items-center gap-1 transition-colors">
               <Mail className="w-3 h-3 text-emerald-300" />
-              <span>mannaratharayil@gmail.com</span>
+              <span>{storeSettings?.email || 'mannaratharayil@gmail.com'}</span>
             </a>
             <span className="opacity-40">•</span>
             <button
@@ -800,11 +800,11 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
 
                 <div className="space-y-1.5 pt-2 border-t border-emerald-900/10 dark:border-emerald-900/40 text-[11px]">
                   <a
-                    href="mailto:mannaratharayil@gmail.com"
+                    href={`mailto:${storeSettings?.email || 'mannaratharayil@gmail.com'}`}
                     className="flex items-center gap-2 text-emerald-900 dark:text-emerald-200 hover:text-emerald-700 font-medium break-all"
                   >
                     <Mail className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>mannaratharayil@gmail.com</span>
+                    <span>{storeSettings?.email || 'mannaratharayil@gmail.com'}</span>
                   </a>
 
                   <a

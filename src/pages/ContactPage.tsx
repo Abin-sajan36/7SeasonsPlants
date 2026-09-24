@@ -48,7 +48,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ initialParam, onNaviga
     }
   }, [initialParam]);
 
-  const companyEmail = 'mannaratharayil@gmail.com';
+  const companyEmail = storeSettings?.email || 'mannaratharayil@gmail.com';
   const helplinePhone = storeSettings?.phone || '08848276403';
   const whatsappNum = storeSettings?.whatsapp || storeSettings?.whatsappNumber || '+91 88482 76403';
   const nurseryName = storeSettings?.parentNursery || 'Mannaratharayil Gardens LLP';

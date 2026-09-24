@@ -23,6 +23,11 @@ import {
   ChevronDown,
   ChevronUp,
   Search,
+  HardDrive,
+  FolderUp,
+  Loader2,
+  Camera,
+  RefreshCw,
 } from 'lucide-react';
 import { PlantCombo, ComboItem, Product } from '../../types';
 import { ImageUploadPicker, compressImageFile } from './ImageUploadPicker';
@@ -48,40 +53,42 @@ const DEFAULT_CATEGORIES = [
   'Rare & Exotic Bundles',
 ];
 
-const PRESET_ACCESSORIES: Array<{
-  name: string;
-  itemType: ComboItem['itemType'];
-  priceShare: number;
-  image: string;
-  notes: string;
-}> = [
+const POPULAR_PLANT_PRESETS = [
   {
-    name: 'Matte Finish Planters with Drainage (Set of 3)',
-    itemType: 'pot',
-    priceShare: 249,
-    image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=400&q=80',
-    notes: 'Premium lightweight ceramic-finish pots with matching saucers',
+    name: 'Monstera Deliciosa (Swiss Cheese)',
+    image: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?auto=format&fit=crop&w=400&q=80',
+    notes: 'Botanical: Monstera deliciosa • Nursery potted specimen',
+    price: 349,
   },
   {
-    name: '7Seasons Illustrated Kerala Plant Care Handbook',
-    itemType: 'guide',
-    priceShare: 99,
-    image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80',
-    notes: 'Comprehensive Malayalam & English tropical plant guide',
+    name: 'Snake Plant (Sansevieria Laurentii)',
+    image: 'https://images.unsplash.com/photo-1593482892290-f54927ae1bf6?auto=format&fit=crop&w=400&q=80',
+    notes: 'Botanical: Sansevieria trifasciata • Air purifier',
+    price: 249,
   },
   {
-    name: '7Seasons Organic Bloom Booster Bio-Fertilizer (500g)',
-    itemType: 'fertilizer',
-    priceShare: 149,
-    image: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=400&q=80',
-    notes: '100% natural slow-release compost nutrient blend',
+    name: 'Golden Pothos / Ceylon Money Plant',
+    image: 'https://images.unsplash.com/photo-1617173944883-6ffbd35d584d?auto=format&fit=crop&w=400&q=80',
+    notes: 'Botanical: Epipremnum aureum • Lush hanging vine',
+    price: 199,
   },
   {
-    name: 'Pure Brass Botanical Water Mister',
-    itemType: 'accessory',
-    priceShare: 299,
-    image: 'https://images.unsplash.com/photo-1512428813834-c702c7702b78?auto=format&fit=crop&w=400&q=80',
-    notes: 'Fine-droplet misting nozzle for tropical humidity',
+    name: 'ZZ Plant (Zamioculcas Zamiifolia)',
+    image: 'https://images.unsplash.com/photo-1632207691143-643e2a9a9361?auto=format&fit=crop&w=400&q=80',
+    notes: 'Botanical: Zamioculcas zamiifolia • Ultra drought hardy',
+    price: 299,
+  },
+  {
+    name: 'Fiddle Leaf Fig (Ficus Lyrata)',
+    image: 'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=400&q=80',
+    notes: 'Botanical: Ficus lyrata • Statement architectural plant',
+    price: 399,
+  },
+  {
+    name: 'Peace Lily (Spathiphyllum Wallisii)',
+    image: 'https://images.unsplash.com/photo-1593691509543-c55fb32e7355?auto=format&fit=crop&w=400&q=80',
+    notes: 'Botanical: Spathiphyllum • White blooming air cleaner',
+    price: 249,
   },
 ];
 
@@ -181,8 +188,15 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
   const [plantSearchQuery, setPlantSearchQuery] = useState('');
   const [isAddPlantDropdownOpen, setIsAddPlantDropdownOpen] = useState(false);
 
-  // Custom Item Drawer/Form
+  // Custom Item Drawer/Form & Local Drive Upload States
   const [isAddingCustomItem, setIsAddingCustomItem] = useState(false);
+  const [customImageMode, setCustomImageMode] = useState<'upload' | 'url' | 'presets'>('upload');
+  const [customLocalFileName, setCustomLocalFileName] = useState<string | null>(null);
+  const [isUploadingCustomImage, setIsUploadingCustomImage] = useState(false);
+  const [customImageError, setCustomImageError] = useState<string | null>(null);
+  const [isDraggingOverCustomDropzone, setIsDraggingOverCustomDropzone] = useState(false);
+  const customFileInputRef = React.useRef<HTMLInputElement>(null);
+
   const [customItemForm, setCustomItemForm] = useState<{
     name: string;
     itemType: ComboItem['itemType'];
@@ -194,10 +208,52 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
     name: '',
     itemType: 'plant',
     quantity: 1,
-    priceShare: 199,
-    image: 'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=400&q=80',
+    priceShare: 249,
+    image: '',
     notes: '',
   });
+
+  // Handle local image file selection from local drive for custom plant / item
+  const handleCustomPlantFileSelect = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!file.type.startsWith('image/')) {
+      setCustomImageError('Please select a valid image file (JPG, PNG, WEBP, HEIC).');
+      return;
+    }
+    setIsUploadingCustomImage(true);
+    setCustomImageError(null);
+    try {
+      const dataUrl = await compressImageFile(file);
+      setCustomItemForm((prev) => ({ ...prev, image: dataUrl }));
+      setCustomLocalFileName(file.name);
+    } catch (err: any) {
+      console.error('Failed to compress custom plant image:', err);
+      setCustomImageError('Failed to process image file from local drive.');
+    } finally {
+      setIsUploadingCustomImage(false);
+      if (customFileInputRef.current) {
+        customFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleCancelCustomItem = () => {
+    setIsAddingCustomItem(false);
+    setCustomLocalFileName(null);
+    setCustomImageError(null);
+    setIsUploadingCustomImage(false);
+    setIsDraggingOverCustomDropzone(false);
+    setCustomImageMode('upload');
+    setCustomItemForm({
+      name: '',
+      itemType: 'plant',
+      quantity: 1,
+      priceShare: 249,
+      image: '',
+      notes: '',
+    });
+  };
 
   // Calculate stats
   const calculatedItemsTotalValue = items.reduce(
@@ -251,45 +307,32 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
     setPlantSearchQuery('');
   };
 
-  // Add preset accessory to combo
-  const handleAddPresetAccessory = (preset: (typeof PRESET_ACCESSORIES)[0]) => {
-    const newItem: ComboItem = {
-      productId: `acc-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      productName: preset.name,
-      quantity: 1,
-      image: preset.image,
-      itemType: preset.itemType,
-      priceShare: preset.priceShare,
-      notes: preset.notes,
-    };
-    setItems([...items, newItem]);
-  };
-
   // Add custom item
   const handleSaveCustomItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customItemForm.name.trim()) return;
 
+    const fallbackImg =
+      customItemForm.itemType === 'plant'
+        ? 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?auto=format&fit=crop&w=400&q=80'
+        : customItemForm.itemType === 'pot'
+        ? 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=400&q=80'
+        : customItemForm.itemType === 'fertilizer'
+        ? 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=400&q=80'
+        : 'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=400&q=80';
+
     const newItem: ComboItem = {
       productId: `item-${Date.now()}`,
       productName: customItemForm.name.trim(),
       quantity: Number(customItemForm.quantity) || 1,
-      image: customItemForm.image || 'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=400&q=80',
+      image: customItemForm.image || fallbackImg,
       itemType: customItemForm.itemType,
       priceShare: Number(customItemForm.priceShare) || 0,
       notes: customItemForm.notes.trim() || undefined,
     };
 
     setItems([...items, newItem]);
-    setIsAddingCustomItem(false);
-    setCustomItemForm({
-      name: '',
-      itemType: 'plant',
-      quantity: 1,
-      priceShare: 199,
-      image: 'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=400&q=80',
-      notes: '',
-    });
+    handleCancelCustomItem();
   };
 
   // Remove item from combo
@@ -545,81 +588,141 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
 
                       <div className="max-h-60 overflow-y-auto divide-y divide-[#4A3E31]/10 space-y-1">
                         {filteredCatalogProducts.length === 0 ? (
-                          <p className="text-xs text-[#736758] p-3 text-center">No plants match your search.</p>
+                          <div className="p-4 text-center space-y-2">
+                            <p className="text-xs text-[#736758]">No plants match "{plantSearchQuery}".</p>
+                            {plantSearchQuery.trim() && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsAddingCustomItem(true);
+                                  setCustomItemForm({
+                                    name: plantSearchQuery.trim(),
+                                    itemType: 'plant',
+                                    quantity: 1,
+                                    priceShare: 249,
+                                    image: '',
+                                    notes: '',
+                                  });
+                                  setCustomImageMode('upload');
+                                  setCustomLocalFileName(null);
+                                  setCustomImageError(null);
+                                  setIsAddPlantDropdownOpen(false);
+                                  setPlantSearchQuery('');
+                                }}
+                                className="w-full py-2 px-3 bg-[#7D8F69] hover:bg-[#627252] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Add "{plantSearchQuery.trim()}" as Custom Plant</span>
+                              </button>
+                            )}
+                          </div>
                         ) : (
-                          filteredCatalogProducts.map((prod) => (
-                            <button
-                              key={prod.id}
-                              type="button"
-                              onClick={() => handleAddProductToCombo(prod)}
-                              className="w-full p-2 hover:bg-[#EBF0E6] rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer group"
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <img
-                                  src={prod.images?.[0]}
-                                  alt={prod.name}
-                                  className="w-9 h-9 rounded-lg object-cover bg-[#FAF9F6] shrink-0"
-                                />
-                                <div>
-                                  <p className="font-bold text-xs text-[#4A3E31] group-hover:text-[#7D8F69]">
-                                    {prod.name}
-                                  </p>
-                                  <p className="text-[10px] text-[#736758] italic">{prod.botanicalName}</p>
+                          <>
+                            {filteredCatalogProducts.map((prod) => (
+                              <button
+                                key={prod.id}
+                                type="button"
+                                onClick={() => handleAddProductToCombo(prod)}
+                                className="w-full p-2 hover:bg-[#EBF0E6] rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer group"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <img
+                                    src={prod.images?.[0]}
+                                    alt={prod.name}
+                                    className="w-9 h-9 rounded-lg object-cover bg-[#FAF9F6] shrink-0"
+                                  />
+                                  <div>
+                                    <p className="font-bold text-xs text-[#4A3E31] group-hover:text-[#7D8F69]">
+                                      {prod.name}
+                                    </p>
+                                    <p className="text-[10px] text-[#736758] italic">{prod.botanicalName}</p>
+                                  </div>
                                 </div>
+                                <div className="text-right">
+                                  <span className="font-bold text-xs text-[#4A3E31]">₹{prod.price}</span>
+                                  <span className="text-[10px] text-[#7D8F69] block font-bold">+ Add</span>
+                                </div>
+                              </button>
+                            ))}
+                            {plantSearchQuery.trim() && (
+                              <div className="pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsAddingCustomItem(true);
+                                    setCustomItemForm({
+                                      name: plantSearchQuery.trim(),
+                                      itemType: 'plant',
+                                      quantity: 1,
+                                      priceShare: 249,
+                                      image: '',
+                                      notes: '',
+                                    });
+                                    setCustomImageMode('upload');
+                                    setCustomLocalFileName(null);
+                                    setCustomImageError(null);
+                                    setIsAddPlantDropdownOpen(false);
+                                    setPlantSearchQuery('');
+                                  }}
+                                  className="w-full py-1.5 px-3 bg-[#EBF0E6] hover:bg-[#dbe7d3] text-emerald-900 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Add "{plantSearchQuery.trim()}" as Custom Plant</span>
+                                </button>
                               </div>
-                              <div className="text-right">
-                                <span className="font-bold text-xs text-[#4A3E31]">₹{prod.price}</span>
-                                <span className="text-[10px] text-[#7D8F69] block font-bold">+ Add</span>
-                              </div>
-                            </button>
-                          ))
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* 2. Add Custom Item (Pots, Soil, Accessories) */}
+                {/* 2. Add Custom Item (Custom Plant, Pots, Soil, Accessories) */}
                 <button
                   type="button"
-                  onClick={() => setIsAddingCustomItem(true)}
-                  className="px-4 py-2 bg-[#FAF9F6] hover:bg-[#EAE6DB] text-[#4A3E31] rounded-full text-xs font-bold border border-[#4A3E31]/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => {
+                    setIsAddingCustomItem(true);
+                    setCustomItemForm({
+                      name: '',
+                      itemType: 'plant',
+                      quantity: 1,
+                      priceShare: 249,
+                      image: '',
+                      notes: '',
+                    });
+                    setCustomImageMode('upload');
+                    setCustomLocalFileName(null);
+                    setCustomImageError(null);
+                  }}
+                  className="px-4 py-2 bg-[#FAF9F6] hover:bg-[#EAE6DB] text-[#4A3E31] rounded-full text-xs font-bold border border-[#4A3E31]/20 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Custom Accessory / Planter</span>
+                  <Plus className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>+ Add Custom Plant / Item</span>
                 </button>
-              </div>
-
-              {/* Quick Preset Accessories Chips */}
-              <div className="p-3 bg-white rounded-2xl border border-[#4A3E31]/10 space-y-2">
-                <span className="text-[11px] font-bold text-[#4A3E31] flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#C5A082]" />
-                  <span>Quick-Add Popular Nursery Companions:</span>
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {PRESET_ACCESSORIES.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleAddPresetAccessory(preset)}
-                      className="px-3 py-1.5 bg-[#FAF9F6] hover:bg-[#EBF0E6] text-[#4A3E31] rounded-xl text-xs font-semibold border border-[#4A3E31]/15 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                    >
-                      <span>+ {preset.name}</span>
-                      <span className="text-[10px] text-[#7D8F69] font-bold">(₹{preset.priceShare})</span>
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Custom Item Form Modal / Drawer if open */}
               {isAddingCustomItem && (
-                <div className="p-4 sm:p-5 bg-white rounded-2xl border-2 border-[#7D8F69] space-y-4 shadow-sm animate-in fade-in">
-                  <div className="flex items-center justify-between border-b border-[#4A3E31]/10 pb-2">
-                    <h4 className="font-bold text-xs text-[#4A3E31]">Add Custom Item to Bundle</h4>
+                <div className="p-4 sm:p-5 bg-white rounded-2xl border-2 border-[#7D8F69] space-y-4 shadow-md animate-in fade-in">
+                  <div className="flex items-center justify-between border-b border-[#4A3E31]/10 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-[#EBF0E6] flex items-center justify-center text-[#7D8F69]">
+                        <Leaf className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs sm:text-sm text-[#4A3E31]">
+                          Add Custom Plant or Item to Bundle
+                        </h4>
+                        <p className="text-[11px] text-[#736758]">
+                          Upload plant photos directly from your local drive or select curated nursery specimens.
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setIsAddingCustomItem(false)}
-                      className="text-gray-400 hover:text-gray-700 text-xs"
+                      onClick={handleCancelCustomItem}
+                      className="text-gray-400 hover:text-gray-700 text-xs px-2 py-1 rounded-lg hover:bg-gray-100 cursor-pointer"
                     >
                       ✕ Cancel
                     </button>
@@ -627,7 +730,9 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                     <div className="sm:col-span-2">
-                      <label className="font-bold text-[#4A3E31] block mb-1">Item Title *</label>
+                      <label className="font-bold text-[#4A3E31] block mb-1">
+                        Plant / Item Title *
+                      </label>
                       <input
                         type="text"
                         required
@@ -635,28 +740,29 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                         onChange={(e) =>
                           setCustomItemForm({ ...customItemForm, name: e.target.value })
                         }
-                        placeholder="e.g. Ceramic Planter, Coco-Peat Block 1kg"
-                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden"
+                        placeholder="e.g. Variegated Monstera Albo, 6-inch Terracotta Planter"
+                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden focus:bg-white focus:border-[#7D8F69]"
                       />
                     </div>
 
                     <div>
-                      <label className="font-bold text-[#4A3E31] block mb-1">Item Type</label>
+                      <label className="font-bold text-[#4A3E31] block mb-1">Item Category / Type</label>
                       <select
                         value={customItemForm.itemType}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const newType = e.target.value as ComboItem['itemType'];
                           setCustomItemForm({
                             ...customItemForm,
-                            itemType: e.target.value as ComboItem['itemType'],
-                          })
-                        }
-                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden font-semibold"
+                            itemType: newType,
+                          });
+                        }}
+                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden font-semibold focus:bg-white focus:border-[#7D8F69]"
                       >
-                        <option value="plant">Plant Specimen</option>
-                        <option value="pot">Planter / Pot</option>
-                        <option value="fertilizer">Fertilizer / Soil</option>
-                        <option value="guide">Care Guide Handbook</option>
-                        <option value="accessory">Accessory / Tool</option>
+                        <option value="plant">🌿 Plant Specimen</option>
+                        <option value="pot">🪴 Planter / Pot</option>
+                        <option value="fertilizer">🧪 Fertilizer / Soil</option>
+                        <option value="guide">📖 Care Guide Handbook</option>
+                        <option value="accessory">✂️ Accessory / Tool</option>
                       </select>
                     </div>
 
@@ -672,7 +778,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                             quantity: Number(e.target.value),
                           })
                         }
-                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden"
+                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden focus:bg-white focus:border-[#7D8F69]"
                       />
                     </div>
 
@@ -688,38 +794,311 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                             priceShare: Number(e.target.value),
                           })
                         }
-                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden"
+                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden focus:bg-white focus:border-[#7D8F69]"
                       />
                     </div>
 
                     <div>
-                      <label className="font-bold text-[#4A3E31] block mb-1">Image URL / Data</label>
+                      <label className="font-bold text-[#4A3E31] block mb-1">
+                        Botanical Name / Notes (Optional)
+                      </label>
                       <input
                         type="text"
-                        value={customItemForm.image}
+                        value={customItemForm.notes}
                         onChange={(e) =>
-                          setCustomItemForm({ ...customItemForm, image: e.target.value })
+                          setCustomItemForm({ ...customItemForm, notes: e.target.value })
                         }
-                        placeholder="https://..."
-                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden"
+                        placeholder="e.g. Botanical: Monstera deliciosa variegata"
+                        className="w-full px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden focus:bg-white focus:border-[#7D8F69]"
                       />
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-2">
+                  {/* Image Upload from Local Drive or URL */}
+                  <div className="space-y-2 pt-1 border-t border-[#4A3E31]/10">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <label className="font-bold text-[#4A3E31] text-xs flex items-center gap-1.5">
+                        <HardDrive className="w-3.5 h-3.5 text-[#7D8F69]" />
+                        <span>Item Image (Local Drive Upload) *</span>
+                      </label>
+
+                      {/* Source Mode Switcher */}
+                      <div className="flex items-center gap-1 bg-[#FAF9F6] p-1 rounded-xl border border-[#4A3E31]/15">
+                        <button
+                          type="button"
+                          onClick={() => setCustomImageMode('upload')}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                            customImageMode === 'upload'
+                              ? 'bg-[#7D8F69] text-white shadow-2xs'
+                              : 'text-[#4A3E31] hover:bg-gray-100'
+                          }`}
+                        >
+                          <HardDrive className="w-3 h-3" />
+                          <span>Upload from Local Drive</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCustomImageMode('url')}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                            customImageMode === 'url'
+                              ? 'bg-[#7D8F69] text-white shadow-2xs'
+                              : 'text-[#4A3E31] hover:bg-gray-100'
+                          }`}
+                        >
+                          <ImageIcon className="w-3 h-3" />
+                          <span>Image URL</span>
+                        </button>
+                        {customItemForm.itemType === 'plant' && (
+                          <button
+                            type="button"
+                            onClick={() => setCustomImageMode('presets')}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                              customImageMode === 'presets'
+                                ? 'bg-[#7D8F69] text-white shadow-2xs'
+                                : 'text-[#4A3E31] hover:bg-gray-100'
+                            }`}
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>Nursery Presets</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {customImageError && (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{customImageError}</span>
+                      </div>
+                    )}
+
+                    {/* Mode 1: Local Drive Upload with Drag & Drop */}
+                    {customImageMode === 'upload' && (
+                      <div>
+                        <input
+                          ref={customFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleCustomPlantFileSelect(e.target.files)}
+                        />
+
+                        {customItemForm.image ? (
+                          <div className="p-3 bg-[#FAF9F6] rounded-2xl border border-[#4A3E31]/15 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <img
+                                src={customItemForm.image}
+                                alt="Custom plant preview"
+                                className="w-16 h-16 rounded-xl object-cover border border-[#4A3E31]/15 shadow-2xs bg-white shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md mb-1">
+                                  <Check className="w-3 h-3" />
+                                  <span>Image Ready from Local Drive</span>
+                                </span>
+                                <p className="text-xs font-semibold text-[#4A3E31] truncate">
+                                  {customLocalFileName || 'Custom local drive photo attached'}
+                                </p>
+                                <p className="text-[10px] text-[#736758]">
+                                  Auto-compressed & ready to be stored with bundle
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => customFileInputRef.current?.click()}
+                                className="px-3 py-1.5 bg-white hover:bg-[#EAE6DB] text-[#4A3E31] rounded-xl text-xs font-bold border border-[#4A3E31]/20 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                              >
+                                <FolderUp className="w-3.5 h-3.5 text-[#7D8F69]" />
+                                <span>Change File</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCustomItemForm({ ...customItemForm, image: '' });
+                                  setCustomLocalFileName(null);
+                                }}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                                title="Remove Image"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setIsDraggingOverCustomDropzone(true);
+                            }}
+                            onDragLeave={(e) => {
+                              e.preventDefault();
+                              setIsDraggingOverCustomDropzone(false);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setIsDraggingOverCustomDropzone(false);
+                              handleCustomPlantFileSelect(e.dataTransfer.files);
+                            }}
+                            onClick={() => customFileInputRef.current?.click()}
+                            className={`border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all ${
+                              isDraggingOverCustomDropzone
+                                ? 'border-[#7D8F69] bg-[#EBF0E6]'
+                                : 'border-[#4A3E31]/25 bg-[#FAF9F6] hover:bg-[#EAE6DB]/40'
+                            }`}
+                          >
+                            {isUploadingCustomImage ? (
+                              <div className="py-2 flex flex-col items-center justify-center gap-2">
+                                <Loader2 className="w-8 h-8 text-[#7D8F69] animate-spin" />
+                                <p className="font-bold text-xs text-[#4A3E31]">
+                                  Compressing & optimizing image from your local drive...
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center gap-1.5">
+                                <div className="w-12 h-12 rounded-full bg-[#EBF0E6] flex items-center justify-center text-[#7D8F69] shadow-2xs mb-1">
+                                  <HardDrive className="w-6 h-6" />
+                                </div>
+                                <p className="font-bold text-xs text-[#4A3E31]">
+                                  Click to upload image from your local drive
+                                </p>
+                                <p className="text-[11px] text-[#736758]">
+                                  or drag and drop your photo directly from your computer / phone
+                                </p>
+                                <div className="flex items-center gap-2 mt-1 text-[10px] text-[#736758]">
+                                  <span className="px-2 py-0.5 bg-white rounded-md border border-[#4A3E31]/10 font-semibold">
+                                    JPG, PNG, WEBP, HEIC
+                                  </span>
+                                  <span>•</span>
+                                  <span>Auto-compressed for fast loading</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    customFileInputRef.current?.click();
+                                  }}
+                                  className="mt-2.5 px-4 py-1.5 bg-[#7D8F69] hover:bg-[#627252] text-white rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                                >
+                                  <FolderUp className="w-3.5 h-3.5" />
+                                  <span>Browse Local Files</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Mode 2: External Image URL */}
+                    {customImageMode === 'url' && (
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={customItemForm.image}
+                            onChange={(e) =>
+                              setCustomItemForm({ ...customItemForm, image: e.target.value })
+                            }
+                            placeholder="https://images.unsplash.com/... or hosted web link"
+                            className="flex-1 px-3 py-2 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-xl border border-[#4A3E31]/15 outline-hidden text-xs focus:bg-white focus:border-[#7D8F69]"
+                          />
+                          {customItemForm.image && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomItemForm({ ...customItemForm, image: '' })}
+                              className="px-3 py-2 text-gray-500 hover:text-gray-800 text-xs font-bold rounded-xl border border-gray-200"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        {customItemForm.image && (
+                          <div className="flex items-center gap-3 p-2 bg-[#FAF9F6] rounded-xl border border-[#4A3E31]/10">
+                            <img
+                              src={customItemForm.image}
+                              alt="URL preview"
+                              className="w-12 h-12 rounded-lg object-cover bg-white"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src =
+                                  'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=400&q=80';
+                              }}
+                            />
+                            <span className="text-[11px] text-[#736758] truncate">
+                              Live image link preview
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Mode 3: Nursery Specimen Presets */}
+                    {customImageMode === 'presets' && customItemForm.itemType === 'plant' && (
+                      <div className="space-y-2">
+                        <p className="text-[11px] text-[#736758]">
+                          Select a popular nursery specimen photo to populate this custom plant:
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {POPULAR_PLANT_PRESETS.map((preset, pIdx) => {
+                            const isSelected = customItemForm.image === preset.image;
+                            return (
+                              <button
+                                key={pIdx}
+                                type="button"
+                                onClick={() => {
+                                  setCustomItemForm({
+                                    ...customItemForm,
+                                    name: customItemForm.name.trim() ? customItemForm.name : preset.name,
+                                    image: preset.image,
+                                    notes: customItemForm.notes.trim() ? customItemForm.notes : preset.notes,
+                                    priceShare: customItemForm.priceShare || preset.price,
+                                  });
+                                  setCustomLocalFileName(`${preset.name} (Preset)`);
+                                }}
+                                className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'border-[#7D8F69] bg-[#EBF0E6]'
+                                    : 'border-[#4A3E31]/15 bg-[#FAF9F6] hover:bg-white'
+                                }`}
+                              >
+                                <img
+                                  src={preset.image}
+                                  alt={preset.name}
+                                  className="w-10 h-10 rounded-lg object-cover bg-white shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <p className="font-bold text-[11px] text-[#4A3E31] truncate">
+                                    {preset.name}
+                                  </p>
+                                  <span className="text-[10px] text-[#7D8F69] font-bold">
+                                    ₹{preset.price}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-[#4A3E31]/10">
                     <button
                       type="button"
-                      onClick={() => setIsAddingCustomItem(false)}
-                      className="px-4 py-1.5 bg-[#FAF9F6] text-[#4A3E31] rounded-full text-xs font-bold border border-[#4A3E31]/20 cursor-pointer"
+                      onClick={handleCancelCustomItem}
+                      className="px-4 py-2 bg-[#FAF9F6] hover:bg-[#EAE6DB] text-[#4A3E31] rounded-full text-xs font-bold border border-[#4A3E31]/20 cursor-pointer transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handleSaveCustomItem}
-                      className="px-4 py-1.5 bg-[#7D8F69] text-white rounded-full text-xs font-bold cursor-pointer"
+                      className="px-5 py-2 bg-[#7D8F69] hover:bg-[#627252] text-white rounded-full text-xs font-bold cursor-pointer transition-colors shadow-xs flex items-center gap-1.5"
                     >
-                      Add Item to Bundle
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Item to Bundle</span>
                     </button>
                   </div>
                 </div>
@@ -806,6 +1185,23 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                                 placeholder="Notes (e.g. 5-inch nursery pot)"
                                 className="text-[11px] text-[#736758] bg-transparent hover:bg-[#EAE6DB]/40 px-1 py-0.5 rounded-sm border-b border-transparent focus:border-[#7D8F69] outline-hidden w-full max-w-sm"
                               />
+                              <label
+                                title="Upload new photo for this item from local drive"
+                                className="inline-flex items-center gap-1 text-[10px] text-[#7D8F69] hover:text-[#586846] font-bold bg-[#EBF0E6] hover:bg-[#dbe7d1] px-2 py-0.5 rounded-md cursor-pointer transition-colors shrink-0 shadow-2xs"
+                              >
+                                <HardDrive className="w-2.5 h-2.5" />
+                                <span>Change Photo</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                      handleUploadItemImage(idx, e.target.files[0]);
+                                    }
+                                  }}
+                                />
+                              </label>
                             </div>
                           </div>
                         </div>
