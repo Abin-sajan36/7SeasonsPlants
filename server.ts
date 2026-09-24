@@ -19,6 +19,17 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Global CORS & Preflight handler to prevent 405 / CORS blocks in iFrames & previews
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 // Registration OTP cache
 interface StoredOtp {
   otp: string;
@@ -868,6 +879,34 @@ const handleCreateOrder = async (req: express.Request, res: express.Response) =>
 app.post("/api/create-order", handleCreateOrder);
 app.post("/api/razorpay/create-order", handleCreateOrder);
 
+// Provide informative GET endpoint so crawlers, preloads, or browser checks never trigger 405 Method Not Allowed
+const handleGetCreateOrder = (req: express.Request, res: express.Response) => {
+  res.json({
+    success: true,
+    status: "active",
+    endpoint: "/api/create-order",
+    instructions: "Send a POST request with JSON body { amount: number (in paise), currency?: 'INR' } to create a Razorpay payment order.",
+  });
+};
+app.get("/api/create-order", handleGetCreateOrder);
+app.get("/api/razorpay/create-order", handleGetCreateOrder);
+
+// Catch-all for any other HTTP method on create-order to prevent 405
+app.all("/api/create-order", (req, res) => {
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  res.status(200).json({
+    success: false,
+    error: `Method ${req.method} received. Please send a POST request with { amount, currency } to create an order.`,
+  });
+});
+app.all("/api/razorpay/create-order", (req, res) => {
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  res.status(200).json({
+    success: false,
+    error: `Method ${req.method} received. Please send a POST request with { amount, currency } to create an order.`,
+  });
+});
+
 // STEP 3: BACKEND - Verify Signature
 // Endpoint: POST /api/verify-payment (and /api/razorpay/verify-payment)
 const handleVerifyPayment = (req: express.Request, res: express.Response) => {
@@ -945,6 +984,32 @@ const handleVerifyPayment = (req: express.Request, res: express.Response) => {
 
 app.post("/api/verify-payment", handleVerifyPayment);
 app.post("/api/razorpay/verify-payment", handleVerifyPayment);
+
+const handleGetVerifyPayment = (req: express.Request, res: express.Response) => {
+  res.json({
+    success: true,
+    status: "active",
+    endpoint: "/api/verify-payment",
+    instructions: "Send a POST request with { razorpay_order_id, razorpay_payment_id, razorpay_signature } to verify cryptographic signature.",
+  });
+};
+app.get("/api/verify-payment", handleGetVerifyPayment);
+app.get("/api/razorpay/verify-payment", handleGetVerifyPayment);
+
+app.all("/api/verify-payment", (req, res) => {
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  res.status(200).json({
+    success: false,
+    error: `Method ${req.method} received. Please send a POST request with verification fields.`,
+  });
+});
+app.all("/api/razorpay/verify-payment", (req, res) => {
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  res.status(200).json({
+    success: false,
+    error: `Method ${req.method} received. Please send a POST request with verification fields.`,
+  });
+});
 
 // Smart botanical rule-based diagnosis generator with species profile intelligence
 function getFallbackPlantDiagnosis(plantName: string, symptoms: string, env: string) {
