@@ -197,6 +197,30 @@
         "Users can read and update their own settings document",
         "Admins can read and write all settings documents"
       ]
+    },
+    {
+      "name": "complaints",
+      "description": "Customer complaints and grievances sent to mannaratharayil@gmail.com",
+      "auth_dependency": "false",
+      "fields": [
+        { "name": "ticketId", "type": "string" },
+        { "name": "customerName", "type": "string" },
+        { "name": "customerEmail", "type": "string" },
+        { "name": "customerPhone", "type": "string" },
+        { "name": "orderNumber", "type": "string", "optional": true },
+        { "name": "category", "type": "string" },
+        { "name": "urgency", "type": "string" },
+        { "name": "description", "type": "string" },
+        { "name": "desiredResolution", "type": "string", "optional": true },
+        { "name": "photoAttachment", "type": "string", "optional": true },
+        { "name": "status", "type": "string" },
+        { "name": "companyEmail", "type": "string" },
+        { "name": "createdAt", "type": "timestamp" }
+      ],
+      "access_patterns": [
+        "Anyone can submit a complaint",
+        "Admins can read, update, and resolve all complaints"
+      ]
     }
   ]
 }

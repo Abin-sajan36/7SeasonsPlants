@@ -92,5 +92,9 @@ service cloud.firestore {
     match /storeSettings/{settingId} {
       allow read, write: if true;
     }
+
+    match /complaints/{complaintId} {
+      allow read, write: if true;
+    }
   }
 }

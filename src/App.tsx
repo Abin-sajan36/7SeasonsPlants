@@ -184,7 +184,7 @@ const AppContent: React.FC = () => {
         return <AboutPage onNavigate={handleNavigate} />;
 
       case 'contact':
-        return <ContactPage onNavigate={handleNavigate} />;
+        return <ContactPage initialParam={viewParam} onNavigate={handleNavigate} />;
 
       default:
         return <HomePage onNavigate={handleNavigate} />;

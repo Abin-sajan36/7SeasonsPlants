@@ -19,7 +19,7 @@ export const initialStoreSettings: StoreSettings = {
   tagline: 'Vibrant Plants & Curated Green Combos',
   parentNursery: '7Seasons By Mannaratharayil Gardens LLP',
   phone: '08848276403',
-  email: '7seasonsplants@gmail.com',
+  email: 'mannaratharayil@gmail.com',
   whatsapp: '+91 88482 76403',
   instagram: '@7seasonsplants',
   address: 'Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India',
@@ -39,6 +39,7 @@ export const initialStoreSettings: StoreSettings = {
     blog: true,
     trackOrder: true,
     wishlist: true,
+    contact: true,
   },
 };
 

@@ -15,6 +15,8 @@ import {
   RefreshCw,
   Search,
   Eye,
+  EyeOff,
+  CreditCard,
   Lock,
   Copy,
   Leaf,
@@ -26,6 +28,7 @@ import {
   LogOut,
   KeyRound,
   AlertCircle,
+  AlertTriangle,
   Calendar,
   Phone,
   Mail,
@@ -93,8 +96,84 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     importOrders,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'categories' | 'orders' | 'offline-orders' | 'accounts' | 'users' | 'settings' | 'ai-tools'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'categories' | 'orders' | 'offline-orders' | 'accounts' | 'users' | 'complaints' | 'settings' | 'ai-tools'>('analytics');
   
+  const [complaintsList, setComplaintsList] = useState<any[]>([]);
+  const [loadingComplaints, setLoadingComplaints] = useState(false);
+
+  const fetchComplaints = async () => {
+    try {
+      setLoadingComplaints(true);
+      const res = await fetch('/api/complaints');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.complaints)) {
+        setComplaintsList(data.complaints);
+      }
+    } catch (err) {
+      console.error('Error fetching complaints:', err);
+    } finally {
+      setLoadingComplaints(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchComplaints();
+  }, []);
+
+  // Razorpay Gateway Admin State
+  const [razorpayKeyId, setRazorpayKeyId] = useState('rzp_test_TfQpwvQOSGYe9b');
+  const [razorpayKeySecret, setRazorpayKeySecret] = useState('kYvN6D3539sjzWB8p8UNO7HR');
+  const [showRazorpaySecret, setShowRazorpaySecret] = useState(false);
+  const [razorpayStatus, setRazorpayStatus] = useState<{ testing: boolean; message: string; valid?: boolean } | null>(null);
+  const [savingRazorpay, setSavingRazorpay] = useState(false);
+
+  const testRazorpayConnection = async (keyIdToTest?: string, secretToTest?: string) => {
+    try {
+      setRazorpayStatus({ testing: true, message: 'Verifying credentials with Razorpay API...' });
+      const res = await fetch('/api/razorpay/test-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyId: (keyIdToTest || razorpayKeyId).trim(),
+          keySecret: (secretToTest || razorpayKeySecret).trim(),
+        }),
+      });
+      const data = await res.json();
+      setRazorpayStatus({ testing: false, message: data.message, valid: data.valid });
+    } catch (e: any) {
+      setRazorpayStatus({ testing: false, message: 'Connection test failed: ' + e.message, valid: false });
+    }
+  };
+
+  const saveRazorpayCredentials = async () => {
+    try {
+      setSavingRazorpay(true);
+      const res = await fetch('/api/razorpay/update-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyId: razorpayKeyId.trim(),
+          keySecret: razorpayKeySecret.trim(),
+        }),
+      });
+      const data = await res.json();
+      setRazorpayStatus({ testing: false, message: data.message, valid: data.valid });
+      addToast({
+        title: data.valid ? 'Razorpay Connected' : 'Credentials Saved (Sandbox Fallback Active)',
+        message: data.message,
+        type: data.valid ? 'success' : 'info',
+      });
+    } catch (e: any) {
+      addToast({
+        title: 'Error Saving Credentials',
+        message: e.message,
+        type: 'error',
+      });
+    } finally {
+      setSavingRazorpay(false);
+    }
+  };
+
   // Guard restricted tabs: Non-super administrators cannot access accounts or user management tabs
   useEffect(() => {
     if (!isCurrentSuperAdmin && (activeTab === 'accounts' || activeTab === 'users')) {
@@ -924,6 +1003,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   },
                 ]
               : []),
+            { id: 'complaints', label: `Grievances (${complaintsList.length})`, icon: AlertTriangle },
             { id: 'ai-tools', label: 'Gemini AI Assistant', icon: Sparkles },
             { id: 'settings', label: 'Nursery Settings', icon: Settings },
           ].map((tab) => {
@@ -2692,6 +2772,130 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           </div>
         )}
 
+        {/* TAB: CUSTOMER GRIEVANCES & COMPLAINTS */}
+        {activeTab === 'complaints' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-800 flex items-center justify-center shrink-0 mt-0.5">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-emerald-950">
+                      Customer Grievances & Complaints
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      All grievances submitted by customers and forwarded to <strong>mannaratharayil@gmail.com</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={fetchComplaints}
+                    className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingComplaints ? 'animate-spin' : ''}`} />
+                    <span>Refresh Tickets</span>
+                  </button>
+                </div>
+              </div>
+
+              {loadingComplaints ? (
+                <div className="py-16 text-center text-xs text-gray-400">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-700" />
+                  Loading complaints from grievance desk...
+                </div>
+              ) : complaintsList.length === 0 ? (
+                <div className="py-16 text-center space-y-2">
+                  <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto opacity-70" />
+                  <h4 className="font-bold text-emerald-950 text-sm">No Pending Customer Complaints</h4>
+                  <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                    All transit packages are in good standing. New complaints will appear here and in mannaratharayil@gmail.com.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 mt-4">
+                  {complaintsList.map((complaint) => (
+                    <div key={complaint.id || complaint.ticketId} className="py-5 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-rose-100 text-rose-700">
+                            #{complaint.ticketId}
+                          </span>
+                          <span className="text-xs font-extrabold text-emerald-950">
+                            {complaint.category}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                            {complaint.urgency}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          {new Date(complaint.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs bg-gray-50 p-3 rounded-2xl">
+                        <div>
+                          <span className="text-gray-400 block text-[10px]">Customer:</span>
+                          <strong className="text-emerald-950">{complaint.customerName}</strong>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 block text-[10px]">Contact Info:</span>
+                          <span className="text-emerald-900 font-medium">{complaint.customerPhone}</span>
+                          <span className="text-gray-400 block text-[11px]">{complaint.customerEmail}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 block text-[10px]">Related Order:</span>
+                          <strong className="text-emerald-950">{complaint.orderNumber ? `#${complaint.orderNumber}` : 'None'}</strong>
+                          <span className="text-emerald-700 block text-[11px]">Resolution: {complaint.desiredResolution || 'Replacement'}</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-emerald-50/50 p-3.5 rounded-2xl border border-emerald-900/10 text-xs text-gray-800 space-y-1">
+                        <span className="font-bold text-[10px] text-emerald-800 uppercase tracking-wider block">Grievance Statement</span>
+                        <p className="whitespace-pre-wrap leading-relaxed">{complaint.description}</p>
+                      </div>
+
+                      {complaint.photoAttachment && (
+                        <div>
+                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Photo Evidence Attached</span>
+                          <img
+                            src={complaint.photoAttachment}
+                            alt="Damage proof"
+                            className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-xl border border-gray-200"
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <a
+                          href={`mailto:${complaint.customerEmail}?subject=Regarding%20Your%20Complaint%20Ticket%20%23${complaint.ticketId}&body=Dear%20${encodeURIComponent(complaint.customerName)},%0A%0AWe%20received%20your%20complaint%20ticket%20%23${complaint.ticketId}%20regarding%20${encodeURIComponent(complaint.category)}...`}
+                          className="px-3 py-1.5 bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-900 transition-colors"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Reply via Email</span>
+                        </a>
+
+                        <a
+                          href={`https://wa.me/${complaint.customerPhone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(complaint.customerName)},%20this%20is%20Mannaratharayil%20Gardens%20LLP%20regarding%20your%20complaint%20ticket%20%23${complaint.ticketId}.`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 bg-[#25D366] text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-[#20bd5a] transition-colors"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>Contact on WhatsApp</span>
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* TAB 5: NURSERY SETTINGS */}
         {activeTab === 'settings' && (
           <div
@@ -3079,6 +3283,115 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <span className="text-xs font-semibold text-gray-800">{menu.label}</span>
                     </label>
                   ))}
+                </div>
+              </div>
+
+              {/* SECTION 6: RAZORPAY PAYMENT GATEWAY SETTINGS & LIVE TESTER */}
+              <div className="pt-6 border-t border-gray-100 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-emerald-700" />
+                      Razorpay Payment Gateway Integration
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Standard web checkout credentials for UPI, Credit/Debit Cards, and NetBanking.
+                    </p>
+                  </div>
+
+                  <a
+                    href="https://dashboard.razorpay.com/#/app/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 font-bold bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100"
+                  >
+                    <span>Razorpay Dashboard</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+
+                <div className="bg-emerald-950/5 border border-emerald-900/10 rounded-2xl p-4 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="font-bold text-emerald-950 block mb-1">
+                        Razorpay Key ID
+                      </label>
+                      <input
+                        type="text"
+                        id="settings-razorpay-key-id"
+                        value={razorpayKeyId}
+                        onChange={(e) => setRazorpayKeyId(e.target.value)}
+                        placeholder="rzp_test_... or rzp_live_..."
+                        className="w-full px-3.5 py-2.5 bg-white text-gray-900 rounded-xl border border-gray-200 focus:border-emerald-600 outline-hidden font-mono text-xs font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-emerald-950 block mb-1">
+                        Razorpay Key Secret
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showRazorpaySecret ? 'text' : 'password'}
+                          id="settings-razorpay-key-secret"
+                          value={razorpayKeySecret}
+                          onChange={(e) => setRazorpayKeySecret(e.target.value)}
+                          placeholder="Key Secret from Razorpay Dashboard"
+                          className="w-full pl-3.5 pr-10 py-2.5 bg-white text-gray-900 rounded-xl border border-gray-200 focus:border-emerald-600 outline-hidden font-mono text-xs font-semibold"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRazorpaySecret(!showRazorpaySecret)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                        >
+                          {showRazorpaySecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {razorpayStatus && (
+                    <div
+                      className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
+                        razorpayStatus.testing
+                          ? 'bg-blue-50 border-blue-200 text-blue-800'
+                          : razorpayStatus.valid
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                          : 'bg-amber-50 border-amber-200 text-amber-900'
+                      }`}
+                    >
+                      <span className="text-sm">
+                        {razorpayStatus.testing ? '⏳' : razorpayStatus.valid ? '✅' : '⚠️'}
+                      </span>
+                      <p className="font-medium">{razorpayStatus.message}</p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => testRazorpayConnection()}
+                      disabled={razorpayStatus?.testing}
+                      className="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${razorpayStatus?.testing ? 'animate-spin' : ''}`} />
+                      <span>Test Connection</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={saveRazorpayCredentials}
+                      disabled={savingRazorpay}
+                      className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{savingRazorpay ? 'Saving...' : 'Save & Update Keys'}</span>
+                    </button>
+
+                    <span className="text-[11px] text-gray-500 ml-auto">
+                      HMAC-SHA256 Server Signature Verification Active
+                    </span>
+                  </div>
                 </div>
               </div>
 
