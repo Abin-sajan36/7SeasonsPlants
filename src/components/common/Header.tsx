@@ -199,29 +199,14 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
       {/* 1. TOP ANNOUNCEMENT BAR */}
       {storeSettings.announcementBarActive !== false && (storeSettings.announcementBarText || storeSettings.announcementText) && (
         <div className="overflow-hidden">
-        <div className="bg-gradient-to-r from-emerald-800 via-green-700 to-emerald-800 text-white px-4 py-1.5 text-xs font-semibold relative z-20 flex items-center justify-between gap-2 shadow-inner">
-          <div className="flex-1 text-center truncate">
+        <div className="bg-gradient-to-r from-emerald-800 via-green-700 to-emerald-800 text-white px-4 py-1.5 text-xs font-semibold relative z-20 flex items-center justify-center gap-2 shadow-inner">
+          <div className="text-center truncate">
             <span>{storeSettings.announcementBarText || storeSettings.announcementText}</span>
             <button
               onClick={() => onNavigate('combos')}
               className="hidden sm:inline-flex items-center text-amber-200 hover:text-white font-bold underline decoration-amber-300 ml-1 cursor-pointer transition-colors"
             >
               Explore Combos →
-            </button>
-          </div>
-          <div className="hidden lg:flex items-center gap-3 shrink-0 text-[11px] font-medium text-emerald-100 pr-2">
-            <a href={`mailto:${storeSettings?.email || 'mannaratharayil@gmail.com'}`} className="hover:text-white flex items-center gap-1 transition-colors">
-              <Mail className="w-3 h-3 text-emerald-300" />
-              <span>{storeSettings?.email || 'mannaratharayil@gmail.com'}</span>
-            </a>
-            <span className="opacity-40">•</span>
-            <button
-              type="button"
-              onClick={() => onNavigate('contact', 'tab:complaint')}
-              className="hover:text-amber-200 text-amber-300 font-bold underline flex items-center gap-1 cursor-pointer transition-colors"
-            >
-              <AlertTriangle className="w-3 h-3" />
-              <span>Raise Complaint</span>
             </button>
           </div>
         </div>
