@@ -1,0 +1,38 @@
+[
+  {
+    "id": "deal-today-monsoon-combo",
+    "title": "Monsoon Plant Combo Deal",
+    "subtitle": "Triple Outdoor & Balcony Bloom Collection with Free Fertilizer Pack",
+    "targetType": "combo",
+    "targetId": "combo-monsoon-balcony-garden",
+    "dealPrice": 499,
+    "originalPrice": 699,
+    "discountPercentage": 29,
+    "savings": 200,
+    "startDate": "2026-09-25",
+    "endDate": "2026-09-26",
+    "startTime": "00:00",
+    "endTime": "02:00",
+    "isActive": true,
+    "badge": "TODAY’S FLASH DEAL",
+    "bannerImage": "https://images.unsplash.com/photo-1508610048659-a06b669e3321?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "id": "deal-today-snake-plant",
+    "title": "Sansevieria Futura Superba Special",
+    "subtitle": "Our top-rated air-purifying bedroom plant at lowest price",
+    "targetType": "product",
+    "targetId": "prod-chrysanthemum-seedling",
+    "dealPrice": 279,
+    "originalPrice": 349,
+    "discountPercentage": 20,
+    "savings": 70,
+    "startDate": "2026-09-25",
+    "endDate": "2026-09-26",
+    "startTime": "00:00",
+    "endTime": "02:00",
+    "isActive": true,
+    "badge": "DAILY PLANT SPECIAL",
+    "bannerImage": "https://images.unsplash.com/photo-1593482892290-f54927ae1bf6?auto=format&fit=crop&w=1200&q=80"
+  }
+]

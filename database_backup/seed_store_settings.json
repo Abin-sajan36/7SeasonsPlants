@@ -1,0 +1,33 @@
+{
+  "businessName": "7Seasonsplants",
+  "tagline": "Vibrant Plants & Curated Green Combos",
+  "parentNursery": "7Seasons By Mannaratharayil Gardens LLP",
+  "phone": "08848276403",
+  "email": "mannaratharayil@gmail.com",
+  "whatsapp": "+91 88482 76403",
+  "instagram": "@7seasonsplants",
+  "address": "Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India",
+  "supportedStates": [
+    "Kerala",
+    "Tamil Nadu",
+    "Karnataka"
+  ],
+  "deliveryCharge": 80,
+  "freeDeliveryEnabled": true,
+  "freeShippingThreshold": 899,
+  "announcementBarText": "🌿 Farm Fresh Live Plant Combos • Delivered Safely Across Kerala, Tamil Nadu & Karnataka • Free Shipping over ₹899!",
+  "announcementBarActive": true,
+  "announcementLink": "/combos",
+  "razorpayKeyId": "",
+  "razorpayEnabled": true,
+  "menuVisibility": {
+    "home": true,
+    "plants": true,
+    "combos": true,
+    "plantCare": true,
+    "blog": true,
+    "trackOrder": true,
+    "wishlist": true,
+    "contact": true
+  }
+}

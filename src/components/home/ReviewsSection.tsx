@@ -155,53 +155,53 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ onNavigate }) =>
         </div>
 
         {/* Rating Metrics & Trust Highlights Strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-          <div className="bg-white p-4 rounded-2xl border border-emerald-900/10 shadow-2xs flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 flex flex-col items-center justify-center shrink-0">
-              <span className="text-base font-black text-amber-800 leading-none">{averageRating}</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3.5">
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-emerald-900/10 shadow-2xs flex items-center gap-2.5 sm:gap-3.5">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-50 border border-amber-200 flex flex-col items-center justify-center shrink-0">
+              <span className="text-sm sm:text-base font-black text-amber-800 leading-none">{averageRating}</span>
               <div className="flex items-center gap-0.5 text-amber-500 mt-0.5">
                 <Star className="w-2.5 h-2.5 fill-current" />
               </div>
             </div>
-            <div>
-              <span className="text-xs font-bold text-emerald-950 block">4.9 / 5 Overall Rating</span>
-              <span className="text-[11px] text-gray-500 block">Based on verified customer deliveries</span>
+            <div className="min-w-0">
+              <span className="text-[11px] sm:text-xs font-bold text-emerald-950 block truncate">4.9 / 5 Rating</span>
+              <span className="text-[10px] sm:text-[11px] text-gray-500 block truncate">Verified deliveries</span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-emerald-900/10 shadow-2xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
-              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-emerald-900/10 shadow-2xs flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
             </div>
-            <div>
-              <span className="text-xs font-bold text-emerald-950 block">100% Transit Safe</span>
-              <span className="text-[11px] text-gray-500 block">Zero leaf or pot damage guarantee</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-2xl border border-emerald-900/10 shadow-2xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
-              <Package className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-emerald-950 block">5-Ply Ventilated Boxes</span>
-              <span className="text-[11px] text-gray-500 block">Breathable root crates for long journeys</span>
+            <div className="min-w-0">
+              <span className="text-[11px] sm:text-xs font-bold text-emerald-950 block truncate">100% Transit Safe</span>
+              <span className="text-[10px] sm:text-[11px] text-gray-500 block truncate">Zero damage guarantee</span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-emerald-900/10 shadow-2xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
-              <Sparkles className="w-5 h-5 text-amber-600" />
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-emerald-900/10 shadow-2xs flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+              <Package className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
             </div>
-            <div>
-              <span className="text-xs font-bold text-emerald-950 block">Free Care Consultation</span>
-              <span className="text-[11px] text-gray-500 block">Lifelong plant doctor support</span>
+            <div className="min-w-0">
+              <span className="text-[11px] sm:text-xs font-bold text-emerald-950 block truncate">5-Ply Safe Boxes</span>
+              <span className="text-[10px] sm:text-[11px] text-gray-500 block truncate">Breathable root crates</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-emerald-900/10 shadow-2xs flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[11px] sm:text-xs font-bold text-emerald-950 block truncate">Free Care Support</span>
+              <span className="text-[10px] sm:text-[11px] text-gray-500 block truncate">Lifelong doctor care</span>
             </div>
           </div>
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
           {[
             { id: 'all', label: `All Reviews (${validReviews.length})` },
             { id: 'combos', label: 'Curated Combos' },
@@ -239,7 +239,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ onNavigate }) =>
             return (
               <div
                 key={review.id}
-                className="bg-white rounded-3xl p-6 border border-emerald-900/10 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group space-y-4"
+                className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-emerald-900/10 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group space-y-3.5 sm:space-y-4"
               >
                 <div className="space-y-3">
                   {/* Top: Star Rating & Verified Badge */}
@@ -373,8 +373,8 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ onNavigate }) =>
 
       {/* WRITE A REVIEW MODAL */}
       {isWriteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 sm:p-7 space-y-5 border border-gray-200 shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-auto">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90dvh] sm:max-h-[92vh] overflow-y-auto p-4 sm:p-7 space-y-4 sm:space-y-5 border border-gray-200 shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <span className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">

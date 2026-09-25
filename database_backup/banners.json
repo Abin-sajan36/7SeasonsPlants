@@ -1,0 +1,44 @@
+[
+  {
+    "_id": "banner-hero-1",
+    "secondaryCtaLink": "/#deals",
+    "title": "Bring Nature Home with 7Seasons",
+    "id": "banner-hero-1",
+    "imageUrl": "https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=1600&q=80",
+    "ctaText": "Explore Plant Combos",
+    "displayOrder": 1,
+    "secondaryCtaText": "Today’s Flash Deals",
+    "ctaLink": "/combos",
+    "badge": "FRESH FROM MANNARATHARAYIL GARDENS LLP",
+    "subtitle": "Thoughtfully curated tropical plant combos and botanical collections, delivered to your doorstep across Kerala & Tamil Nadu.",
+    "isActive": true
+  },
+  {
+    "_id": "banner-hero-2",
+    "secondaryCtaLink": "/plant-care",
+    "ctaText": "View All Combos",
+    "title": "Curated Plant Combos for Every Living Space",
+    "secondaryCtaText": "Plant Care Guides",
+    "subtitle": "Hand-paired botanical bundles with free planters, organic fertilizer, and savings up to 35%.",
+    "isActive": true,
+    "ctaLink": "/combos",
+    "id": "banner-hero-2",
+    "imageUrl": "https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=1600&q=80",
+    "displayOrder": 2,
+    "badge": "POPULAR CHOICE"
+  },
+  {
+    "_id": "banner-hero-3",
+    "title": "Safe 5-Ply Packaging & Guaranteed Arrival",
+    "ctaLink": "/combos",
+    "imageUrl": "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1600&q=80",
+    "id": "banner-hero-3",
+    "secondaryCtaText": "Plant Doctor AI",
+    "badge": "100% HEALTHY PLANT PROMISE",
+    "displayOrder": 3,
+    "ctaText": "Best Selling Combos",
+    "subtitle": "Root-sealed and aerated packaging ensures curated combos arrive fresh, hydrated, and ready to thrive.",
+    "isActive": true,
+    "secondaryCtaLink": "/plant-care"
+  }
+]

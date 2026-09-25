@@ -1,0 +1,61 @@
+[
+  {
+    "id": "cpn-welcome10",
+    "code": "WELCOME10",
+    "description": "10% OFF on your first plant order above ₹499",
+    "discountType": "percentage",
+    "discountValue": 10,
+    "minOrderValue": 499,
+    "maxDiscount": 150,
+    "startDate": "2026-01-01",
+    "expiryDate": "2026-12-31",
+    "usageLimit": 1000,
+    "usedCount": 142,
+    "perUserLimit": 1,
+    "isActive": true
+  },
+  {
+    "id": "cpn-combo50",
+    "code": "COMBO50",
+    "description": "Flat ₹50 Instant Discount on any Plant Combo",
+    "discountType": "fixed",
+    "discountValue": 50,
+    "minOrderValue": 599,
+    "startDate": "2026-01-01",
+    "expiryDate": "2026-12-31",
+    "usageLimit": 500,
+    "usedCount": 88,
+    "perUserLimit": 2,
+    "isActive": true,
+    "applicableCombosOnly": true
+  },
+  {
+    "id": "cpn-seasons200",
+    "code": "SEASONS200",
+    "description": "Flat ₹200 OFF on bulk plant & garden orders over ₹1499",
+    "discountType": "fixed",
+    "discountValue": 200,
+    "minOrderValue": 1499,
+    "startDate": "2026-01-01",
+    "expiryDate": "2026-12-31",
+    "usageLimit": 300,
+    "usedCount": 65,
+    "perUserLimit": 1,
+    "isActive": true
+  },
+  {
+    "id": "cpn-kerala-green",
+    "code": "KERALAGREEN",
+    "description": "15% OFF on all flowering and outdoor garden plants",
+    "discountType": "percentage",
+    "discountValue": 15,
+    "minOrderValue": 699,
+    "maxDiscount": 250,
+    "startDate": "2026-01-01",
+    "expiryDate": "2026-12-31",
+    "usageLimit": 400,
+    "usedCount": 93,
+    "perUserLimit": 2,
+    "isActive": true
+  }
+]

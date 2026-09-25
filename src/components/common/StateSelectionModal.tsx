@@ -128,26 +128,26 @@ export const StateSelectionModal: React.FC = () => {
         aria-modal="true"
         aria-labelledby="state-selection-title"
         onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-[#071711] rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl border border-emerald-900/20 dark:border-emerald-800/40 overflow-hidden relative select-text"
+        className="bg-white dark:bg-[#071711] rounded-3xl max-w-lg w-full max-h-[90dvh] sm:max-h-[92vh] flex flex-col shadow-2xl border border-emerald-900/20 dark:border-emerald-800/40 overflow-hidden relative select-text"
       >
         {/* Modal Header */}
-        <div className="relative bg-gradient-to-br from-[#062919] via-[#0D4A2B] to-[#0A3D22] text-white p-6 sm:p-7 shrink-0">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/80 border border-emerald-400/30 text-[#A7F3D0] text-xs font-bold tracking-wider mb-2.5">
+        <div className="relative bg-gradient-to-br from-[#062919] via-[#0D4A2B] to-[#0A3D22] text-white p-4 sm:p-6 shrink-0">
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-emerald-900/80 border border-emerald-400/30 text-[#A7F3D0] text-[11px] sm:text-xs font-bold tracking-wider mb-2">
             <MapPin className="w-3.5 h-3.5 text-amber-300" />
             <span>Delivery Location Required</span>
           </div>
 
-          <h2 id="state-selection-title" className="text-xl sm:text-2xl font-black text-white tracking-tight">
+          <h2 id="state-selection-title" className="text-lg sm:text-2xl font-black text-white tracking-tight">
             Select Your Delivery State
           </h2>
 
-          <p className="text-xs sm:text-sm text-emerald-100/90 mt-1.5 leading-relaxed">
+          <p className="text-xs sm:text-sm text-emerald-100/90 mt-1 sm:mt-1.5 leading-relaxed">
             To guarantee live root health and zero transit shock, 7Seasons delivers fresh nursery plant combos exclusively across South India.
           </p>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1 text-xs">
+        <div className="p-3.5 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 flex-1 text-xs">
           {/* Mandatory notice */}
           {isMandatory && (
             <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300/70 dark:border-amber-700/50 text-amber-900 dark:text-amber-200 text-xs font-semibold">
@@ -225,7 +225,7 @@ export const StateSelectionModal: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 hidden sm:block">
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/70 px-2.5 py-1 rounded-full">
                         <Truck className="w-3 h-3 text-emerald-600" />
                         {state.badge}

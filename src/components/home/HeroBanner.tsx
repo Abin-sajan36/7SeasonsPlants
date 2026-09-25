@@ -12,6 +12,8 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
   const activeBanners = banners.filter((b) => b.isActive).sort((a, b) => a.displayOrder - b.displayOrder);
 
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
 
   // Auto slide carousel every 6 seconds
   useEffect(() => {
@@ -25,6 +27,28 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
   if (activeBanners.length === 0) return null;
 
   const currentBanner = activeBanners[currentIndex];
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartX || !touchEndX) return;
+    const distance = touchStartX - touchEndX;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+    if (isLeftSwipe) {
+      handleNext();
+    } else if (isRightSwipe) {
+      handlePrev();
+    }
+    setTouchStartX(null);
+    setTouchEndX(null);
+  };
 
   // Helper to resolve button text and links so customers cannot access individual plants
   const resolveCta = (rawText: string | undefined, rawLink: string | undefined, isSecondary = false) => {
@@ -69,8 +93,13 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
   };
 
   return (
-    <section className="relative overflow-hidden bg-[#062416] text-white">
-      <div className="relative min-h-[480px] md:min-h-[560px] flex items-center">
+    <section
+      className="relative overflow-hidden bg-[#062416] text-white select-none"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="relative min-h-[420px] sm:min-h-[480px] md:min-h-[560px] flex items-center">
         {/* Background Image with botanical gradient overlay */}
         <div className="absolute inset-0 z-0 overflow-hidden bg-[#062416]">
           <AnimatePresence>
@@ -88,36 +117,36 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
               className="absolute inset-0 w-full h-full object-cover"
             />
           </AnimatePresence>
-          <div className="absolute inset-0 bg-gradient-to-r from-[#041A10]/70 via-[#093520]/40 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#041A10]/80 via-[#093520]/50 to-[#041A10]/20 pointer-events-none" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(34,197,94,0.1),transparent_70%)] pointer-events-none" />
         </div>
 
         {/* Content Container */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10 w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 pb-14 sm:pb-16 relative z-10 w-full">
           <div className="max-w-2xl">
             {/* Badge */}
             {currentBanner.badge && (
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[#A7F3D0] text-xs font-bold tracking-wider uppercase mb-5 backdrop-blur-xs">
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[#A7F3D0] text-[11px] sm:text-xs font-bold tracking-wider uppercase mb-3.5 sm:mb-5 backdrop-blur-xs">
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 <span>{currentBanner.badge}</span>
               </div>
             )}
 
             {/* Headline */}
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight tracking-tight drop-shadow-md">
+            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-tight tracking-tight drop-shadow-md">
               {currentBanner.title}
             </h1>
 
             {/* Subtitle */}
-            <p className="text-base sm:text-lg text-[#D1FAE5]/90 mt-4 leading-relaxed font-normal max-w-xl">
+            <p className="text-xs sm:text-base lg:text-lg text-[#D1FAE5]/90 mt-2.5 sm:mt-4 leading-relaxed font-normal max-w-xl">
               {displaySubtitle}
             </p>
 
             {/* CTA Buttons - Strictly Plant Combos & Nursery Care, No Individual Plants */}
-            <div className="flex flex-wrap items-center gap-3.5 mt-8">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3.5 mt-6 sm:mt-8">
               <button
                 onClick={() => onNavigate(primaryCta.link)}
-                className="px-7 py-3.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-full font-black text-sm shadow-lg hover:shadow-emerald-500/25 transition-all flex items-center gap-2 cursor-pointer group"
+                className="w-full sm:w-auto justify-center px-6 sm:px-7 py-3 sm:py-3.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-full font-black text-xs sm:text-sm shadow-lg hover:shadow-emerald-500/25 transition-all flex items-center gap-2 cursor-pointer group"
               >
                 <span>{primaryCta.text}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -126,7 +155,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
               {secondaryCta && (
                 <button
                   onClick={() => onNavigate(secondaryCta.link)}
-                  className="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold text-sm border border-white/20 backdrop-blur-xs transition-all flex items-center gap-2 cursor-pointer"
+                  className="w-full sm:w-auto justify-center px-5 sm:px-6 py-2.5 sm:py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold text-xs sm:text-sm border border-white/20 backdrop-blur-xs transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-amber-300" />
                   <span>{secondaryCta.text}</span>
@@ -135,8 +164,8 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
             </div>
 
             {/* Region Notice */}
-            <div className="mt-8 pt-6 border-t border-emerald-800/60 flex items-center gap-2 text-xs text-[#A7F3D0]">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <div className="mt-5 sm:mt-8 pt-4 sm:pt-6 border-t border-emerald-800/60 flex items-center gap-2 text-[11px] sm:text-xs text-[#A7F3D0]">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
               <span>
                 Prompt Nursery Dispatch across <strong>Kerala & Tamil Nadu</strong> • Safe 5-Ply Packaging
               </span>
@@ -166,13 +195,13 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
 
         {/* Carousel Dots */}
         {activeBanners.length > 1 && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+          <div className="absolute bottom-3.5 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
             {activeBanners.map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => setCurrentIndex(idx)}
                 className={`h-2 rounded-full transition-all cursor-pointer ${
-                  currentIndex === idx ? 'w-8 bg-green-400' : 'w-2 bg-white/40 hover:bg-white/70'
+                  currentIndex === idx ? 'w-6 sm:w-8 bg-green-400' : 'w-2 bg-white/40 hover:bg-white/70'
                 }`}
                 aria-label={`Slide ${idx + 1}`}
               />

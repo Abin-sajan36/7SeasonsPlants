@@ -197,7 +197,7 @@ const AppContent: React.FC = () => {
       <Header currentView={currentView} onNavigate={handleNavigate} />
 
       {/* 2. Main Page Content View */}
-      <main className="flex-1 pb-16 md:pb-0">{renderCurrentView()}</main>
+      <main className="flex-1 pb-20 lg:pb-0">{renderCurrentView()}</main>
 
       {/* 3. Global Footer */}
       <Footer onNavigate={handleNavigate} />

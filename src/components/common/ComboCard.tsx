@@ -50,7 +50,7 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
             e.stopPropagation();
             toggleWishlist(combo.id);
           }}
-          className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all z-10 cursor-pointer ${
+          className={`absolute top-3 right-3 w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all z-10 cursor-pointer ${
             isSaved
               ? 'bg-rose-500 text-white shadow-md'
               : 'bg-white/90 text-gray-700 hover:text-rose-500 hover:bg-white shadow-xs'
@@ -141,27 +141,27 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
         </div>
 
         {/* 3. Pricing Math & Add Combo Button */}
-        <div className="mt-5 pt-3.5 border-t border-emerald-900/8 flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[10px] text-gray-400 font-medium">
-              Individual Value: <span className="line-through">₹{combo.originalPrice}</span>
+        <div className="mt-4 sm:mt-5 pt-3 border-t border-emerald-900/8 flex items-center justify-between gap-2 sm:gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] text-gray-400 font-medium truncate">
+              Value: <span className="line-through">₹{combo.originalPrice}</span>
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-black text-emerald-950">₹{combo.price}</span>
-              <span className="text-xs font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md border border-emerald-200/50">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
+              <span className="text-lg sm:text-xl font-black text-emerald-950">₹{combo.price}</span>
+              <span className="text-[10px] sm:text-xs font-bold text-emerald-800 bg-emerald-100/70 px-1.5 sm:px-2 py-0.5 rounded-md border border-emerald-200/50">
                 Save ₹{combo.savings}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 addToCart(combo, 'combo', 1);
               }}
               disabled={isOutOfStock}
-              className={`px-4 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
                 isOutOfStock
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white shadow-sm hover:shadow-md'

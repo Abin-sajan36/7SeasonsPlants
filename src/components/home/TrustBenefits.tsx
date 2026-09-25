@@ -40,23 +40,26 @@ export const TrustBenefits: React.FC = () => {
   ];
 
   return (
-    <section className="py-10 bg-emerald-50/40 border-b border-emerald-900/8">
+    <section className="py-6 sm:py-10 bg-emerald-50/40 border-b border-emerald-900/8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-5">
           {benefits.map((benefit, idx) => {
             const Icon = benefit.icon;
+            const isLastOnMobile = idx === benefits.length - 1;
             return (
               <div
                 key={idx}
-                className="p-5 rounded-2xl bg-white border border-emerald-900/8 hover:border-emerald-500/40 hover:shadow-lg transition-all duration-300 flex flex-col items-start"
+                className={`p-3.5 sm:p-5 rounded-2xl bg-white border border-emerald-900/8 hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 flex flex-col items-start ${
+                  isLastOnMobile ? 'col-span-2 lg:col-span-1' : ''
+                }`}
               >
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3.5 ${benefit.color}`}>
-                  <Icon className="w-5 h-5" />
+                <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center mb-2.5 sm:mb-3.5 ${benefit.color}`}>
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <h3 className="font-bold text-sm text-emerald-950 mb-1.5 leading-snug">
+                <h3 className="font-bold text-xs sm:text-sm text-emerald-950 mb-1 leading-snug">
                   {benefit.title}
                 </h3>
-                <p className="text-xs text-gray-600 leading-relaxed font-normal">
+                <p className="text-[11px] sm:text-xs text-gray-600 leading-normal sm:leading-relaxed font-normal">
                   {benefit.description}
                 </p>
               </div>

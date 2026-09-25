@@ -50,6 +50,7 @@ import {
   FolderTree,
   Ticket,
   MessageSquare,
+  Database,
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
@@ -62,6 +63,7 @@ import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
 import { ComboCategoryManagerModal } from '../components/admin/ComboCategoryManagerModal';
 import { ImageUploadPicker } from '../components/admin/ImageUploadPicker';
 import { AdminLoginGate } from '../components/admin/AdminLoginGate';
+import { BackupManagementCard } from '../components/admin/BackupManagementCard';
 import { uploadImage } from '../lib/imageUploader';
 
 interface AdminPageProps {
@@ -104,7 +106,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     importOrders,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'categories' | 'coupons' | 'reviews' | 'orders' | 'offline-orders' | 'accounts' | 'users' | 'complaints' | 'settings' | 'ai-tools'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'categories' | 'coupons' | 'reviews' | 'orders' | 'offline-orders' | 'accounts' | 'users' | 'complaints' | 'settings' | 'ai-tools' | 'backup-restore'>('analytics');
   
   const [complaintsList, setComplaintsList] = useState<any[]>([]);
   const [loadingComplaints, setLoadingComplaints] = useState(false);
@@ -1082,6 +1084,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             { id: 'complaints', label: `Grievances (${complaintsList.length})`, icon: AlertTriangle },
             { id: 'ai-tools', label: 'Gemini AI Assistant', icon: Sparkles },
             { id: 'settings', label: 'Nursery Settings', icon: Settings },
+            { id: 'backup-restore', label: 'Backup & Restore', icon: Database },
           ].map((tab) => {
             const Icon = tab.icon;
             const isRestricted = (tab as any).isSuperAdminOnly;
@@ -2974,10 +2977,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
         {/* TAB 5: NURSERY SETTINGS */}
         {activeTab === 'settings' && (
-          <div
-            id="nursery-settings-container"
-            className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-2xs max-w-3xl space-y-8"
-          >
+          <div className="space-y-8">
+            <div
+              id="nursery-settings-container"
+              className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-2xs max-w-3xl space-y-8"
+            >
             {/* Header & Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
               <div className="flex items-start gap-3">
@@ -3618,6 +3622,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               </div>
             </form>
           </div>
+
+          {/* FULL SITE & DATABASE BACKUP */}
+          <BackupManagementCard />
+        </div>
         )}
 
         {/* COUPONS & DISCOUNTS MANAGEMENT TAB */}
@@ -3628,6 +3636,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         {/* REVIEWS MODERATION TAB */}
         {activeTab === 'reviews' && (
           <ReviewsManagementTab />
+        )}
+
+        {/* DEDICATED BACKUP & RESTORE TAB */}
+        {activeTab === 'backup-restore' && (
+          <div className="space-y-6">
+            <BackupManagementCard />
+          </div>
         )}
       </div>
 

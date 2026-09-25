@@ -505,6 +505,30 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
           </div>
         )}
       </div>
+
+      {/* Mobile Sticky Action Bar */}
+      <div className="lg:hidden fixed bottom-[52px] left-0 right-0 z-30 bg-white/95 dark:bg-[#06120e]/95 backdrop-blur-md px-4 py-2.5 border-t border-emerald-900/10 shadow-lg flex items-center justify-between gap-3">
+        <div>
+          <span className="text-[10px] text-gray-500 block leading-none">Total Bundle</span>
+          <div className="flex items-baseline gap-1.5 mt-0.5">
+            <span className="text-lg font-black text-emerald-950">₹{combo.price}</span>
+            <span className="text-[10px] font-bold text-rose-600">Save ₹{combo.savings}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleAddToCart}
+          disabled={combo.stock <= 0}
+          className={`flex-1 max-w-[200px] py-2.5 px-4 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer ${
+            combo.stock <= 0
+              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              : 'bg-gradient-to-r from-emerald-700 to-green-600 text-white'
+          }`}
+        >
+          <ShoppingBag className="w-3.5 h-3.5" />
+          <span>{combo.stock <= 0 ? 'Sold Out' : 'Add to Bag'}</span>
+        </button>
+      </div>
     </div>
   );
 };

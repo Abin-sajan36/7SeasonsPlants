@@ -72,10 +72,10 @@ export const GardenerAIChat: React.FC = () => {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 w-14 h-14 bg-emerald-700 hover:bg-emerald-800 text-white rounded-full shadow-lg flex items-center justify-center z-50 transition-colors"
+            className="fixed bottom-20 sm:bottom-6 right-3.5 sm:right-6 w-12 h-12 sm:w-14 sm:h-14 bg-emerald-700 hover:bg-emerald-800 text-white rounded-full shadow-lg flex items-center justify-center z-50 transition-colors cursor-pointer"
             aria-label="Open Gardener AI Chat"
           >
-            <MessageCircle className="w-6 h-6" />
+            <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />
           </motion.button>
         )}
       </AnimatePresence>
@@ -87,7 +87,7 @@ export const GardenerAIChat: React.FC = () => {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-20 sm:bottom-24 right-4 sm:right-6 w-[calc(100vw-32px)] sm:w-[380px] h-[500px] max-h-[calc(100vh-120px)] bg-white dark:bg-[#06120e] rounded-2xl shadow-2xl flex flex-col z-50 border border-emerald-900/10 dark:border-emerald-900 overflow-hidden"
+            className="fixed bottom-20 sm:bottom-24 right-3.5 sm:right-6 w-[calc(100vw-28px)] sm:w-[380px] h-[460px] sm:h-[500px] max-h-[calc(100dvh-130px)] sm:max-h-[calc(100vh-120px)] bg-white dark:bg-[#06120e] rounded-2xl shadow-2xl flex flex-col z-50 border border-emerald-900/10 dark:border-emerald-900 overflow-hidden"
           >
             {/* Header */}
             <div className="bg-emerald-700 p-4 text-white flex items-center justify-between shrink-0">

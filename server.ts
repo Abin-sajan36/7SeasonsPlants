@@ -3,6 +3,7 @@ dotenv.config({ override: true });
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import Razorpay from "razorpay";
@@ -14,6 +15,10 @@ import {
   botanicalCache,
   analyzeBotanicalSymptoms,
 } from "./server/botanicalKnowledge.js";
+import {
+  getBackupSnapshots,
+  restoreDatabaseToFirestore,
+} from "./server/firestoreRestore.js";
 
 const app = express();
 const PORT = 3000;
@@ -26,6 +31,12 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 app.use("/uploads", express.static(uploadsDir));
+
+const backupDir = path.join(process.cwd(), "public", "backup");
+if (!fs.existsSync(backupDir)) {
+  fs.mkdirSync(backupDir, { recursive: true });
+}
+app.use("/backup", express.static(backupDir));
 
 // Global CORS & Preflight handler to prevent 405 / CORS blocks in iFrames & previews
 app.use((req, res, next) => {
@@ -149,6 +160,93 @@ app.get("/api/health", (req, res) => {
     nursery: "Mannarathayil Nursery",
     timestamp: new Date().toISOString(),
   });
+});
+
+// Full Site & Database Backup Endpoints
+app.get("/api/backup/download", (req, res) => {
+  const zipPath = path.join(process.cwd(), "public", "backup", "7seasonsplants-full-site-backup.zip");
+  if (!fs.existsSync(zipPath)) {
+    return res.status(404).json({ error: "Backup archive not found" });
+  }
+  const dateStr = new Date().toISOString().split("T")[0];
+  res.download(zipPath, `7seasonsplants-full-site-backup-${dateStr}.zip`);
+});
+
+app.get("/api/backup/download-tar", (req, res) => {
+  const tarPath = path.join(process.cwd(), "public", "backup", "7seasonsplants-full-site-backup.tar.gz");
+  if (!fs.existsSync(tarPath)) {
+    return res.status(404).json({ error: "Backup archive not found" });
+  }
+  const dateStr = new Date().toISOString().split("T")[0];
+  res.download(tarPath, `7seasonsplants-full-site-backup-${dateStr}.tar.gz`);
+});
+
+app.get("/api/backup/database-json", (req, res) => {
+  const dbDumpPath = path.join(process.cwd(), "database_backup", "full_database_backup.json");
+  if (!fs.existsSync(dbDumpPath)) {
+    return res.status(404).json({ error: "Database dump not found" });
+  }
+  const dateStr = new Date().toISOString().split("T")[0];
+  res.download(dbDumpPath, `7seasonsplants-firestore-dump-${dateStr}.json`);
+});
+
+app.get("/api/backup/info", (req, res) => {
+  const manifestPath = path.join(process.cwd(), "public", "backup", "backup-manifest.json");
+  if (fs.existsSync(manifestPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      return res.json({ success: true, ...data });
+    } catch (_) {}
+  }
+  res.json({ success: false, message: "Backup manifest not available" });
+});
+
+app.post("/api/backup/generate", (req, res) => {
+  try {
+    execSync("python3 scripts/create_backup_archive.py", { stdio: "inherit" });
+    const manifestPath = path.join(process.cwd(), "public", "backup", "backup-manifest.json");
+    if (fs.existsSync(manifestPath)) {
+      const data = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      return res.json({ success: true, message: "Backup generated successfully", ...data });
+    }
+    res.json({ success: true, message: "Backup generated successfully" });
+  } catch (err: any) {
+    console.error("Backup generation error:", err);
+    res.status(500).json({ success: false, error: err.message || "Failed to generate backup" });
+  }
+});
+
+// Backup Snapshots & Restore Endpoints
+app.get("/api/backup/snapshots", (req, res) => {
+  try {
+    const snapshots = getBackupSnapshots();
+    res.json({ success: true, ...snapshots });
+  } catch (err: any) {
+    console.error("Error retrieving backup snapshots:", err);
+    res.status(500).json({ success: false, error: err.message || "Failed to retrieve snapshots" });
+  }
+});
+
+app.post("/api/backup/restore", async (req, res) => {
+  try {
+    const { mode, source, collections, data } = req.body || {};
+    console.log(`[API /api/backup/restore] Triggered restore request: source=${source}, mode=${mode}, collections=${collections ? collections.join(',') : 'all'}`);
+    
+    const result = await restoreDatabaseToFirestore({
+      mode: mode === 'replace' ? 'replace' : 'merge',
+      source: source || 'server_snapshot',
+      collections: Array.isArray(collections) && collections.length > 0 ? collections : undefined,
+      data: data || undefined,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("[API /api/backup/restore] Restore failed:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Failed to restore database backup",
+    });
+  }
 });
 
 // Direct Image Upload Endpoint (stores photos in public/uploads to prevent Firestore 1MB document size limit exceeded error)

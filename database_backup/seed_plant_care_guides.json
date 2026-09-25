@@ -1,0 +1,108 @@
+[
+  {
+    "id": "guide-snake-plant",
+    "plantName": "Sansevieria Snake Plant",
+    "slug": "snake-plant-care-guide",
+    "botanicalName": "Dracaena trifasciata",
+    "heroImage": "https://images.unsplash.com/photo-1593482892290-f54927ae1bf6?auto=format&fit=crop&w=900&q=80",
+    "category": "Indoor Foliage",
+    "difficulty": "Beginner Friendly",
+    "lightGuidance": "Tolerates low light up to direct morning sunlight. Adapts effortlessly to dim bedroom corners and office cubicles.",
+    "waterGuidance": "Allow the soil to dry out completely between waterings. Typically once every 10-14 days. When in doubt, hold off on watering.",
+    "soilGuidance": "Fast-draining potting mixture composed of 40% coarse sand/perlite, 30% red soil, and 30% organic compost.",
+    "fertilizerGuidance": "Light dose of organic liquid fertilizer once every 2-3 months during spring and monsoon.",
+    "temperatureGuidance": "Thrives between 18°C and 36°C. Keep away from direct blast of air conditioning vents.",
+    "humidityGuidance": "Adapts to normal indoor humidity without any special misting requirements.",
+    "commonProblems": [
+      {
+        "problem": "Soggy, mushy leaves at the base",
+        "solution": "Overwatering. Stop watering immediately, remove mushy leaves, and repot in dry porous soil."
+      },
+      {
+        "problem": "Wrinkled leaf blades",
+        "solution": "Severe underwatering. Give the plant a thorough soak until water flows from drainage hole."
+      }
+    ],
+    "beginnerTips": [
+      "Always use a pot with a working drainage hole to prevent water stagnation.",
+      "Wipe dust from the upright leaves monthly with a damp cloth to maximize photosynthesis.",
+      "Great plant for bedrooms because it produces oxygen during nighttime."
+    ],
+    "faqs": [
+      {
+        "question": "Can I keep the snake plant inside an AC bedroom?",
+        "answer": "Yes, snake plants adapt well to AC rooms as long as they are not positioned directly under the cold air vent draft."
+      },
+      {
+        "question": "How often should I repot my snake plant?",
+        "answer": "Snake plants actually enjoy being slightly root-bound. Repotting once every 2 years into a pot 1-2 inches larger is ideal."
+      }
+    ]
+  },
+  {
+    "id": "guide-money-plant",
+    "plantName": "Golden Pothos (Money Plant)",
+    "slug": "money-plant-care-guide",
+    "botanicalName": "Epipremnum aureum",
+    "heroImage": "https://images.unsplash.com/photo-1596724855577-62a225a07c06?auto=format&fit=crop&w=900&q=80",
+    "category": "Trailing Vines",
+    "difficulty": "Beginner Friendly",
+    "lightGuidance": "Bright indirect sunlight produces the most vibrant golden streaks. Also grows well in water bottles on desks.",
+    "waterGuidance": "Water when top 1-2 inches of soil feels dry. Drooping leaves indicate it is thirsty and will bounce back within hours.",
+    "soilGuidance": "Cocopeat, vermicompost, and garden soil in equal parts for aerated moisture retention.",
+    "fertilizerGuidance": "Feed monthly with seaweed liquid extract or compost tea.",
+    "temperatureGuidance": "18°C to 34°C.",
+    "humidityGuidance": "Medium to high humidity. Appreciates weekly foliage misting in hot summer months.",
+    "commonProblems": [
+      {
+        "problem": "Leaves turning solid dark green without golden streaks",
+        "solution": "Plant needs brighter indirect light to produce golden variegation."
+      },
+      {
+        "problem": "Stems getting leggy with few leaves",
+        "solution": "Prune the tips to encourage bushier multi-stem growth and give more sunlight."
+      }
+    ],
+    "beginnerTips": [
+      "You can train it to climb upward using a coir moss stick for larger leaf size.",
+      "Cuttings with a single leaf node root effortlessly in a glass jar of clean water."
+    ],
+    "faqs": [
+      {
+        "question": "Can money plant grow in plain water?",
+        "answer": "Yes! Money plants grow happily in water jars. Change the water once a week and keep in bright indirect light."
+      }
+    ]
+  },
+  {
+    "id": "guide-adenium-desert-rose",
+    "plantName": "Adenium Desert Rose",
+    "slug": "adenium-desert-rose-care-guide",
+    "botanicalName": "Adenium obesum",
+    "heroImage": "https://images.unsplash.com/photo-1508610048659-a06b669e3321?auto=format&fit=crop&w=900&q=80",
+    "category": "Flowering Succulents",
+    "difficulty": "Easy",
+    "lightGuidance": "Requires 6+ hours of full direct sunlight daily. The more sun it gets, the heavier it flowers.",
+    "waterGuidance": "Water deeply only when the caudex and soil are dry. Protect from non-stop heavy monsoon rains.",
+    "soilGuidance": "Porous potting mix of coarse brick pieces, red cinder, perlite, and river sand with minimal cocopeat.",
+    "fertilizerGuidance": "High phosphorus and potassium organic bloom fertilizer once a month.",
+    "temperatureGuidance": "20°C to 40°C. Loves tropical heat.",
+    "humidityGuidance": "Tolerates heat well; needs good air circulation around the pot.",
+    "commonProblems": [
+      {
+        "problem": "Soft squishy caudex",
+        "solution": "Rot from overwatering or poorly draining soil. Prune away soft parts and dust with fungicide."
+      }
+    ],
+    "beginnerTips": [
+      "Plant in shallow terracotta or clay pots which breathe and dry faster than plastic pots.",
+      "Prune the branches lightly at the start of spring to promote multiple flowering stems."
+    ],
+    "faqs": [
+      {
+        "question": "Why are my Adenium flower buds falling before opening?",
+        "answer": "Bud drop usually happens if watering is erratic or if the plant was moved from full sun to heavy shade."
+      }
+    ]
+  }
+]
