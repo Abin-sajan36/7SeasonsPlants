@@ -9,7 +9,6 @@ import { BestSellersSection } from '../components/home/BestSellersSection';
 import { PlantCarePreview } from '../components/home/PlantCarePreview';
 import { ReviewsSection } from '../components/home/ReviewsSection';
 import { InstagramSection } from '../components/home/InstagramSection';
-import { NewsletterSection } from '../components/home/NewsletterSection';
 import { FAQSection } from '../components/home/FAQSection';
 
 interface HomePageProps {
@@ -51,9 +50,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
 
       {/* 11. FAQ Section */}
       <FAQSection />
-
-      {/* 12. Botanical VIP Newsletter */}
-      <NewsletterSection />
     </div>
   );
 };
