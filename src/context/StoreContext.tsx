@@ -3039,7 +3039,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteReview = (id: string) => {
-    setReviews((prev) => prev.filter((r) => r.id !== id));
+    setReviews((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_reviews`, JSON.stringify(next));
+      } catch (e) {
+        console.warn('LocalStorage reviews error:', e);
+      }
+      return next;
+    });
+    deleteDoc(doc(db, 'reviews', id)).catch(() => {});
+    addToast({
+      type: 'info',
+      title: 'Review Removed',
+      message: 'The review has been permanently removed from the home page.',
+    });
   };
 
   // Admin CRUD for Products

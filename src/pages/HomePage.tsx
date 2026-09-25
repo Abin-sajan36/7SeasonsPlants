@@ -43,7 +43,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       <PlantCarePreview onNavigate={onNavigate} />
 
       {/* 9. Verified Customer Reviews */}
-      <ReviewsSection />
+      <ReviewsSection onNavigate={onNavigate} />
 
       {/* 10. Instagram Nursery Feed */}
       <InstagramSection />
