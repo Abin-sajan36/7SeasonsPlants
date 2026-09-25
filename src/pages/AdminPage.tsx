@@ -48,11 +48,13 @@ import {
   Megaphone,
   Tag,
   FolderTree,
+  Ticket,
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
 import { auth } from '../lib/firebase';
 import { UserManagementTab } from '../components/admin/UserManagementTab';
+import { CouponsManagementTab } from '../components/admin/CouponsManagementTab';
 import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus, StoreSettings } from '../types';
 import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
 import { ComboCategoryManagerModal } from '../components/admin/ComboCategoryManagerModal';
@@ -69,6 +71,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     products,
     combos,
     categories,
+    coupons,
     orders,
     storeSettings,
     currentAdmin,
@@ -98,7 +101,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     importOrders,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'categories' | 'orders' | 'offline-orders' | 'accounts' | 'users' | 'complaints' | 'settings' | 'ai-tools'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'categories' | 'coupons' | 'orders' | 'offline-orders' | 'accounts' | 'users' | 'complaints' | 'settings' | 'ai-tools'>('analytics');
   
   const [complaintsList, setComplaintsList] = useState<any[]>([]);
   const [loadingComplaints, setLoadingComplaints] = useState(false);
@@ -1053,6 +1056,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             { id: 'products', label: `Plant Catalog (${products.length})`, icon: Package },
             { id: 'combos', label: `Combo Bundles (${combos.length})`, icon: Layers },
             { id: 'categories', label: `Categories (${categories.length})`, icon: Tag },
+            { id: 'coupons', label: `Coupons (${coupons.length})`, icon: Ticket },
             { id: 'orders', label: `Online Orders (${onlineOrders.length})`, icon: Truck },
             { id: 'offline-orders', label: `Offline Orders (${offlineOrdersList.length})`, icon: Download },
             ...(isCurrentSuperAdmin
@@ -3610,6 +3614,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               </div>
             </form>
           </div>
+        )}
+
+        {/* COUPONS & DISCOUNTS MANAGEMENT TAB */}
+        {activeTab === 'coupons' && (
+          <CouponsManagementTab />
         )}
       </div>
 
