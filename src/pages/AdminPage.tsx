@@ -43,6 +43,7 @@ import {
   Crown,
   Save,
   Undo2,
+  Zap,
   Store,
   Megaphone,
   Tag,
@@ -57,6 +58,7 @@ import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
 import { ComboCategoryManagerModal } from '../components/admin/ComboCategoryManagerModal';
 import { ImageUploadPicker } from '../components/admin/ImageUploadPicker';
 import { AdminLoginGate } from '../components/admin/AdminLoginGate';
+import { uploadImage } from '../lib/imageUploader';
 
 interface AdminPageProps {
   onNavigate: (view: string, param?: string) => void;
@@ -121,11 +123,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   }, []);
 
   // Razorpay Gateway Admin State
-  const [razorpayKeyId, setRazorpayKeyId] = useState('rzp_test_TfQpwvQOSGYe9b');
-  const [razorpayKeySecret, setRazorpayKeySecret] = useState('kYvN6D3539sjzWB8p8UNO7HR');
+  const [razorpayKeyId, setRazorpayKeyId] = useState('');
+  const [razorpayKeySecret, setRazorpayKeySecret] = useState('');
   const [showRazorpaySecret, setShowRazorpaySecret] = useState(false);
   const [razorpayStatus, setRazorpayStatus] = useState<{ testing: boolean; message: string; valid?: boolean } | null>(null);
   const [savingRazorpay, setSavingRazorpay] = useState(false);
+
+  // Load current Razorpay config from backend
+  useEffect(() => {
+    fetch('/api/razorpay/config')
+      .then((res) => res.json())
+      .then((cfg) => {
+        if (cfg.keyId) {
+          setRazorpayKeyId(cfg.keyId);
+        } else if (storeSettings?.razorpayKeyId) {
+          setRazorpayKeyId(storeSettings.razorpayKeyId);
+        }
+      })
+      .catch(() => {
+        if (storeSettings?.razorpayKeyId) {
+          setRazorpayKeyId(storeSettings.razorpayKeyId);
+        }
+      });
+  }, [storeSettings?.razorpayKeyId]);
 
   const testRazorpayConnection = async (keyIdToTest?: string, secretToTest?: string) => {
     try {
@@ -158,6 +178,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       });
       const data = await res.json();
       setRazorpayStatus({ testing: false, message: data.message, valid: data.valid });
+      if (data.success) {
+        updateStoreSettings({ razorpayKeyId: razorpayKeyId.trim() });
+      }
       addToast({
         title: data.valid ? 'Razorpay Connected' : 'Credentials Saved (Sandbox Fallback Active)',
         message: data.message,
@@ -296,6 +319,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     address: storeSettings?.address || 'Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India',
     supportedStates: storeSettings?.supportedStates || ['Kerala', 'Tamil Nadu', 'Karnataka'],
     deliveryCharge: storeSettings?.deliveryCharge ?? 80,
+    freeDeliveryEnabled: storeSettings?.freeDeliveryEnabled !== false,
     freeShippingThreshold: storeSettings?.freeShippingThreshold ?? storeSettings?.freeDeliveryThreshold ?? 899,
     freeDeliveryThreshold: storeSettings?.freeShippingThreshold ?? storeSettings?.freeDeliveryThreshold ?? 899,
     announcementBarText: storeSettings?.announcementBarText || storeSettings?.announcementText || '🌿 Fresh Plants • Curated Combos • Delivered Safely Across Kerala & Tamil Nadu • Free Shipping over ₹899!',
@@ -339,6 +363,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         address: storeSettings.address || 'Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India',
         supportedStates: storeSettings.supportedStates || ['Kerala', 'Tamil Nadu', 'Karnataka'],
         deliveryCharge: storeSettings.deliveryCharge ?? 80,
+        freeDeliveryEnabled: storeSettings.freeDeliveryEnabled !== false,
         freeShippingThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
         freeDeliveryThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
         announcementBarText: storeSettings.announcementBarText || storeSettings.announcementText || '',
@@ -374,6 +399,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       const payload: Partial<StoreSettings> = {
         ...settingsForm,
         deliveryCharge: Number(settingsForm.deliveryCharge) || 0,
+        freeDeliveryEnabled: Boolean(settingsForm.freeDeliveryEnabled),
         freeShippingThreshold: Number(settingsForm.freeShippingThreshold) || 0,
         freeDeliveryThreshold: Number(settingsForm.freeShippingThreshold) || 0,
         whatsapp: settingsForm.whatsapp.trim(),
@@ -414,6 +440,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       address: storeSettings.address || 'Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India',
       supportedStates: storeSettings.supportedStates || ['Kerala', 'Tamil Nadu', 'Karnataka'],
       deliveryCharge: storeSettings.deliveryCharge ?? 80,
+      freeDeliveryEnabled: storeSettings.freeDeliveryEnabled !== false,
       freeShippingThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
       freeDeliveryThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
       announcementBarText: storeSettings.announcementBarText || storeSettings.announcementText || '',
@@ -565,18 +592,36 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   );
 
   const adminComboCategories = React.useMemo(() => {
-    const list = categories.filter((c) => c.type === 'combo' || c.type === 'both');
+    const list = [...categories.filter((c) => c.type === 'combo' || c.type === 'both')];
+    const existing = new Set(list.map((c) => c.name.toLowerCase()));
+    combos.forEach((c) => {
+      if (c.category && !existing.has(c.category.toLowerCase())) {
+        existing.add(c.category.toLowerCase());
+        list.push({
+          id: `cat-dynamic-${c.category.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          name: c.category,
+          slug: c.category.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+          description: `${c.category} plant combos`,
+          image: 'https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80',
+          itemCount: 1,
+          displayOrder: 99,
+          type: 'combo',
+        });
+      }
+    });
     return list;
-  }, [categories]);
+  }, [categories, combos]);
 
   const filteredCombos = combos.filter((c) => {
+    const q = comboSearch.toLowerCase().trim();
     const matchesSearch =
-      c.name.toLowerCase().includes(comboSearch.toLowerCase()) ||
-      c.category.toLowerCase().includes(comboSearch.toLowerCase()) ||
-      c.items.some((it) => it.productName.toLowerCase().includes(comboSearch.toLowerCase()));
+      !q ||
+      c.name.toLowerCase().includes(q) ||
+      (c.category && c.category.toLowerCase().includes(q)) ||
+      (c.items && c.items.some((it) => it.productName.toLowerCase().includes(q)));
     if (!matchesSearch) return false;
     if (selectedComboCategoryFilter !== 'all') {
-      return c.category.toLowerCase() === selectedComboCategoryFilter.toLowerCase();
+      return (c.category || '').toLowerCase().trim() === selectedComboCategoryFilter.toLowerCase().trim();
     }
     return true;
   });
@@ -709,70 +754,86 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     });
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productForm.name) return;
 
-    if (editingProduct) {
-      updateProduct({ ...editingProduct, ...(productForm as Product) });
-      addToast({
-        title: 'Product Updated',
-        message: `${productForm.name} updated successfully.`,
-        type: 'success',
-      });
-    } else {
-      const discount =
-        productForm.originalPrice && productForm.originalPrice > productForm.price!
-          ? Math.round(((productForm.originalPrice - productForm.price!) / productForm.originalPrice) * 100)
-          : 0;
+    try {
+      const sourceImages = productForm.images?.length
+        ? productForm.images
+        : ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80'];
+      const sanitizedImages = await Promise.all(
+        sourceImages.map((img, idx) => uploadImage(img, `product-${Date.now()}-${idx + 1}`))
+      );
 
-      const newProd: Product = {
-        id: `prod_${Date.now()}`,
-        slug: productForm.name!.toLowerCase().replace(/\s+/g, '-'),
-        name: productForm.name!,
-        botanicalName: productForm.botanicalName || '',
-        shortDescription: productForm.shortDescription || 'Fresh tropical nursery specimen.',
-        description: productForm.description || 'Grown at Mannaratharayil Gardens LLP.',
-        category: productForm.category || 'Air Purifying',
-        price: Number(productForm.price),
-        originalPrice: Number(productForm.originalPrice || productForm.price),
-        discountPercentage: discount,
-        stock: Number(productForm.stock || 20),
-        weight: Number(productForm.weight || 1),
-        sku: `7SP-${Math.floor(1000 + Math.random() * 9000)}`,
-        images: productForm.images?.length ? productForm.images : ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80'],
-        rating: 4.9,
-        reviewCount: 12,
-        isBestseller: Boolean(productForm.isBestseller),
-        tags: ['Indoor', 'Mannaratharayil'],
-        attributes: (productForm.attributes as any) || {
-          light: 'Bright Indirect',
-          water: 'Moderate (Twice a week)',
-          difficulty: 'Easy',
-          placement: 'Living Room',
-          potIncluded: true,
-          airPurifying: true,
-          petFriendly: true,
-          flowering: false,
-        },
-        careInstructions: (productForm.careInstructions as any) || {
-          overview: 'Water moderately.',
-          light: 'Bright indirect light',
-          water: 'Twice a week',
-          soil: 'Coco-peat nutrient mix',
-          fertilizer: 'Monthly organic compost',
-          temperature: '20°C - 32°C',
-          commonProblems: [],
-        },
-        sellableStates: productForm.sellableStates || ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
-        createdAt: new Date().toISOString(),
-      };
+      if (editingProduct) {
+        await updateProduct({ ...editingProduct, ...(productForm as Product), images: sanitizedImages });
+        addToast({
+          title: 'Product Updated',
+          message: `${productForm.name} updated successfully.`,
+          type: 'success',
+        });
+      } else {
+        const discount =
+          productForm.originalPrice && productForm.originalPrice > productForm.price!
+            ? Math.round(((productForm.originalPrice - productForm.price!) / productForm.originalPrice) * 100)
+            : 0;
 
-      addProduct(newProd);
+        const newProd: Product = {
+          id: `prod_${Date.now()}`,
+          slug: productForm.name!.toLowerCase().replace(/\s+/g, '-'),
+          name: productForm.name!,
+          botanicalName: productForm.botanicalName || '',
+          shortDescription: productForm.shortDescription || 'Fresh tropical nursery specimen.',
+          description: productForm.description || 'Grown at Mannaratharayil Gardens LLP.',
+          category: productForm.category || 'Air Purifying',
+          price: Number(productForm.price),
+          originalPrice: Number(productForm.originalPrice || productForm.price),
+          discountPercentage: discount,
+          stock: Number(productForm.stock || 20),
+          weight: Number(productForm.weight || 1),
+          sku: `7SP-${Math.floor(1000 + Math.random() * 9000)}`,
+          images: sanitizedImages,
+          rating: 4.9,
+          reviewCount: 12,
+          isBestseller: Boolean(productForm.isBestseller),
+          tags: ['Indoor', 'Mannaratharayil'],
+          attributes: (productForm.attributes as any) || {
+            light: 'Bright Indirect',
+            water: 'Moderate (Twice a week)',
+            difficulty: 'Easy',
+            placement: 'Living Room',
+            potIncluded: true,
+            airPurifying: true,
+            petFriendly: true,
+            flowering: false,
+          },
+          careInstructions: (productForm.careInstructions as any) || {
+            overview: 'Water moderately.',
+            light: 'Bright indirect light',
+            water: 'Twice a week',
+            soil: 'Coco-peat nutrient mix',
+            fertilizer: 'Monthly organic compost',
+            temperature: '20°C - 32°C',
+            commonProblems: [],
+          },
+          sellableStates: productForm.sellableStates || ['Kerala', 'Tamil Nadu', 'Karnataka', 'All India'],
+          createdAt: new Date().toISOString(),
+        };
+
+        await addProduct(newProd);
+        addToast({
+          title: 'Plant Added',
+          message: `${newProd.name} added to catalog.`,
+          type: 'success',
+        });
+      }
+    } catch (err: any) {
+      console.error('Error saving product:', err);
       addToast({
-        title: 'Plant Added',
-        message: `${newProd.name} added to catalog.`,
-        type: 'success',
+        title: 'Error Saving Plant',
+        message: err.message || 'Please check product data.',
+        type: 'error',
       });
     }
     setIsProductModalOpen(false);
@@ -789,11 +850,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     setIsComboModalOpen(true);
   };
 
-  const handleSaveCombo = (savedCombo: PlantCombo) => {
-    if (editingCombo) {
-      updateCombo(savedCombo);
-    } else {
-      addCombo(savedCombo);
+  const handleSaveCombo = async (savedCombo: PlantCombo) => {
+    try {
+      if (editingCombo) {
+        await updateCombo(savedCombo);
+      } else {
+        await addCombo(savedCombo);
+      }
+      // Reset category filter & search so the newly saved combo is immediately visible in the table
+      setSelectedComboCategoryFilter('all');
+      setComboSearch('');
+    } catch (err: any) {
+      console.error('Error in handleSaveCombo:', err);
     }
   };
 
@@ -3038,10 +3106,54 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </p>
                 </div>
 
+                {/* Free Delivery Master Toggle Card */}
+                <div className={`p-4 rounded-2xl border transition-all ${settingsForm.freeDeliveryEnabled !== false ? 'bg-emerald-50/70 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-emerald-950">Free Delivery Option</span>
+                        <span className={`px-2 py-0.5 text-[10px] font-extrabold uppercase rounded-full ${settingsForm.freeDeliveryEnabled !== false ? 'bg-emerald-200 text-emerald-900' : 'bg-gray-200 text-gray-700'}`}>
+                          {settingsForm.freeDeliveryEnabled !== false ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600">
+                        {settingsForm.freeDeliveryEnabled !== false
+                          ? `Orders reaching ₹${settingsForm.freeShippingThreshold} receive 100% free delivery. Customers see the free delivery progress meter in their cart.`
+                          : 'Free delivery is turned off. Standard weight-based delivery charge applies to all orders regardless of cart total.'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={settingsForm.freeDeliveryEnabled !== false}
+                      onClick={() => {
+                        setSettingsForm((prev) => ({
+                          ...prev,
+                          freeDeliveryEnabled: prev.freeDeliveryEnabled === false ? true : false,
+                        }));
+                        setIsSettingsDirty(true);
+                      }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                        settingsForm.freeDeliveryEnabled !== false ? 'bg-emerald-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          settingsForm.freeDeliveryEnabled !== false ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="font-bold text-emerald-950 block mb-1">
-                      Free Delivery Threshold (₹)
+                  <div className={settingsForm.freeDeliveryEnabled === false ? 'opacity-50' : ''}>
+                    <label className="font-bold text-emerald-950 block mb-1 flex items-center justify-between">
+                      <span>Free Delivery Threshold (₹)</span>
+                      {settingsForm.freeDeliveryEnabled === false && (
+                        <span className="text-[10px] text-gray-500 font-semibold">(Disabled)</span>
+                      )}
                     </label>
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
@@ -3050,6 +3162,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         id="settings-free-delivery-input"
                         min="0"
                         step="1"
+                        disabled={settingsForm.freeDeliveryEnabled === false}
                         value={settingsForm.freeShippingThreshold}
                         onChange={(e) => {
                           setSettingsForm((prev) => ({
@@ -3059,11 +3172,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                           }));
                           setIsSettingsDirty(true);
                         }}
-                        className="w-full pl-8 pr-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold transition-colors"
+                        className="w-full pl-8 pr-4 py-2.5 bg-gray-50 text-gray-900 rounded-2xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold transition-colors disabled:cursor-not-allowed"
                       />
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">
-                      Orders with subtotal equal to or above ₹{settingsForm.freeShippingThreshold} get 100% free delivery.
+                      {settingsForm.freeDeliveryEnabled !== false
+                        ? `Orders with subtotal equal to or above ₹${settingsForm.freeShippingThreshold} get 100% free delivery.`
+                        : 'Enable the option above to activate threshold-based free delivery.'}
                     </p>
                   </div>
 
@@ -3090,7 +3205,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       />
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">
-                      Charged per kg of total plant shipment weight when subtotal is under ₹{settingsForm.freeShippingThreshold}.
+                      {settingsForm.freeDeliveryEnabled !== false
+                        ? `Charged per kg of total plant shipment weight when subtotal is under ₹${settingsForm.freeShippingThreshold}.`
+                        : 'Charged per kg of total plant shipment weight on all orders.'}
                     </p>
                   </div>
                 </div>
@@ -3290,12 +3407,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               <div className="pt-6 border-t border-gray-100 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
-                    <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-emerald-700" />
-                      Razorpay Payment Gateway Integration
-                    </h4>
-                    <p className="text-[11px] text-gray-500">
-                      Standard web checkout credentials for UPI, Credit/Debit Cards, and NetBanking.
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-emerald-700" />
+                        Razorpay Payment Gateway Integration
+                      </h4>
+                      {razorpayKeyId.startsWith('rzp_live_') ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                          Live Production Mode
+                        </span>
+                      ) : razorpayKeyId.startsWith('rzp_test_') ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                          Test / Sandbox Mode
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-gray-100 text-gray-700 border border-gray-200">
+                          Keys Required
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Accept live customer payments via UPI (GPay, PhonePe, Paytm), Credit & Debit Cards, Net Banking, and Wallets.
                     </p>
                   </div>
 
@@ -3303,32 +3437,61 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     href="https://dashboard.razorpay.com/#/app/keys"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 font-bold bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100"
+                    className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 font-bold bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 shrink-0"
                   >
                     <span>Razorpay Dashboard</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
 
+                {/* Live vs Test Mode Banner */}
+                {razorpayKeyId.startsWith('rzp_live_') ? (
+                  <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-950 flex items-start gap-2.5">
+                    <span className="text-base leading-none">🟢</span>
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-emerald-900">Live Production Mode Active</p>
+                      <p className="text-[11px] text-emerald-800">
+                        Checkout will process real transactions through your Razorpay merchant account. Customer payments will be credited directly to your registered bank account.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
+                    <span className="text-base leading-none">💡</span>
+                    <div className="space-y-1">
+                      <p className="font-bold text-amber-900">Switching to Live Production Mode:</p>
+                      <ol className="text-[11px] text-amber-800 list-decimal list-inside space-y-0.5">
+                        <li>Open the <strong>Razorpay Dashboard</strong> and ensure the top-left toggle is set to <strong>Live Mode</strong>.</li>
+                        <li>Navigate to <strong>Account & Settings → API Keys → Generate Key</strong>.</li>
+                        <li>Paste your <strong>Key ID</strong> (starts with <code className="font-mono font-bold bg-amber-100 px-1 rounded">rzp_live_...</code>) and <strong>Key Secret</strong> below.</li>
+                        <li>Click <strong>Save & Update Keys</strong> to activate live checkout across the store.</li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-emerald-950/5 border border-emerald-900/10 rounded-2xl p-4 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="font-bold text-emerald-950 block mb-1">
-                        Razorpay Key ID
+                      <label className="font-bold text-emerald-950 block mb-1 flex items-center justify-between">
+                        <span>Razorpay Live Key ID</span>
+                        {razorpayKeyId.startsWith('rzp_live_') && (
+                          <span className="text-[10px] text-emerald-700 font-bold uppercase">Live Key</span>
+                        )}
                       </label>
                       <input
                         type="text"
                         id="settings-razorpay-key-id"
                         value={razorpayKeyId}
                         onChange={(e) => setRazorpayKeyId(e.target.value)}
-                        placeholder="rzp_test_... or rzp_live_..."
+                        placeholder="rzp_live_..."
                         className="w-full px-3.5 py-2.5 bg-white text-gray-900 rounded-xl border border-gray-200 focus:border-emerald-600 outline-hidden font-mono text-xs font-semibold"
                       />
                     </div>
 
                     <div>
                       <label className="font-bold text-emerald-950 block mb-1">
-                        Razorpay Key Secret
+                        Razorpay Live Key Secret
                       </label>
                       <div className="relative">
                         <input
@@ -3336,7 +3499,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                           id="settings-razorpay-key-secret"
                           value={razorpayKeySecret}
                           onChange={(e) => setRazorpayKeySecret(e.target.value)}
-                          placeholder="Key Secret from Razorpay Dashboard"
+                          placeholder="Paste Live Key Secret here"
                           className="w-full pl-3.5 pr-10 py-2.5 bg-white text-gray-900 rounded-xl border border-gray-200 focus:border-emerald-600 outline-hidden font-mono text-xs font-semibold"
                         />
                         <button
@@ -3584,12 +3747,33 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
+              {/* Auto-Compression Notice Banner for Product Creation */}
+              <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs shadow-2xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-800 shrink-0">
+                    <Zap className="w-4 h-4 fill-emerald-600/30 text-emerald-700" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-emerald-950 block">Real-Time Photo Compression Active</span>
+                    <span className="text-[11px] text-emerald-800">
+                      High-resolution photos (3–15 MB) are automatically compressed in real-time on upload to lightweight WebP/JPEG (~70–120 KB), saving 90%+ storage while preserving vibrant botanical details.
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-black tracking-wider uppercase bg-emerald-200/80 text-emerald-900 px-2.5 py-1 rounded-full shrink-0">
+                  Always Active
+                </span>
+              </div>
+
               <div>
                 <ImageUploadPicker
                   images={productForm.images || []}
                   onChange={(imgs) => setProductForm({ ...productForm, images: imgs })}
-                  label="Plant Photos (Add from Device Files or URL)"
-                  helpText="Upload plant photos directly from your computer or paste image links."
+                  maxImages={8}
+                  namePrefix="product-plant"
+                  label="Plant Photos (Automatically compressed on upload)"
+                  helpText="Upload plant photos directly from your computer or phone. Files are auto-compressed on the fly to maximize store speed."
+                  showCompressionNotice={true}
                 />
               </div>
 

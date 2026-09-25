@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Category } from '../../types';
-import { compressImageFile } from './ImageUploadPicker';
+import { uploadImage } from '../../lib/imageUploader';
 
 interface ComboCategoryManagerModalProps {
   isOpen: boolean;
@@ -155,10 +155,10 @@ export const ComboCategoryManagerModal: React.FC<ComboCategoryManagerModalProps>
     if (!file) return;
     try {
       setIsUploading(true);
-      const dataUrl = await compressImageFile(file);
-      setFormImage(dataUrl);
+      const hostedUrl = await uploadImage(file, `category-${formSlug || 'cover'}`);
+      setFormImage(hostedUrl);
     } catch (err) {
-      console.error('Failed to compress image:', err);
+      console.error('Failed to upload image:', err);
       addToast({
         type: 'error',
         title: 'Upload Failed',

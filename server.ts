@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 dotenv.config({ override: true });
 import express from "express";
 import path from "path";
+import fs from "fs";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import Razorpay from "razorpay";
@@ -17,7 +18,14 @@ import {
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+const uploadsDir = path.join(process.cwd(), "public", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsDir));
 
 // Global CORS & Preflight handler to prevent 405 / CORS blocks in iFrames & previews
 app.use((req, res, next) => {
@@ -141,6 +149,48 @@ app.get("/api/health", (req, res) => {
     nursery: "Mannarathayil Nursery",
     timestamp: new Date().toISOString(),
   });
+});
+
+// Direct Image Upload Endpoint (stores photos in public/uploads to prevent Firestore 1MB document size limit exceeded error)
+app.post("/api/upload-image", (req, res) => {
+  try {
+    const { image, name } = req.body;
+    if (!image) {
+      return res.status(400).json({ success: false, error: "Image data is required" });
+    }
+
+    // If it's already an HTTP / static URL, return as is
+    if (typeof image === "string" && (image.startsWith("http://") || image.startsWith("https://") || image.startsWith("/uploads/"))) {
+      return res.json({ success: true, url: image });
+    }
+
+    // Parse base64 data URL
+    const match = image.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+    if (!match) {
+      return res.status(400).json({ success: false, error: "Invalid image format" });
+    }
+
+    const rawExt = match[1].toLowerCase();
+    const ext = rawExt === "jpeg" ? "jpg" : rawExt.replace("+xml", "");
+    const base64Data = match[2];
+    const buffer = Buffer.from(base64Data, "base64");
+
+    const cleanName = (name || "plant-photo")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "-")
+      .slice(0, 30);
+    const filename = `${cleanName}-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}.${ext}`;
+    const filePath = path.join(uploadsDir, filename);
+
+    fs.writeFileSync(filePath, buffer);
+    const fileUrl = `/uploads/${filename}`;
+
+    console.log(`[7Seasons Storage] 📷 Saved image: ${filename} (${Math.round(buffer.length / 1024)} KB)`);
+    return res.json({ success: true, url: fileUrl });
+  } catch (error: any) {
+    console.error("Error saving uploaded image:", error);
+    return res.status(500).json({ success: false, error: error.message || "Failed to save image" });
+  }
 });
 
 
@@ -648,11 +698,13 @@ app.get("/api/razorpay/config", async (req, res) => {
   const keyId = (process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || "").trim();
   const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
   const isConfigured = Boolean(keyId && keySecret);
+  const isLive = keyId.startsWith("rzp_live_");
   
   res.json({
     configured: isConfigured,
     keyId: keyId,
-    mode: isConfigured ? "live" : "test",
+    mode: isLive ? "live" : (keyId.startsWith("rzp_test_") ? "test" : "unconfigured"),
+    isLive,
     currency: "INR",
   });
 });
@@ -796,6 +848,7 @@ const handleCreateOrder = async (req: express.Request, res: express.Response) =>
 
     const keyId = (process.env.RAZORPAY_KEY_ID || "").trim();
     const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+    const isLive = keyId.startsWith("rzp_live_");
 
     const razorpay = getRazorpayClient();
 
@@ -818,39 +871,44 @@ const handleCreateOrder = async (req: express.Request, res: express.Response) =>
           id: order.id,
           order,
           isSandbox: false,
+          isLive,
         });
       } catch (rzpErr: any) {
-        const isAuthError =
-          rzpErr.statusCode === 401 ||
-          rzpErr.error?.code === "BAD_REQUEST_ERROR" ||
-          rzpErr.error?.description?.includes("Authentication failed") ||
-          rzpErr.error?.description?.includes("key") ||
-          rzpErr.message?.includes("Authentication failed");
+        // If not in live mode and test credentials failed, use resilient sandbox fallback
+        if (!isLive) {
+          const isAuthError =
+            rzpErr.statusCode === 401 ||
+            rzpErr.error?.code === "BAD_REQUEST_ERROR" ||
+            rzpErr.error?.description?.includes("Authentication failed") ||
+            rzpErr.error?.description?.includes("key") ||
+            rzpErr.message?.includes("Authentication failed");
 
-        if (isAuthError) {
-          // Log clean informational warning instead of error
-          console.warn(
-            "[Razorpay Notice] Upstream credentials returned 'Authentication failed'. " +
-            "Activating sandbox order fallback so customer checkout is never blocked."
-          );
+          if (isAuthError) {
+            console.warn(
+              "[Razorpay Notice] Test credentials returned 'Authentication failed'. " +
+              "Activating sandbox order fallback so customer checkout is never blocked."
+            );
 
-          const sandboxOrderId = `order_sandbox_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
-          return res.json({
-            success: true,
-            order_id: sandboxOrderId,
-            amount: Math.round(amount),
-            currency: (currency || "INR").toUpperCase(),
-            key_id: keyId,
-            id: sandboxOrderId,
-            isSandbox: true,
-            sandboxNotice: "Razorpay test credentials returned Authentication Failed. Running in resilient sandbox mode.",
-          });
+            const sandboxOrderId = `order_sandbox_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+            return res.json({
+              success: true,
+              order_id: sandboxOrderId,
+              amount: Math.round(amount),
+              currency: (currency || "INR").toUpperCase(),
+              key_id: keyId,
+              id: sandboxOrderId,
+              isSandbox: true,
+              isLive: false,
+              sandboxNotice: "Razorpay test credentials returned Authentication Failed. Running in resilient sandbox mode.",
+            });
+          }
         }
 
-        console.warn("[Razorpay API Issue creating order]:", rzpErr?.error?.description || rzpErr?.message || rzpErr);
-        return res.status(500).json({
+        console.error("[Razorpay API Issue creating order]:", rzpErr?.error?.description || rzpErr?.message || rzpErr);
+        return res.status(400).json({
           success: false,
           error: rzpErr.error?.description || rzpErr.message || "Failed to create Razorpay order",
+          isLive,
         });
       }
     }
@@ -924,8 +982,18 @@ const handleVerifyPayment = (req: express.Request, res: express.Response) => {
       });
     }
 
-    // Sandbox simulated verification
+    // Sandbox simulated verification (only allowed when not in live production mode)
+    const keyId = (process.env.RAZORPAY_KEY_ID || "").trim();
+    const isLive = keyId.startsWith("rzp_live_");
+
     if (order_id.startsWith("order_sandbox_") || order_id.startsWith("sandbox_") || signature.startsWith("sandbox_sig_")) {
+      if (isLive) {
+        return res.status(400).json({
+          success: false,
+          verified: false,
+          error: "Live payment mode is active. Sandbox signatures are not permitted for live transactions.",
+        });
+      }
       console.log(`[Razorpay Sandbox] Verified simulated order ${order_id} with payment ID ${payment_id}`);
       return res.json({
         success: true,

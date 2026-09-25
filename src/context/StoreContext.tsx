@@ -274,7 +274,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!parsed.email || parsed.email === '7seasonsplants@gmail.com') {
         parsed.email = 'mannaratharayil@gmail.com';
       }
-      return { ...initialStoreSettings, ...parsed, email: parsed.email };
+      return {
+        ...initialStoreSettings,
+        ...parsed,
+        freeDeliveryEnabled: parsed.freeDeliveryEnabled !== false,
+        email: parsed.email,
+      };
     } catch {
       return initialStoreSettings;
     }
@@ -642,7 +647,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             data.email = 'mannaratharayil@gmail.com';
             setDoc(doc(db, 'storeSettings', 'global'), { email: 'mannaratharayil@gmail.com' }, { merge: true }).catch(() => {});
           }
-          setStoreSettings((prev) => ({ ...prev, ...data, email: data.email || 'mannaratharayil@gmail.com' }));
+          setStoreSettings((prev) => ({
+            ...prev,
+            ...data,
+            freeDeliveryEnabled: data.freeDeliveryEnabled !== false,
+            email: data.email || 'mannaratharayil@gmail.com',
+          }));
           localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(data));
         } else if (!seeded) {
           seeded = true;
@@ -672,8 +682,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           snapshot.forEach((docSnap) => {
             list.push({ ...(docSnap.data() as PlantCombo), id: docSnap.id });
           });
-          setCombos(list);
-          localStorage.setItem(`${STORAGE_KEY}_combos`, JSON.stringify(list));
+          setCombos((prev) => {
+            const serverIds = new Set(list.map((c) => c.id));
+            // Preserve locally created combos from the last 15 mins that haven't synced yet
+            const pendingRecent = prev.filter((c) => {
+              if (serverIds.has(c.id)) return false;
+              const createdTime = c.createdAt ? new Date(c.createdAt).getTime() : 0;
+              return Date.now() - createdTime < 15 * 60 * 1000;
+            });
+            const merged = [...pendingRecent, ...list];
+            try {
+              localStorage.setItem(`${STORAGE_KEY}_combos`, JSON.stringify(merged));
+            } catch (err) {
+              console.warn('LocalStorage error:', err);
+            }
+            return merged;
+          });
         } else if (!seeded) {
           seeded = true;
           try {
@@ -704,8 +728,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           snapshot.forEach((docSnap) => {
             list.push({ ...(docSnap.data() as Product), id: docSnap.id });
           });
-          setProducts(list);
-          localStorage.setItem(`${STORAGE_KEY}_products`, JSON.stringify(list));
+          setProducts((prev) => {
+            const serverIds = new Set(list.map((p) => p.id));
+            const pendingRecent = prev.filter((p) => {
+              if (serverIds.has(p.id)) return false;
+              const createdTime = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+              return Date.now() - createdTime < 15 * 60 * 1000;
+            });
+            const merged = [...pendingRecent, ...list];
+            try {
+              localStorage.setItem(`${STORAGE_KEY}_products`, JSON.stringify(merged));
+            } catch (err) {
+              console.warn('LocalStorage error:', err);
+            }
+            return merged;
+          });
         } else if (!seeded) {
           seeded = true;
           try {
@@ -743,8 +780,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
           });
           if (list.length > 0) {
-            setCategories(list);
-            localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(list));
+            setCategories((prev) => {
+              const serverIds = new Set(list.map((c) => c.id));
+              const pendingRecent = prev.filter((c) => {
+                if (serverIds.has(c.id) || deletedSet.has(c.id) || deletedSet.has(c.slug)) return false;
+                const isRecentId = c.id.startsWith('cat-') && !isNaN(Number(c.id.replace('cat-', '')));
+                if (isRecentId) {
+                  const ts = Number(c.id.replace('cat-', ''));
+                  return Date.now() - ts < 15 * 60 * 1000;
+                }
+                return false;
+              });
+              const merged = [...list, ...pendingRecent];
+              try {
+                localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(merged));
+              } catch (err) {
+                console.warn('LocalStorage error:', err);
+              }
+              return merged;
+            });
           }
         } else if (!seeded) {
           seeded = true;
@@ -1244,8 +1298,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const cartDeliveryFee = useMemo(() => {
     if (cartSubtotal === 0) return 0;
+    const isFreeDeliveryEnabled = storeSettings.freeDeliveryEnabled !== false;
     const threshold = storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899;
-    if (cartSubtotal >= threshold) return 0;
+    if (isFreeDeliveryEnabled && cartSubtotal >= threshold) return 0;
     
     // Calculate total weight in kg (defaulting to 1kg if weight is not specified)
     const totalWeight = cart.reduce((total, item) => total + ((item.weight || 1) * item.quantity), 0);
@@ -1260,6 +1315,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [cartSubtotal, cartDiscount, cartDeliveryFee]);
 
   const freeShippingRemaining = useMemo(() => {
+    if (storeSettings.freeDeliveryEnabled === false) return 0;
     const threshold = storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899;
     return Math.max(0, threshold - cartSubtotal);
   }, [cartSubtotal, storeSettings]);
@@ -2990,34 +3046,64 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addProduct = async (prod: Omit<Product, 'id' | 'createdAt'>) => {
     const newProd: Product = {
       ...prod,
-      id: `prod-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+      id: (prod as any).id || `prod-${Date.now()}`,
+      createdAt: (prod as any).createdAt || new Date().toISOString(),
     };
-    setProducts((prev) => [newProd, ...prev]);
+    setProducts((prev) => {
+      const next = [newProd, ...prev.filter((p) => p.id !== newProd.id)];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_products`, JSON.stringify(next));
+      } catch (err) {
+        console.warn('LocalStorage save error:', err);
+      }
+      return next;
+    });
+
     try {
       await setDoc(doc(db, 'products', newProd.id), removeUndefined(newProd));
-    } catch (e) {
-      console.warn('Could not save product to Firestore:', e);
+      addToast({
+        type: 'success',
+        title: 'Product Created',
+        message: `${prod.name} has been added to the catalog.`,
+      });
+    } catch (e: any) {
+      console.error('Could not save product to Firestore:', e);
+      addToast({
+        type: 'warning',
+        title: 'Saved Locally',
+        message: `${prod.name} saved to local inventory. Note: Firestore sync reported ${e?.message || 'an issue'}.`,
+        duration: 5000,
+      });
     }
-    addToast({
-      type: 'success',
-      title: 'Product Created',
-      message: `${prod.name} has been added to the catalog.`,
-    });
   };
 
   const updateProduct = async (updated: Product) => {
-    setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setProducts((prev) => {
+      const next = prev.map((p) => (p.id === updated.id ? updated : p));
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_products`, JSON.stringify(next));
+      } catch (err) {
+        console.warn('LocalStorage save error:', err);
+      }
+      return next;
+    });
+
     try {
       await setDoc(doc(db, 'products', updated.id), removeUndefined(updated), { merge: true });
-    } catch (e) {
-      console.warn('Could not update product in Firestore:', e);
+      addToast({
+        type: 'success',
+        title: 'Product Updated',
+        message: `${updated.name} updated successfully.`,
+      });
+    } catch (e: any) {
+      console.error('Could not update product in Firestore:', e);
+      addToast({
+        type: 'warning',
+        title: 'Saved Locally',
+        message: `${updated.name} updated locally. Note: Firestore sync reported ${e?.message || 'an issue'}.`,
+        duration: 5000,
+      });
     }
-    addToast({
-      type: 'success',
-      title: 'Product Updated',
-      message: `${updated.name} updated successfully.`,
-    });
   };
 
   const deleteProduct = async (id: string) => {
@@ -3078,34 +3164,66 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addCombo = async (combo: Omit<PlantCombo, 'id' | 'createdAt'>) => {
     const newCombo: PlantCombo = {
       ...combo,
-      id: `combo-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+      id: (combo as any).id || `combo-${Date.now()}`,
+      createdAt: (combo as any).createdAt || new Date().toISOString(),
     };
-    setCombos((prev) => [newCombo, ...prev]);
+    
+    // Immediately persist to local React state and LocalStorage
+    setCombos((prev) => {
+      const next = [newCombo, ...prev.filter((c) => c.id !== newCombo.id)];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_combos`, JSON.stringify(next));
+      } catch (err) {
+        console.warn('LocalStorage save error:', err);
+      }
+      return next;
+    });
+
     try {
       await setDoc(doc(db, 'combos', newCombo.id), removeUndefined(newCombo));
-    } catch (e) {
-      console.warn('Could not save combo to Firestore:', e);
+      addToast({
+        type: 'success',
+        title: 'Plant Combo Created 🌿',
+        message: `${combo.name} is now available in store.`,
+      });
+    } catch (e: any) {
+      console.error('Could not save combo to Firestore:', e);
+      addToast({
+        type: 'warning',
+        title: 'Saved Locally',
+        message: `${combo.name} was saved locally. Firestore sync reported ${e?.message || 'an issue'}.`,
+        duration: 5000,
+      });
     }
-    addToast({
-      type: 'success',
-      title: 'Plant Combo Created 🌿',
-      message: `${combo.name} is now available in store.`,
-    });
   };
 
   const updateCombo = async (updated: PlantCombo) => {
-    setCombos((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    setCombos((prev) => {
+      const next = prev.map((c) => (c.id === updated.id ? updated : c));
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_combos`, JSON.stringify(next));
+      } catch (err) {
+        console.warn('LocalStorage save error:', err);
+      }
+      return next;
+    });
+
     try {
       await setDoc(doc(db, 'combos', updated.id), removeUndefined(updated), { merge: true });
-    } catch (e) {
-      console.warn('Could not update combo in Firestore:', e);
+      addToast({
+        type: 'success',
+        title: 'Combo Updated',
+        message: `${updated.name} updated successfully.`,
+      });
+    } catch (e: any) {
+      console.error('Could not update combo in Firestore:', e);
+      addToast({
+        type: 'warning',
+        title: 'Saved Locally',
+        message: `${updated.name} updated locally. Note: Firestore sync reported ${e?.message || 'an issue'}.`,
+        duration: 5000,
+      });
     }
-    addToast({
-      type: 'success',
-      title: 'Combo Updated',
-      message: `${updated.name} updated successfully.`,
-    });
   };
 
   const deleteCombo = async (id: string) => {
@@ -3462,6 +3580,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         normalized.whatsappNumber = normalized.whatsapp;
       } else if (normalized.whatsappNumber !== undefined) {
         normalized.whatsapp = normalized.whatsappNumber;
+      }
+
+      if (normalized.freeDeliveryEnabled !== undefined) {
+        normalized.freeDeliveryEnabled = Boolean(normalized.freeDeliveryEnabled);
       }
 
       if (normalized.freeShippingThreshold !== undefined) {

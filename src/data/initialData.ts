@@ -25,11 +25,12 @@ export const initialStoreSettings: StoreSettings = {
   address: 'Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India',
   supportedStates: ['Kerala', 'Tamil Nadu', 'Karnataka'],
   deliveryCharge: 80,
+  freeDeliveryEnabled: true,
   freeShippingThreshold: 899,
   announcementBarText: '🌿 Farm Fresh Live Plant Combos • Delivered Safely Across Kerala, Tamil Nadu & Karnataka • Free Shipping over ₹899!',
   announcementBarActive: true,
   announcementLink: '/combos',
-  razorpayKeyId: 'rzp_test_TfQpwvQOSGYe9b',
+  razorpayKeyId: (import.meta as any).env?.VITE_RAZORPAY_KEY_ID || '',
   razorpayEnabled: true,
   menuVisibility: {
     home: true,

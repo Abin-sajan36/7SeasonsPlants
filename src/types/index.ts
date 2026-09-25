@@ -91,6 +91,7 @@ export interface PlantCombo {
   weight?: number;
   sku: string;
   images: string[];
+  maxImages?: number;
   rating: number;
   reviewCount: number;
   isFeatured?: boolean;
@@ -437,6 +438,7 @@ export interface StoreSettings {
   address: string;
   supportedStates: string[];
   deliveryCharge: number;
+  freeDeliveryEnabled?: boolean;
   freeShippingThreshold: number;
   freeDeliveryThreshold?: number;
   announcementBarText: string;

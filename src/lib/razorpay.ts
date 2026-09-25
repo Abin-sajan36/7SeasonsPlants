@@ -310,7 +310,15 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
 
       if (response.ok) {
         orderData = await response.json();
-      } else if (response.status === 405 || response.status === 404) {
+      } else {
+        const errorJson = await response.json().catch(() => null);
+        if (errorJson && errorJson.error) {
+          onError(errorJson.error);
+          return;
+        }
+      }
+      
+      if (!orderData && (response.status === 405 || response.status === 404)) {
         // If /api/create-order returned 405 or 404 on some CDN/hosting rules, try /api/razorpay/create-order
         console.warn(`[Razorpay Notice] /api/create-order returned HTTP ${response.status}. Trying /api/razorpay/create-order...`);
         const fallbackRes = await fetch('/api/razorpay/create-order', {
@@ -325,22 +333,33 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
         });
         if (fallbackRes.ok) {
           orderData = await fallbackRes.json();
+        } else {
+          const errData = await fallbackRes.json().catch(() => null);
+          if (errData && errData.error) {
+            onError(errData.error);
+            return;
+          }
         }
       }
     } catch (fetchErr) {
       console.warn('[Razorpay Notice] Order creation request error:', fetchErr);
     }
 
-    // If backend was unreachable or returned 405/404/500, activate resilient fallback order
+    if (orderData && !orderData.order_id && orderData.error) {
+      onError(orderData.error);
+      return;
+    }
+
+    // If backend was unreachable or returned 405/404/500 without error body, activate resilient fallback order
     if (!orderData || !orderData.order_id) {
-      console.warn('[Razorpay Notice] Backend create-order returned 405 or non-OK response. Activating resilient checkout mode.');
+      console.warn('[Razorpay Notice] Backend create-order returned non-OK response. Activating resilient checkout mode.');
       const fallbackOrderId = `order_sandbox_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
       orderData = {
         success: true,
         order_id: fallbackOrderId,
         amount: amountInPaise,
         currency: currency || 'INR',
-        key_id: (import.meta as any).env?.VITE_RAZORPAY_KEY_ID || 'rzp_test_TfQpwvQOSGYe9b',
+        key_id: (import.meta as any).env?.VITE_RAZORPAY_KEY_ID || '',
         id: fallbackOrderId,
         isSandbox: true,
         sandboxNotice: 'Running in resilient checkout mode.',
@@ -363,15 +382,7 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
     // 4. STEP 2: Ensure official script is loaded for live/active test key
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded || !window.Razorpay) {
-      // Fallback to sandbox modal if CDN is blocked or unavailable
-      renderSandboxCheckoutModal({
-        orderData,
-        prefill,
-        notes,
-        onSuccess,
-        onError,
-        onDismiss,
-      });
+      onError('Unable to load official Razorpay payment gateway script. Please verify internet connection.');
       return;
     }
 
@@ -379,7 +390,7 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
     const keyId =
       orderData.key_id ||
       (import.meta as any).env?.VITE_RAZORPAY_KEY_ID ||
-      'rzp_test_TfQpwvQOSGYe9b';
+      '';
 
     // 5. Configure Razorpay Standard Checkout Modal
     const options = {

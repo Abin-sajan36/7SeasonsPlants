@@ -30,7 +30,8 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { PlantCombo, ComboItem, Product } from '../../types';
-import { ImageUploadPicker, compressImageFile } from './ImageUploadPicker';
+import { ImageUploadPicker } from './ImageUploadPicker';
+import { uploadImage, compressImageFile } from '../../lib/imageUploader';
 import { useStore } from '../../context/StoreContext';
 import { ComboCategoryManagerModal } from './ComboCategoryManagerModal';
 
@@ -115,6 +116,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
   const [showQuickAddCategory, setShowQuickAddCategory] = useState(false);
   const [quickCatName, setQuickCatName] = useState('');
   const [quickCatDesc, setQuickCatDesc] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form State
   const [name, setName] = useState(comboToEdit?.name || '');
@@ -142,6 +144,15 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
       ? comboToEdit.images
       : ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80']
   );
+  const [maxImagesLimit, setMaxImagesLimit] = useState<number>(() => {
+    if (comboToEdit?.maxImages && comboToEdit.maxImages > 0) {
+      return Math.min(5, comboToEdit.maxImages);
+    }
+    if (comboToEdit?.images?.length) {
+      return Math.min(5, comboToEdit.images.length);
+    }
+    return 5; // Strict maximum photo limit for combos is 5
+  });
   const [careSummary, setCareSummary] = useState(
     comboToEdit?.careSummary ||
       'Position in bright to moderate indirect sunlight. Water individually when topsoil feels dry.'
@@ -224,8 +235,8 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
     setIsUploadingCustomImage(true);
     setCustomImageError(null);
     try {
-      const dataUrl = await compressImageFile(file);
-      setCustomItemForm((prev) => ({ ...prev, image: dataUrl }));
+      const hostedUrl = await uploadImage(file, 'custom-plant');
+      setCustomItemForm((prev) => ({ ...prev, image: hostedUrl }));
       setCustomLocalFileName(file.name);
     } catch (err: any) {
       console.error('Failed to compress custom plant image:', err);
@@ -361,10 +372,10 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
   // Upload image for specific item
   const handleUploadItemImage = async (index: number, file: File) => {
     try {
-      const dataUrl = await compressImageFile(file);
-      handleUpdateItemField(index, 'image', dataUrl);
+      const hostedUrl = await uploadImage(file, `combo-item-${index + 1}`);
+      handleUpdateItemField(index, 'image', hostedUrl);
     } catch (err) {
-      console.error('Failed to compress item image:', err);
+      console.error('Failed to upload item image:', err);
     }
   };
 
@@ -388,7 +399,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
   };
 
   // Save Combo Form Submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       alert('Please provide a name for this combo.');
@@ -400,56 +411,88 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
       return;
     }
 
-    const finalCategory = (category === 'custom' ? customCategory.trim() : category) || 'Air Purifying Combos';
-    const finalSlug = slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    setIsSaving(true);
+    try {
+      const finalCategory = (category === 'custom' ? customCategory.trim() : category) || 'Air Purifying Combos';
+      const finalSlug = slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-    // Auto-create category in store if not present
-    if (finalCategory) {
-      const exists = categories.some((c) => c.name.toLowerCase() === finalCategory.toLowerCase());
-      if (!exists) {
-        addCategory({
-          name: finalCategory,
-          slug: finalCategory.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-          description: `Curated ${finalCategory} plant combos`,
-          image: images[0] || 'https://images.unsplash.com/photo-1512428813834-c702c7702b78?auto=format&fit=crop&w=800&q=80',
-          itemCount: 1,
-          displayOrder: categories.length + 1,
-          isFeatured: true,
-          type: 'combo',
-        });
+      // 1. Sanitize & upload combo gallery images (strictly capped to max 5 photos)
+      const rawSource = images.length > 0 ? images : ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80'];
+      const safeLimit = Math.min(5, maxImagesLimit || 5);
+      const sourceImages = rawSource.slice(0, safeLimit);
+      const sanitizedImages = await Promise.all(
+        sourceImages.map((img, idx) => uploadImage(img, `combo-${finalSlug}-${idx + 1}`))
+      );
+
+      // 2. Sanitize & upload all included plant / item photos to permanent server storage
+      const sanitizedItems = await Promise.all(
+        items.map(async (item, idx) => {
+          let itemImg = item.image;
+          if (itemImg && (itemImg.startsWith('data:image/') || itemImg.length > 500)) {
+            itemImg = await uploadImage(itemImg, `combo-item-${item.productId || idx + 1}`);
+          }
+          return {
+            ...item,
+            image: itemImg,
+          };
+        })
+      );
+
+      // 3. Auto-create category in store if not present
+      if (finalCategory) {
+        const exists = categories.some((c) => c.name.toLowerCase() === finalCategory.toLowerCase());
+        if (!exists) {
+          const categoryCover = sanitizedImages[0] || 'https://images.unsplash.com/photo-1512428813834-c702c7702b78?auto=format&fit=crop&w=800&q=80';
+          await addCategory({
+            name: finalCategory,
+            slug: finalCategory.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+            description: `Curated ${finalCategory} plant combos`,
+            image: categoryCover,
+            itemCount: 1,
+            displayOrder: categories.length + 1,
+            isFeatured: true,
+            type: 'combo',
+          });
+        }
       }
+
+      const finalCombo: PlantCombo = {
+        id: comboToEdit ? comboToEdit.id : `combo-${Date.now()}`,
+        name: name.trim(),
+        slug: finalSlug,
+        category: finalCategory,
+        shortDescription: shortDescription.trim(),
+        description: description.trim(),
+        price: Number(price),
+        originalPrice: Number(originalPrice || calculatedItemsTotalValue || price),
+        savings: Math.max(0, (Number(originalPrice) || Number(price)) - Number(price)),
+        discountPercentage: discountPercent,
+        stock: Number(stock),
+        weight: Number(weight) || 1,
+        sku: sku.trim() || `7S-CMB-${Math.floor(1000 + Math.random() * 9000)}`,
+        images: sanitizedImages,
+        maxImages: Math.min(5, maxImagesLimit || 5),
+        rating: comboToEdit?.rating || 4.9,
+        reviewCount: comboToEdit?.reviewCount || 18,
+        isFeatured,
+        tags: comboToEdit?.tags || ['combo', 'bundle', 'nursery', 'kerala'],
+        items: sanitizedItems,
+        sellableStates,
+        careSummary: careSummary.trim(),
+        benefits: benefits.length > 0 ? benefits : ['High air purification', 'Specialized safe packing'],
+        deliveryInfo: deliveryInfo.trim(),
+        status,
+        createdAt: comboToEdit?.createdAt || new Date().toISOString(),
+      };
+
+      await onSaveCombo(finalCombo);
+      onClose();
+    } catch (err: any) {
+      console.error('Error saving combo:', err);
+      alert('Could not save combo bundle: ' + (err.message || 'Please check input data.'));
+    } finally {
+      setIsSaving(false);
     }
-
-    const finalCombo: PlantCombo = {
-      id: comboToEdit ? comboToEdit.id : `combo-${Date.now()}`,
-      name: name.trim(),
-      slug: finalSlug,
-      category: finalCategory,
-      shortDescription: shortDescription.trim(),
-      description: description.trim(),
-      price: Number(price),
-      originalPrice: Number(originalPrice || calculatedItemsTotalValue || price),
-      savings: Math.max(0, (Number(originalPrice) || Number(price)) - Number(price)),
-      discountPercentage: discountPercent,
-      stock: Number(stock),
-      weight: Number(weight) || 1,
-      sku: sku.trim() || `7S-CMB-${Math.floor(1000 + Math.random() * 9000)}`,
-      images: images.length > 0 ? images : ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80'],
-      rating: comboToEdit?.rating || 4.9,
-      reviewCount: comboToEdit?.reviewCount || 18,
-      isFeatured,
-      tags: comboToEdit?.tags || ['combo', 'bundle', 'nursery', 'kerala'],
-      items,
-      sellableStates,
-      careSummary: careSummary.trim(),
-      benefits: benefits.length > 0 ? benefits : ['High air purification', 'Specialized safe packing'],
-      deliveryInfo: deliveryInfo.trim(),
-      status,
-      createdAt: comboToEdit?.createdAt || new Date().toISOString(),
-    };
-
-    onSaveCombo(finalCombo);
-    onClose();
   };
 
   const filteredCatalogProducts = products.filter(
@@ -496,7 +539,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
           {[
             { id: 'items', label: `Items in Combo (${items.length})`, icon: Package, badge: `${totalPlantCount} plants` },
             { id: 'general', label: 'General Info & Category', icon: Info },
-            { id: 'images', label: `Images & Gallery (${images.length})`, icon: ImageIcon },
+            { id: 'images', label: `Images & Gallery (${images.length}/${maxImagesLimit})`, icon: ImageIcon },
             { id: 'pricing', label: `Pricing & Stock (Save ₹${savingsAmount})`, icon: DollarSign },
             { id: 'benefits', label: `Benefits & Highlights (${benefits.length})`, icon: Sparkles },
           ].map((tab) => {
@@ -1481,13 +1524,114 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: IMAGES & GALLERY (WITH DEVICE FILE UPLOAD) */}
+          {/* TAB 3: IMAGES & GALLERY (WITH DEVICE FILE UPLOAD & PHOTO LIMIT CONTROL) */}
           {activeSubTab === 'images' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
+              {/* Photo Limit Configuration Card */}
+              <div className="bg-[#FAF9F6] border border-[#4A3E31]/15 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-lg bg-[#EBF0E6] text-[#7D8F69]">
+                        <ImageIcon className="w-4 h-4" />
+                      </span>
+                      <h4 className="font-bold text-[#4A3E31] text-sm">Combo Photo Limit</h4>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#7D8F69]/15 text-[#7D8F69]">
+                        Max {maxImagesLimit} of 5 Photos
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#736758] mt-1">
+                      Set how many photos can be uploaded for this combo bundle (Maximum limit: 5 photos). A limit of up to 5 keeps combo bundle pages fast and mobile-optimized.
+                    </p>
+                  </div>
+
+                  {/* Current Usage Badge */}
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                    <span
+                      className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                        images.length >= maxImagesLimit
+                          ? 'bg-amber-50 text-amber-800 border-amber-300'
+                          : 'bg-[#EBF0E6] text-[#627252] border-[#7D8F69]/30'
+                      }`}
+                    >
+                      {images.length} / {maxImagesLimit} Photos Added {maxImagesLimit >= 5 && '(Max 5)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Limit Selector Presets (1 to 5 Photos) */}
+                <div className="pt-2 border-t border-[#4A3E31]/10 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-[#4A3E31] mr-1">Photo Limit:</span>
+                  {[
+                    { count: 1, label: '1 Photo', note: 'Single' },
+                    { count: 2, label: '2 Photos', note: 'Duo' },
+                    { count: 3, label: '3 Photos', note: 'Standard' },
+                    { count: 4, label: '4 Photos', note: 'Showcase' },
+                    { count: 5, label: '5 Photos', note: 'Max Limit' },
+                  ].map((preset) => {
+                    const isSelected = maxImagesLimit === preset.count;
+                    return (
+                      <button
+                        key={preset.count}
+                        type="button"
+                        onClick={() => setMaxImagesLimit(preset.count)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#7D8F69] text-white shadow-xs ring-2 ring-[#7D8F69]/40'
+                            : 'bg-white text-[#4A3E31] hover:bg-[#EAE6DB]/60 border border-[#4A3E31]/15'
+                        }`}
+                      >
+                        <span>{preset.label}</span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded-md ${
+                            isSelected ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {preset.note}
+                        </span>
+                      </button>
+                    );
+                  })}
+
+                  {/* Custom Number Stepper (Max 5) */}
+                  <div className="flex items-center gap-1.5 ml-auto bg-white border border-[#4A3E31]/15 rounded-xl px-2.5 py-1">
+                    <span className="text-[11px] font-semibold text-[#736758]">Custom (1-5):</span>
+                    <button
+                      type="button"
+                      onClick={() => setMaxImagesLimit((prev) => Math.max(1, prev - 1))}
+                      disabled={maxImagesLimit <= 1}
+                      className="w-5 h-5 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs disabled:opacity-40 cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <span className="font-bold text-xs text-[#4A3E31] px-1">{maxImagesLimit}</span>
+                    <button
+                      type="button"
+                      onClick={() => setMaxImagesLimit((prev) => Math.min(5, prev + 1))}
+                      disabled={maxImagesLimit >= 5}
+                      className="w-5 h-5 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs disabled:opacity-40 cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notice if existing photos exceed newly selected limit */}
+                {images.length > maxImagesLimit && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>
+                      Notice: You currently have {images.length} photos uploaded. The first {maxImagesLimit} photos (up to max 5 allowed) will be saved for this combo bundle.
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <ImageUploadPicker
                 images={images}
                 onChange={(imgs) => setImages(imgs)}
-                maxImages={8}
+                maxImages={maxImagesLimit}
+                namePrefix="combo-bundle"
                 label="Combo Gallery Photos"
                 helpText="Upload images from your computer/device files (JPEG, PNG, WEBP) or paste web URLs. The first image will be used as the primary cover photo."
               />
@@ -1680,10 +1824,20 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                disabled={isSaving}
+                className="px-6 py-2.5 bg-emerald-800 hover:bg-emerald-900 disabled:bg-emerald-700/70 text-white rounded-full text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
               >
-                <Check className="w-4 h-4" />
-                <span>{comboToEdit ? 'Save Changes' : 'Create Plant Combo'}</span>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving Combo Bundle...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>{comboToEdit ? 'Save Changes' : 'Create Plant Combo'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
