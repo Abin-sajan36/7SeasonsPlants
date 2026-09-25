@@ -24,8 +24,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate })
             onClick={() => onNavigate('home')}
             className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer min-h-[44px] ${
               currentView === 'home'
-                ? 'text-emerald-700 dark:text-emerald-400 font-black'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                ? 'text-emerald-800 dark:text-emerald-400 font-black'
+                : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium'
             }`}
           >
             <div className="relative">
@@ -45,12 +45,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate })
             onClick={() => onNavigate('combos')}
             className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer min-h-[44px] ${
               currentView === 'combos' || currentView === 'combo-detail'
-                ? 'text-emerald-700 dark:text-emerald-400 font-black'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                ? 'text-emerald-800 dark:text-emerald-400 font-black'
+                : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium'
             }`}
           >
             <div className="relative">
-              <Sparkles className={`w-5 h-5 transition-transform ${currentView === 'combos' || currentView === 'combo-detail' ? 'scale-110 text-amber-500' : ''}`} />
+              <Sparkles className={`w-5 h-5 transition-transform ${currentView === 'combos' || currentView === 'combo-detail' ? 'scale-110 text-amber-600 dark:text-amber-400' : ''}`} />
               {(currentView === 'combos' || currentView === 'combo-detail') && (
                 <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-600 dark:bg-emerald-400" />
               )}
@@ -72,14 +72,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate })
             }}
             className={`relative flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer min-h-[44px] ${
               isCartOpen
-                ? 'text-emerald-700 dark:text-emerald-400 font-black'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                ? 'text-emerald-800 dark:text-emerald-400 font-black'
+                : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium'
             }`}
           >
             <div className="relative">
               <ShoppingBag className={`w-5 h-5 transition-transform ${isCartOpen ? 'scale-110' : ''}`} />
               {cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 bg-rose-500 text-white rounded-full text-[9px] font-black flex items-center justify-center px-1 shadow-xs animate-in zoom-in-50">
+                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 bg-rose-700 text-white rounded-full text-[9px] font-black flex items-center justify-center px-1 shadow-xs animate-in zoom-in-50">
                   {cartCount}
                 </span>
               )}
@@ -104,14 +104,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate })
             }}
             className={`relative flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer min-h-[44px] ${
               currentView === 'wishlist'
-                ? 'text-emerald-700 dark:text-emerald-400 font-black'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                ? 'text-emerald-800 dark:text-emerald-400 font-black'
+                : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium'
             }`}
           >
             <div className="relative">
-              <Heart className={`w-5 h-5 transition-transform ${currentView === 'wishlist' ? 'scale-110 fill-rose-500 text-rose-500' : ''}`} />
+              <Heart className={`w-5 h-5 transition-transform ${currentView === 'wishlist' ? 'scale-110 fill-rose-600 text-rose-600' : ''}`} />
               {wishlist.length > 0 && (
-                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 bg-rose-500 text-white rounded-full text-[9px] font-black flex items-center justify-center px-1 shadow-xs">
+                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 bg-rose-700 text-white rounded-full text-[9px] font-black flex items-center justify-center px-1 shadow-xs">
                   {wishlist.length}
                 </span>
               )}
@@ -135,8 +135,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate })
           }}
           className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer min-h-[44px] ${
             currentView === 'account'
-              ? 'text-emerald-700 dark:text-emerald-400 font-black'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+              ? 'text-emerald-800 dark:text-emerald-400 font-black'
+              : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium'
           }`}
         >
           <div className="relative">

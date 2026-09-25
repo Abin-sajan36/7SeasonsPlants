@@ -426,8 +426,14 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                   <button
                     onClick={() => onNavigate('account')}
                     className="w-8 h-8 rounded-full bg-emerald-700 flex items-center justify-center text-white font-bold text-[11px] tracking-wider shadow-sm transition-all duration-300 hover:scale-110 cursor-pointer shrink-0 overflow-hidden"
-                    title="My Profile"
-                    aria-label="My Profile"
+                    title={(() => {
+                      const initials = (currentUser?.name || '').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                      return initials ? `${initials} - My Profile` : 'My Profile';
+                    })()}
+                    aria-label={(() => {
+                      const initials = (currentUser?.name || '').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                      return initials ? `${initials} - My Profile` : 'My Profile';
+                    })()}
                   >
                     {currentUser.profileImage ? (
                       <img src={currentUser.profileImage} alt={currentUser.name} className="w-full h-full object-cover" />
@@ -452,13 +458,13 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
               {/* Account Dropdown Toggle */}
               <button
                 onClick={() => setAccountMenuOpen(!accountMenuOpen)}
-                className="flex items-center gap-1 p-1 sm:px-2 sm:py-2 rounded-full text-emerald-950 dark:text-emerald-50 hover:bg-emerald-50 dark:bg-[#0a1f18] transition-colors cursor-pointer"
+                className="flex items-center justify-center gap-1 p-2 min-w-[24px] min-h-[24px] sm:px-2 sm:py-2 rounded-full text-emerald-950 dark:text-emerald-50 hover:bg-emerald-50 dark:hover:bg-[#0a1f18] transition-colors cursor-pointer"
                 aria-label="Account menu"
               >
                 <span className="hidden sm:inline-block text-xs font-medium text-emerald-950 dark:text-emerald-50 max-w-[90px] truncate">
                   {currentUser ? (currentUser?.name || '').split(' ')[0] : 'Account'}
                 </span>
-                <ChevronDown className="w-3.5 h-3.5 text-emerald-700 hidden sm:inline-block" />
+                <ChevronDown className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
               </button>
 
               {/* Account Dropdown Menu */}
@@ -802,7 +808,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                 <div className="flex items-center gap-2.5">
                   <MapPin className="w-4 h-4 text-emerald-700 shrink-0" />
                   <div>
-                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Deliver Plants to:</div>
+                    <div className="text-[10px] text-gray-700 dark:text-gray-300 font-medium">Deliver Plants to:</div>
                     <div className="font-bold text-emerald-950 dark:text-emerald-50">{selectedDeliveryState || 'Select State'}</div>
                   </div>
                 </div>

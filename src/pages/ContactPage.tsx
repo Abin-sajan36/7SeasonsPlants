@@ -166,29 +166,10 @@ export const ContactPage: React.FC<ContactPageProps> = ({ initialParam, onNaviga
     }
 
     setIsSubmittingComplaint(true);
+    const ticketId = `CMP-${Date.now().toString().slice(-6)}`;
 
     try {
-      // 1. Dispatch to server endpoint to trigger email to mannaratharayil@gmail.com
-      const res = await fetch('/api/complaints', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: complaintForm.name,
-          email: complaintForm.email,
-          phone: complaintForm.phone,
-          orderNumber: complaintForm.orderNumber,
-          category: complaintForm.category,
-          urgency: complaintForm.urgency,
-          description: complaintForm.description,
-          desiredResolution: complaintForm.desiredResolution,
-          photoAttachment: complaintForm.photoAttachment,
-        }),
-      });
-
-      const data = await res.json();
-      const ticketId = data.ticketId || `CMP-${Date.now().toString().slice(-6)}`;
-
-      // 2. Persist to Firestore complaints collection for management auditing
+      // 1. Persist directly to Firestore 'complaints' collection first so customer grievances are NEVER lost
       try {
         await addDoc(collection(db, 'complaints'), {
           ticketId,
@@ -209,6 +190,37 @@ export const ContactPage: React.FC<ContactPageProps> = ({ initialParam, onNaviga
         console.warn('Firestore complaints sync note:', firestoreErr);
       }
 
+      // 2. Dispatch to serverless endpoint /api/complaints to trigger notification email
+      try {
+        const res = await fetch('/api/complaints', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: complaintForm.name,
+            email: complaintForm.email,
+            phone: complaintForm.phone,
+            orderNumber: complaintForm.orderNumber,
+            category: complaintForm.category,
+            urgency: complaintForm.urgency,
+            description: complaintForm.description,
+            desiredResolution: complaintForm.desiredResolution,
+            photoAttachment: complaintForm.photoAttachment,
+          }),
+        });
+
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const data = await res.json();
+            console.log('Grievance logged via server:', data?.ticketId || ticketId);
+          }
+        } else {
+          console.warn(`[Grievance Desk] Server responded with status ${res.status}. Record safely stored in database.`);
+        }
+      } catch (apiErr) {
+        console.warn('[Grievance Desk] Server email dispatch note (stored in DB):', apiErr);
+      }
+
       setSubmittedTicket({
         ticketId,
         sentTo: companyEmail,
@@ -223,7 +235,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ initialParam, onNaviga
     } catch (err: any) {
       console.error('Complaint submission error:', err);
       // Fallback ticket creation so the user is never blocked
-      const fallbackTicketId = `CMP-${Date.now().toString().slice(-6)}`;
+      const fallbackTicketId = ticketId || `CMP-${Date.now().toString().slice(-6)}`;
       setSubmittedTicket({
         ticketId: fallbackTicketId,
         sentTo: companyEmail,

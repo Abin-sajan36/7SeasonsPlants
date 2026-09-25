@@ -435,7 +435,7 @@ app.post("/api/complaints", async (req, res) => {
       description,
       desiredResolution = "Replacement / Advice",
       photoAttachment,
-    } = req.body;
+    } = req.body || {};
 
     if (!name || !email || !phone || !description) {
       return res.status(400).json({
@@ -558,6 +558,26 @@ app.post("/api/complaints", async (req, res) => {
 
 app.get("/api/complaints", (req, res) => {
   res.json({ success: true, complaints: complaintsStore });
+});
+
+app.patch("/api/complaints/:id", (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body || {};
+  const complaint = complaintsStore.find((c) => c.id === id || c.ticketId === id);
+  if (complaint && status) {
+    complaint.status = status;
+    return res.json({ success: true, complaint });
+  }
+  res.json({ success: true });
+});
+
+app.delete("/api/complaints/:id", (req, res) => {
+  const { id } = req.params;
+  const idx = complaintsStore.findIndex((c) => c.id === id || c.ticketId === id);
+  if (idx !== -1) {
+    complaintsStore.splice(idx, 1);
+  }
+  res.json({ success: true });
 });
 
 // Admin and API Login Endpoint

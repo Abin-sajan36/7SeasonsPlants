@@ -54,7 +54,8 @@ import {
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
+import { collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { UserManagementTab } from '../components/admin/UserManagementTab';
 import { CouponsManagementTab } from '../components/admin/CouponsManagementTab';
 import { ReviewsManagementTab } from '../components/admin/ReviewsManagementTab';
@@ -114,15 +115,127 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const fetchComplaints = async () => {
     try {
       setLoadingComplaints(true);
-      const res = await fetch('/api/complaints');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.complaints)) {
-        setComplaintsList(data.complaints);
+      let complaintsFound: any[] = [];
+      let apiSuccess = false;
+
+      // 1. Attempt fetching from server / serverless API endpoint
+      try {
+        const res = await fetch('/api/complaints');
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.complaints) && data.complaints.length > 0) {
+              complaintsFound = data.complaints;
+              apiSuccess = true;
+            }
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Backend /api/complaints check skipped, falling back to database:', apiErr);
+      }
+
+      // 2. Query Firestore 'complaints' collection directly (primary persistent audit log)
+      try {
+        const complaintsRef = collection(db, 'complaints');
+        let snapshot;
+        try {
+          const q = query(complaintsRef, orderBy('createdAt', 'desc'));
+          snapshot = await getDocs(q);
+        } catch {
+          snapshot = await getDocs(complaintsRef);
+        }
+
+        if (snapshot && !snapshot.empty) {
+          const dbComplaints = snapshot.docs.map((d) => {
+            const data = d.data();
+            let createdAtStr = new Date().toISOString();
+            if (data.createdAt?.toDate) {
+              createdAtStr = data.createdAt.toDate().toISOString();
+            } else if (typeof data.createdAt === 'string') {
+              createdAtStr = data.createdAt;
+            }
+            return {
+              id: d.id,
+              ticketId: data.ticketId || `CMP-${d.id.slice(-6)}`,
+              customerName: data.customerName || 'Customer',
+              customerEmail: data.customerEmail || '',
+              customerPhone: data.customerPhone || '',
+              orderNumber: data.orderNumber || undefined,
+              category: data.category || 'Plant Condition / Transit',
+              urgency: data.urgency || 'Normal',
+              description: data.description || '',
+              desiredResolution: data.desiredResolution || 'Replacement',
+              photoAttachment: data.photoAttachment || null,
+              status: data.status || 'open',
+              createdAt: createdAtStr,
+            };
+          });
+
+          // Merge any API complaints with DB complaints, de-duplicating by ticketId/id
+          const seen = new Set<string>();
+          const merged: any[] = [];
+          for (const item of [...dbComplaints, ...complaintsFound]) {
+            const key = item.ticketId || item.id;
+            if (!seen.has(key)) {
+              seen.add(key);
+              merged.push(item);
+            }
+          }
+          merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setComplaintsList(merged);
+          return;
+        }
+      } catch (fsErr) {
+        console.warn('Firestore complaints collection query notice:', fsErr);
+      }
+
+      if (apiSuccess) {
+        setComplaintsList(complaintsFound);
       }
     } catch (err) {
       console.error('Error fetching complaints:', err);
     } finally {
       setLoadingComplaints(false);
+    }
+  };
+
+  const handleUpdateComplaintStatus = async (complaintId: string, newStatus: string) => {
+    try {
+      if (complaintId && !complaintId.startsWith('complaint_')) {
+        await updateDoc(doc(db, 'complaints', complaintId), { status: newStatus });
+      }
+      setComplaintsList((prev) =>
+        prev.map((c) => (c.id === complaintId || c.ticketId === complaintId ? { ...c, status: newStatus } : c))
+      );
+      addToast({
+        title: 'Status Updated',
+        message: `Complaint ticket marked as ${newStatus}.`,
+        type: 'success',
+      });
+    } catch (err) {
+      console.error('Error updating complaint status:', err);
+      setComplaintsList((prev) =>
+        prev.map((c) => (c.id === complaintId || c.ticketId === complaintId ? { ...c, status: newStatus } : c))
+      );
+    }
+  };
+
+  const handleDeleteComplaint = async (complaintId: string) => {
+    if (!window.confirm('Are you sure you want to dismiss this complaint record?')) return;
+    try {
+      if (complaintId && !complaintId.startsWith('complaint_')) {
+        await deleteDoc(doc(db, 'complaints', complaintId));
+      }
+      setComplaintsList((prev) => prev.filter((c) => c.id !== complaintId && c.ticketId !== complaintId));
+      addToast({
+        title: 'Ticket Dismissed',
+        message: 'Complaint record removed.',
+        type: 'info',
+      });
+    } catch (err) {
+      console.error('Error deleting complaint record:', err);
+      setComplaintsList((prev) => prev.filter((c) => c.id !== complaintId && c.ticketId !== complaintId));
     }
   };
 
@@ -140,9 +253,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   // Load current Razorpay config from backend
   useEffect(() => {
     fetch('/api/razorpay/config')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((cfg) => {
-        if (cfg.keyId) {
+        if (cfg && cfg.keyId) {
           setRazorpayKeyId(cfg.keyId);
         } else if (storeSettings?.razorpayKeyId) {
           setRazorpayKeyId(storeSettings.razorpayKeyId);
@@ -2948,24 +3064,46 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2 pt-1">
-                        <a
-                          href={`mailto:${complaint.customerEmail}?subject=Regarding%20Your%20Complaint%20Ticket%20%23${complaint.ticketId}&body=Dear%20${encodeURIComponent(complaint.customerName)},%0A%0AWe%20received%20your%20complaint%20ticket%20%23${complaint.ticketId}%20regarding%20${encodeURIComponent(complaint.category)}...`}
-                          className="px-3 py-1.5 bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-900 transition-colors"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          <span>Reply via Email</span>
-                        </a>
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`mailto:${complaint.customerEmail}?subject=Regarding%20Your%20Complaint%20Ticket%20%23${complaint.ticketId}&body=Dear%20${encodeURIComponent(complaint.customerName)},%0A%0AWe%20received%20your%20complaint%20ticket%20%23${complaint.ticketId}%20regarding%20${encodeURIComponent(complaint.category)}...`}
+                            className="px-3 py-1.5 bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-emerald-900 transition-colors"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            <span>Reply via Email</span>
+                          </a>
 
-                        <a
-                          href={`https://wa.me/${complaint.customerPhone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(complaint.customerName)},%20this%20is%20Mannaratharayil%20Gardens%20LLP%20regarding%20your%20complaint%20ticket%20%23${complaint.ticketId}.`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1.5 bg-[#25D366] text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-[#20bd5a] transition-colors"
-                        >
-                          <Phone className="w-3.5 h-3.5" />
-                          <span>Contact on WhatsApp</span>
-                        </a>
+                          <a
+                            href={`https://wa.me/${complaint.customerPhone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(complaint.customerName)},%20this%20is%20Mannaratharayil%20Gardens%20LLP%20regarding%20your%20complaint%20ticket%20%23${complaint.ticketId}.`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-[#25D366] text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-[#20bd5a] transition-colors"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            <span>Contact on WhatsApp</span>
+                          </a>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={complaint.status || 'open'}
+                            onChange={(e) => handleUpdateComplaintStatus(complaint.id, e.target.value)}
+                            className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 font-medium text-gray-700 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                          >
+                            <option value="open">Status: Open</option>
+                            <option value="in-review">Status: In Review</option>
+                            <option value="resolved">Status: Resolved</option>
+                          </select>
+
+                          <button
+                            onClick={() => handleDeleteComplaint(complaint.id)}
+                            title="Dismiss complaint"
+                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

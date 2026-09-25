@@ -102,7 +102,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   className="hover:text-white transition-colors flex items-center gap-1.5 font-bold text-white cursor-pointer"
                 >
                   <span>Curated Plant Combos</span>
-                  <span className="text-[9px] bg-rose-500 text-white font-extrabold px-1.5 py-0.5 rounded-full">
+                  <span className="text-[9px] bg-rose-700 text-white font-extrabold px-1.5 py-0.5 rounded-full shadow-xs">
                     SAVE 35%
                   </span>
                 </button>
@@ -194,7 +194,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   className="hover:text-white transition-colors flex items-center gap-1 text-[#A7F3D0]/80 cursor-pointer"
                 >
                   <span>Plant Doctor AI</span>
-                  <span className="text-[9px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded-md">AI</span>
+                  <span className="text-[9px] bg-emerald-700 text-white font-bold px-1.5 py-0.5 rounded-md">AI</span>
                 </button>
               </li>
             )}
