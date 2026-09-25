@@ -226,6 +226,7 @@ interface StoreContextType {
   addCoupon: (cpn: Omit<Coupon, 'id' | 'usedCount'>) => Promise<void> | void;
   updateCoupon: (cpn: Coupon) => Promise<void> | void;
   deleteCoupon: (id: string) => Promise<void> | void;
+  deleteAllCoupons: () => Promise<void> | void;
 
   addBanner: (banner: Omit<HeroBanner, 'id'>) => Promise<void> | void;
   updateBanner: (banner: HeroBanner) => Promise<void> | void;
@@ -319,7 +320,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [coupons, setCoupons] = useState<Coupon[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_coupons`);
-    return saved ? JSON.parse(saved) : initialCoupons;
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+    return [];
   });
 
   const [banners, setBanners] = useState<HeroBanner[]>(() => {
@@ -823,26 +831,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Daily Deals from Firestore
   useEffect(() => {
-    let seeded = false;
     const unsubscribe = onSnapshot(
       collection(db, 'dailyDeals'),
-      async (snapshot) => {
+      (snapshot) => {
         if (!snapshot.empty) {
           const list: DailyDeal[] = [];
           snapshot.forEach((docSnap) => {
             list.push({ ...(docSnap.data() as DailyDeal), id: docSnap.id });
           });
           setDailyDeals(list);
-          localStorage.setItem(`${STORAGE_KEY}_deals`, JSON.stringify(list));
-        } else if (!seeded) {
-          seeded = true;
           try {
-            for (const item of initialDailyDeals) {
-              await setDoc(doc(db, 'dailyDeals', item.id), removeUndefined(item), { merge: true });
-            }
-          } catch (e) {
-            console.warn('Seeding initial dailyDeals note:', e);
-          }
+            localStorage.setItem(`${STORAGE_KEY}_deals`, JSON.stringify(list));
+          } catch (e) {}
+        } else {
+          setDailyDeals([]);
+          try {
+            localStorage.setItem(`${STORAGE_KEY}_deals`, JSON.stringify([]));
+          } catch (e) {}
         }
       },
       (error) => {
@@ -855,26 +860,39 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Coupons from Firestore
   useEffect(() => {
-    let seeded = false;
     const unsubscribe = onSnapshot(
       collection(db, 'coupons'),
-      async (snapshot) => {
+      (snapshot) => {
+        const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_coupon_ids`) || '[]');
+        const deletedSet = new Set(deletedIds);
+
         if (!snapshot.empty) {
           const list: Coupon[] = [];
           snapshot.forEach((docSnap) => {
-            list.push({ ...(docSnap.data() as Coupon), id: docSnap.id });
+            const data = docSnap.data() as Coupon;
+            const cpnId = docSnap.id;
+            const cpnCode = data.code;
+
+            // If this coupon was deleted, block resurrection and purge any duplicate document
+            if (deletedSet.has(cpnId) || (cpnCode && deletedSet.has(cpnCode))) {
+              deleteDoc(docSnap.ref).catch(() => {});
+              return;
+            }
+
+            list.push({ ...data, id: cpnId });
           });
           setCoupons(list);
-          localStorage.setItem(`${STORAGE_KEY}_coupons`, JSON.stringify(list));
-        } else if (!seeded) {
-          seeded = true;
           try {
-            for (const item of initialCoupons) {
-              await setDoc(doc(db, 'coupons', item.id), removeUndefined(item), { merge: true });
-            }
-          } catch (e) {
-            console.warn('Seeding initial coupons note:', e);
-          }
+            localStorage.setItem(`${STORAGE_KEY}_coupons`, JSON.stringify(list));
+          } catch (e) {}
+        } else {
+          // Firestore coupons collection is empty - all coupons deleted or none exist
+          // Set to empty and NEVER re-seed dummy sample coupons
+          setCoupons([]);
+          setAppliedCoupon(null);
+          try {
+            localStorage.setItem(`${STORAGE_KEY}_coupons`, JSON.stringify([]));
+          } catch (e) {}
         }
       },
       (error) => {
@@ -887,10 +905,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Banners from Firestore
   useEffect(() => {
-    let seeded = false;
     const unsubscribe = onSnapshot(
       collection(db, 'banners'),
-      async (snapshot) => {
+      (snapshot) => {
         if (!snapshot.empty) {
           const list: HeroBanner[] = [];
           snapshot.forEach((docSnap) => {
@@ -905,16 +922,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
           });
           setBanners(list);
-          localStorage.setItem(`${STORAGE_KEY}_banners`, JSON.stringify(list));
-        } else if (!seeded) {
-          seeded = true;
           try {
-            for (const item of initialBanners) {
-              await setDoc(doc(db, 'banners', item.id), removeUndefined(item), { merge: true });
-            }
-          } catch (e) {
-            console.warn('Seeding initial banners note:', e);
-          }
+            localStorage.setItem(`${STORAGE_KEY}_banners`, JSON.stringify(list));
+          } catch (e) {}
+        } else {
+          setBanners([]);
+          try {
+            localStorage.setItem(`${STORAGE_KEY}_banners`, JSON.stringify([]));
+          } catch (e) {}
         }
       },
       (error) => {
@@ -927,26 +942,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Plant Care Guides from Firestore
   useEffect(() => {
-    let seeded = false;
     const unsubscribe = onSnapshot(
       collection(db, 'plantCareGuides'),
-      async (snapshot) => {
+      (snapshot) => {
         if (!snapshot.empty) {
           const list: PlantCareGuide[] = [];
           snapshot.forEach((docSnap) => {
             list.push({ ...(docSnap.data() as PlantCareGuide), id: docSnap.id });
           });
           setPlantCareGuides(list);
-          localStorage.setItem(`${STORAGE_KEY}_guides`, JSON.stringify(list));
-        } else if (!seeded) {
-          seeded = true;
           try {
-            for (const item of initialPlantCareGuides) {
-              await setDoc(doc(db, 'plantCareGuides', item.id), removeUndefined(item), { merge: true });
-            }
-          } catch (e) {
-            console.warn('Seeding initial plantCareGuides note:', e);
-          }
+            localStorage.setItem(`${STORAGE_KEY}_guides`, JSON.stringify(list));
+          } catch (e) {}
+        } else {
+          setPlantCareGuides([]);
+          try {
+            localStorage.setItem(`${STORAGE_KEY}_guides`, JSON.stringify([]));
+          } catch (e) {}
         }
       },
       (error) => {
@@ -959,26 +971,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Blog Posts from Firestore
   useEffect(() => {
-    let seeded = false;
     const unsubscribe = onSnapshot(
       collection(db, 'blogs'),
-      async (snapshot) => {
+      (snapshot) => {
         if (!snapshot.empty) {
           const list: BlogPost[] = [];
           snapshot.forEach((docSnap) => {
             list.push({ ...(docSnap.data() as BlogPost), id: docSnap.id });
           });
           setBlogs(list);
-          localStorage.setItem(`${STORAGE_KEY}_blogs`, JSON.stringify(list));
-        } else if (!seeded) {
-          seeded = true;
           try {
-            for (const item of initialBlogPosts) {
-              await setDoc(doc(db, 'blogs', item.id), removeUndefined(item), { merge: true });
-            }
-          } catch (e) {
-            console.warn('Seeding initial blogs note:', e);
-          }
+            localStorage.setItem(`${STORAGE_KEY}_blogs`, JSON.stringify(list));
+          } catch (e) {}
+        } else {
+          setBlogs([]);
+          try {
+            localStorage.setItem(`${STORAGE_KEY}_blogs`, JSON.stringify([]));
+          } catch (e) {}
         }
       },
       (error) => {
@@ -3457,11 +3466,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Coupons
   const addCoupon = async (cpn: Omit<Coupon, 'id' | 'usedCount'>) => {
+    const cleanCode = cpn.code.trim().toUpperCase();
     const newCpn: Coupon = {
       ...cpn,
+      code: cleanCode,
       id: `cpn-${Date.now()}`,
       usedCount: 0,
     };
+
+    // Unmark from deleted list if re-creating
+    try {
+      const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_coupon_ids`) || '[]');
+      const filtered = deletedIds.filter((item) => item !== cleanCode && item !== newCpn.id);
+      localStorage.setItem(`${STORAGE_KEY}_deleted_coupon_ids`, JSON.stringify(filtered));
+    } catch (e) {}
+
     setCoupons((prev) => [newCpn, ...prev]);
     try {
       await setDoc(doc(db, 'coupons', newCpn.id), removeUndefined(newCpn));
@@ -3485,11 +3504,62 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteCoupon = async (id: string) => {
-    setCoupons((prev) => prev.filter((c) => c.id !== id));
+    const target = coupons.find((c) => c.id === id);
+    const targetCode = target?.code;
+
+    // Track in deleted list immediately to prevent stale snapshots from resurrecting it
+    try {
+      const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_coupon_ids`) || '[]');
+      if (!deletedIds.includes(id)) deletedIds.push(id);
+      if (targetCode && !deletedIds.includes(targetCode)) deletedIds.push(targetCode);
+      if (target?.id && !deletedIds.includes(target.id)) deletedIds.push(target.id);
+      localStorage.setItem(`${STORAGE_KEY}_deleted_coupon_ids`, JSON.stringify(deletedIds));
+    } catch (e) {}
+
+    setCoupons((prev) => {
+      const filtered = prev.filter((c) => c.id !== id && (!targetCode || c.code !== targetCode));
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_coupons`, JSON.stringify(filtered));
+      } catch (e) {}
+      return filtered;
+    });
+    setAppliedCoupon((curr) => (curr?.id === id || (targetCode && curr?.code === targetCode) ? null : curr));
+
     try {
       await deleteDoc(doc(db, 'coupons', id));
     } catch (e) {
       console.warn('Could not delete coupon from Firestore:', e);
+    }
+
+    // If document was keyed under code or if duplicate exists, clean it up
+    if (targetCode && targetCode !== id) {
+      try {
+        await deleteDoc(doc(db, 'coupons', targetCode));
+      } catch (e) {}
+    }
+  };
+
+  const deleteAllCoupons = async () => {
+    try {
+      const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_coupon_ids`) || '[]');
+      for (const c of coupons) {
+        if (!deletedIds.includes(c.id)) deletedIds.push(c.id);
+        if (c.code && !deletedIds.includes(c.code)) deletedIds.push(c.code);
+      }
+      localStorage.setItem(`${STORAGE_KEY}_deleted_coupon_ids`, JSON.stringify(deletedIds));
+    } catch (e) {}
+
+    setCoupons([]);
+    setAppliedCoupon(null);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_coupons`, JSON.stringify([]));
+    } catch (e) {}
+    try {
+      const snap = await getDocs(collection(db, 'coupons'));
+      const batchPromises = snap.docs.map((docSnap) => deleteDoc(docSnap.ref));
+      await Promise.all(batchPromises);
+    } catch (e) {
+      console.warn('Could not delete all coupons from Firestore:', e);
     }
   };
 
@@ -3815,6 +3885,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addCoupon,
         updateCoupon,
         deleteCoupon,
+        deleteAllCoupons,
 
         addBanner,
         updateBanner,

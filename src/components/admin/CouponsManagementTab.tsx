@@ -23,7 +23,7 @@ import { Coupon } from '../../types';
 import { useStore } from '../../context/StoreContext';
 
 export const CouponsManagementTab: React.FC = () => {
-  const { coupons, addCoupon, updateCoupon, deleteCoupon, addToast } = useStore();
+  const { coupons, addCoupon, updateCoupon, deleteCoupon, deleteAllCoupons, addToast } = useStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -34,6 +34,8 @@ export const CouponsManagementTab: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
   const [couponToDelete, setCouponToDelete] = useState<Coupon | null>(null);
+  const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form State
   const [formCode, setFormCode] = useState('');
@@ -186,8 +188,9 @@ export const CouponsManagementTab: React.FC = () => {
   };
 
   const handleConfirmDelete = async () => {
-    if (!couponToDelete) return;
+    if (!couponToDelete || isDeleting) return;
     try {
+      setIsDeleting(true);
       const code = couponToDelete.code;
       await deleteCoupon(couponToDelete.id);
       addToast({
@@ -203,6 +206,31 @@ export const CouponsManagementTab: React.FC = () => {
         message: 'Could not remove coupon.',
         type: 'error',
       });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmDeleteAll = async () => {
+    if (isDeleting) return;
+    try {
+      setIsDeleting(true);
+      await deleteAllCoupons();
+      addToast({
+        title: 'All Coupons Deleted',
+        message: 'All store discount coupons have been removed.',
+        type: 'info',
+      });
+      setIsDeleteAllModalOpen(false);
+    } catch (err: any) {
+      console.error('Failed to remove all coupons:', err);
+      addToast({
+        title: 'Error',
+        message: 'Could not remove all coupons.',
+        type: 'error',
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -268,14 +296,27 @@ export const CouponsManagementTab: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer self-start sm:self-auto shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create New Coupon</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+            {coupons.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsDeleteAllModalOpen(true)}
+                className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-full text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete All ({coupons.length})</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleOpenCreateModal}
+              className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Coupon</span>
+            </button>
+          </div>
         </div>
 
         {/* Quick Stats Strip */}
@@ -785,18 +826,62 @@ export const CouponsManagementTab: React.FC = () => {
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={() => setCouponToDelete(null)}
-                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full font-bold text-xs transition-colors cursor-pointer"
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={handleConfirmDelete}
-                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-xs transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-xs transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Yes, Remove Coupon</span>
+                <span>{isDeleting ? 'Removing...' : 'Yes, Remove Coupon'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE ALL CONFIRMATION MODAL */}
+      {isDeleteAllModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-gray-200 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-black text-gray-900">Delete All Coupons?</h3>
+              <p className="text-xs text-gray-500">
+                Are you sure you want to permanently remove all{' '}
+                <strong className="text-emerald-950 font-bold">{coupons.length} coupons</strong> from your store?
+              </p>
+              <p className="text-[11px] text-rose-600 pt-1">
+                This action cannot be undone. All coupon codes will be deleted and customers won't be able to apply them.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setIsDeleteAllModalOpen(false)}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDeleteAll}
+                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-xs transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Deleting...' : `Yes, Delete All (${coupons.length})`}</span>
               </button>
             </div>
           </div>
