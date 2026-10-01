@@ -1,0 +1,55 @@
+--- src/index.css
++++ src/index.css
+@@ -23,19 +23,19 @@
+ 
+ .dark {
+-  --color-emerald-50: #0B291B;
+-  --color-emerald-100: #14532D;
+-  --color-emerald-200: #166534;
+-  --color-emerald-300: #15803D;
+-  --color-emerald-400: #16A34A;
+-  --color-emerald-500: #22C55E;
+-  --color-emerald-600: #4ADE80;
+-  --color-emerald-700: #86EFAC;
+-  --color-emerald-800: #BBF7D0;
+-  --color-emerald-900: #DCFCE7;
+-  --color-emerald-950: #F4FAF5;
++  --color-emerald-50: #021a12;
++  --color-emerald-100: #032b1d;
++  --color-emerald-200: #05452f;
++  --color-emerald-300: #065f46;
++  --color-emerald-400: #047857;
++  --color-emerald-500: #059669;
++  --color-emerald-600: #10b981;
++  --color-emerald-700: #34d399;
++  --color-emerald-800: #6ee7b7;
++  --color-emerald-900: #a7f3d0;
++  --color-emerald-950: #ecfdf5;
+   
+-  --color-white: #020C07;
++  --color-white: #010f0a;
+   --color-black: #F8FAFC;
+   
+-  --color-gray-50: #0F172A;
+-  --color-gray-100: #1E293B;
+-  --color-gray-200: #334155;
+-  --color-gray-300: #475569;
+-  --color-gray-400: #64748B;
+-  --color-gray-500: #94A3B8;
+-  --color-gray-600: #CBD5E1;
+-  --color-gray-700: #E2E8F0;
+-  --color-gray-800: #F1F5F9;
+-  --color-gray-900: #F8FAFC;
+-  --color-gray-950: #FFFFFF;
++  --color-gray-50: #06090e;
++  --color-gray-100: #0a111a;
++  --color-gray-200: #121c29;
++  --color-gray-300: #1e293b;
++  --color-gray-400: #334155;
++  --color-gray-500: #475569;
++  --color-gray-600: #64748b;
++  --color-gray-700: #94a3b8;
++  --color-gray-800: #cbd5e1;
++  --color-gray-900: #e2e8f0;
++  --color-gray-950: #f8fafc;
+ }

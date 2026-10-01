@@ -1,0 +1,39 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/razorpay/create-order",
+      "destination": "/api/create-order"
+    },
+    {
+      "source": "/api/razorpay/verify-payment",
+      "destination": "/api/verify-payment"
+    },
+    {
+      "source": "/api/secrets",
+      "destination": "/api/admin/secrets"
+    },
+    {
+      "source": "/api/test-smtp",
+      "destination": "/api/admin/test-smtp"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

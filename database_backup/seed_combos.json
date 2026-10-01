@@ -1,0 +1,188 @@
+[
+  {
+    "id": "combo-jiffy-bundle",
+    "name": "Jiffy Plant Bundle",
+    "slug": "jiffy-plant-bundle",
+    "shortDescription": "The ultimate Jiffy Plant collection featuring 4 stunning varieties.",
+    "description": "Get all the popular Jiffy plants featured in our recent reel! Includes a Philodendron, Alocasia, Caladium, and Syngonium. Perfect for kickstarting an indoor jungle.",
+    "category": "Indoor Combos",
+    "price": 999,
+    "originalPrice": 1096,
+    "savings": 97,
+    "discountPercentage": 9,
+    "stock": 20,
+    "sku": "7S-CMB-JIF-01",
+    "images": [
+      "https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=900&q=80"
+    ],
+    "rating": 4.9,
+    "reviewCount": 15,
+    "status": "published",
+    "sellableStates": [
+      "Kerala",
+      "Tamil Nadu",
+      "Karnataka",
+      "All India"
+    ],
+    "items": [
+      {
+        "productId": "prod-philodendron-jiffy",
+        "productName": "Philodendron (Jiffy Plant)",
+        "image": "https://images.unsplash.com/photo-1614594975525-e45190c55d0b?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 1
+      },
+      {
+        "productId": "prod-alocasia-jiffy",
+        "productName": "Alocasia (Jiffy Plant)",
+        "image": "https://images.unsplash.com/photo-1620127394144-8848416d86fb?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 1
+      },
+      {
+        "productId": "prod-caladium-jiffy",
+        "productName": "Caladium (Jiffy Plant)",
+        "image": "https://images.unsplash.com/photo-1601370690183-1c7796ecec61?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 1
+      },
+      {
+        "productId": "prod-syngonium-jiffy",
+        "productName": "Syngonium (Jiffy Plant)",
+        "image": "https://images.unsplash.com/photo-1611211232932-da3113c5b960?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 1
+      }
+    ],
+    "tags": [
+      "combo",
+      "indoor",
+      "jiffy",
+      "air-purifying"
+    ],
+    "careSummary": "Water when dry, give bright light.",
+    "benefits": [
+      "Looks great",
+      "Cleans air"
+    ],
+    "createdAt": "2026-09-25T08:00:04.167Z"
+  },
+  {
+    "id": "combo-balcony-bloomers",
+    "name": "Balcony Bloomers Combo",
+    "slug": "balcony-bloomers-combo",
+    "shortDescription": "A fragrant, colorful combo perfect for sunny balconies.",
+    "description": "Transform your balcony into a vibrant garden! This combo features the fragrant Sweet Alyssum, vibrant Chrysanthemum seedlings, and the stunning purple Melastoma.",
+    "category": "Balcony Combos",
+    "price": 500,
+    "originalPrice": 550,
+    "savings": 50,
+    "discountPercentage": 9,
+    "stock": 25,
+    "sku": "7S-CMB-BAL-01",
+    "images": [
+      "https://images.unsplash.com/photo-1597848212624-a19eb35e2651?auto=format&fit=crop&w=900&q=80"
+    ],
+    "rating": 4.8,
+    "reviewCount": 22,
+    "status": "published",
+    "sellableStates": [
+      "Kerala",
+      "Tamil Nadu",
+      "Karnataka"
+    ],
+    "items": [
+      {
+        "productId": "prod-sweet-alyssum",
+        "productName": "Sweet Alyssum",
+        "image": "https://images.unsplash.com/photo-1621272036047-bf0ebfd40f1a?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 2
+      },
+      {
+        "productId": "prod-chrysanthemum-seedling",
+        "productName": "Chrysanthemum Seedling",
+        "image": "https://images.unsplash.com/photo-1603507022069-450f3b06325f?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 1
+      },
+      {
+        "productId": "prod-melastoma",
+        "productName": "Melastoma",
+        "image": "https://images.unsplash.com/photo-1681283626245-779836a0fbac?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 1
+      }
+    ],
+    "tags": [
+      "combo",
+      "balcony",
+      "flowering"
+    ],
+    "careSummary": "Water when dry, give bright light.",
+    "benefits": [
+      "Pollinator magnet",
+      "Vibrant blooms"
+    ],
+    "createdAt": "2026-09-25T08:00:04.168Z"
+  },
+  {
+    "id": "combo-monsoon-balcony-garden",
+    "name": "Monsoon Balcony Garden Special",
+    "slug": "monsoon-balcony-garden-special",
+    "shortDescription": "Rain-hardy tropical collection with fragrant blooms and lush foliage.",
+    "description": "Curated specially for South Indian monsoons. Includes rain-tolerant flowering shrubs, potted planters, and our slow-release organic nursery fertilizer pack.",
+    "category": "Balcony Combos",
+    "price": 499,
+    "originalPrice": 699,
+    "savings": 200,
+    "discountPercentage": 29,
+    "stock": 30,
+    "sku": "7S-CMB-MON-01",
+    "images": [
+      "https://images.unsplash.com/photo-1508610048659-a06b669e3321?auto=format&fit=crop&w=900&q=80"
+    ],
+    "rating": 4.9,
+    "reviewCount": 18,
+    "status": "published",
+    "sellableStates": [
+      "Kerala",
+      "Tamil Nadu"
+    ],
+    "items": [
+      {
+        "productId": "prod-imported-hibiscus",
+        "productName": "Imported Hibiscus Sapling",
+        "image": "https://images.unsplash.com/photo-1550073255-a0c4f346b9a2?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 1
+      },
+      {
+        "productId": "prod-sweet-alyssum",
+        "productName": "Sweet Alyssum",
+        "image": "https://images.unsplash.com/photo-1621272036047-bf0ebfd40f1a?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 1
+      },
+      {
+        "productId": "prod-melastoma",
+        "productName": "Melastoma",
+        "image": "https://images.unsplash.com/photo-1681283626245-779836a0fbac?auto=format&fit=crop&w=150&q=80",
+        "itemType": "plant",
+        "quantity": 1
+      }
+    ],
+    "tags": [
+      "combo",
+      "monsoon",
+      "tropical",
+      "rain-hardy"
+    ],
+    "careSummary": "Well-draining pot mix, partial to full sun.",
+    "benefits": [
+      "Heavy monsoon blooms",
+      "Hardy roots"
+    ],
+    "createdAt": "2026-09-25T08:00:04.168Z"
+  }
+]

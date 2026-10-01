@@ -1,0 +1,159 @@
+--- src/components/common/Header.tsx
++++ src/components/common/Header.tsx
+@@ -16,2 +16,5 @@
+   LogOut,
+   ShieldCheck,
++  Package,
++  Clock,
++  History,
+ } from 'lucide-react';
+@@ -41,2 +44,3 @@
+     categories,
++    orders,
+   } = useStore();
+@@ -45,2 +49,4 @@
+   const [searchQuery, setSearchQuery] = useState('');
++  const [searchHistory, setSearchHistory] = useState<string[]>([]);
++  const [showRecentOrderModal, setShowRecentOrderModal] = useState(false);
+   const [isSearchFocused, setIsSearchFocused] = useState(false);
+@@ -51,2 +57,7 @@
+   useEffect(() => {
++    const savedHistory = localStorage.getItem('searchHistory');
++    if (savedHistory) {
++      try { setSearchHistory(JSON.parse(savedHistory)); } catch (e) {}
++    }
++
+     const handleClickOutside = (event: MouseEvent) => {
+@@ -91,4 +102,17 @@
+     if (searchQuery.trim()) {
+       setIsSearchFocused(false);
+-      onNavigate('plants', `search:${encodeURIComponent(searchQuery.trim())}`);
++      const q = searchQuery.trim();
++      const newHistory = [q, ...searchHistory.filter((item) => item.toLowerCase() !== q.toLowerCase())].slice(0, 5);
++      setSearchHistory(newHistory);
++      localStorage.setItem('searchHistory', JSON.stringify(newHistory));
++      onNavigate('plants', `search:${encodeURIComponent(q)}`);
+     }
+   };
++
++  const handleHistoryClick = (query: string) => {
++    setSearchQuery(query);
++    setIsSearchFocused(false);
++    const newHistory = [query, ...searchHistory.filter((item) => item.toLowerCase() !== query.toLowerCase())].slice(0, 5);
++    setSearchHistory(newHistory);
++    localStorage.setItem('searchHistory', JSON.stringify(newHistory));
++    onNavigate('plants', `search:${encodeURIComponent(query)}`);
++  };
+@@ -185,3 +209,25 @@
+             {/* Live Search Auto-complete Dropdown */}
+-            {isSearchFocused && searchQuery.trim().length > 0 && (
++            {isSearchFocused && (searchQuery.trim().length > 0 || searchHistory.length > 0) && (
+               <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-emerald-900/10 p-3 z-50 max-h-96 overflow-y-auto">
++                {!searchQuery.trim() && searchHistory.length > 0 && (
++                  <div className="mb-2">
++                    <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-2 mb-2 flex items-center gap-1">
++                      <History className="w-3 h-3" />
++                      Recent Searches
++                    </div>
++                    {searchHistory.map((query, idx) => (
++                      <div key={idx} onClick={() => handleHistoryClick(query)} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
++                        <span className="text-sm text-gray-700">{query}</span>
++                        <button onClick={(e) => {
++                          e.stopPropagation();
++                          const newHist = searchHistory.filter(q => q !== query);
++                          setSearchHistory(newHist);
++                          localStorage.setItem('searchHistory', JSON.stringify(newHist));
++                        }} className="text-gray-400 hover:text-rose-500">
++                          <X className="w-3.5 h-3.5" />
++                        </button>
++                      </div>
++                    ))}
++                  </div>
++                )}
++                {searchQuery.trim().length > 0 && searchResults.combos.length > 0 && (
+                 {searchResults.combos.length > 0 && (
+@@ -254,3 +300,3 @@
+ 
+-                {searchResults.products.length === 0 && searchResults.combos.length === 0 && (
++                {searchQuery.trim().length > 0 && searchResults.products.length === 0 && searchResults.combos.length === 0 && (
+                   <div className="text-center py-6 px-4">
+@@ -386,2 +432,12 @@
+                     </button>
++                    {currentUser && (
++                      <button
++                        onClick={() => {
++                          setAccountMenuOpen(false);
++                          setShowRecentOrderModal(true);
++                        }}
++                        className="w-full text-left px-4 py-2 hover:bg-emerald-50/70 flex items-center gap-2.5 text-emerald-950 cursor-pointer"
++                      >
++                        <Package className="w-4 h-4 text-emerald-700" />
++                        <span>Recent Order Status</span>
++                      </button>
++                    )}
+                     <button
+@@ -628,2 +684,60 @@
+       )}
++
++      {/* Recent Order Modal */}
++      {showRecentOrderModal && (
++        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
++          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden relative animate-in fade-in zoom-in-95 duration-200">
++            <div className="bg-emerald-950 p-4 flex items-center justify-between text-white">
++              <div className="flex items-center gap-2">
++                <Package className="w-5 h-5 text-emerald-400" />
++                <h3 className="font-bold">Recent Order Status</h3>
++              </div>
++              <button onClick={() => setShowRecentOrderModal(false)} className="text-emerald-400 hover:text-white transition-colors cursor-pointer">
++                <X className="w-5 h-5" />
++              </button>
++            </div>
++            <div className="p-6">
++              {(() => {
++                if (!currentUser) return <p className="text-gray-500 text-sm text-center">Please log in to view orders.</p>;
++                const userOrders = orders.filter((o) => {
++                  const oEmail = (o.customer?.email || (o as any).customerEmail || '').toLowerCase();
++                  const oPhone = o.customer?.phone || (o as any).customerPhone || '';
++                  const oId = (o as any).customerId || '';
++                  return oEmail === currentUser.email.toLowerCase() || oPhone === currentUser.phone || oId === currentUser.id;
++                });
++                if (userOrders.length === 0) return <p className="text-gray-500 text-sm text-center">No recent orders found.</p>;
++                const latestOrder = userOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
++                return (
++                  <div className="space-y-4">
++                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
++                      <div>
++                        <p className="text-xs text-gray-500">Order Number</p>
++                        <p className="font-bold text-emerald-950">#{latestOrder.orderNumber}</p>
++                      </div>
++                      <div className="text-right">
++                        <p className="text-xs text-gray-500">Date</p>
++                        <p className="font-medium text-emerald-900">{new Date(latestOrder.createdAt).toLocaleDateString()}</p>
++                      </div>
++                    </div>
++                    <div className="bg-emerald-50 rounded-xl p-4 flex items-center gap-4">
++                      <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
++                        <Truck className="w-6 h-6 text-emerald-700" />
++                      </div>
++                      <div>
++                        <p className="text-xs text-emerald-600 font-bold uppercase tracking-wider mb-1">Current Status</p>
++                        <p className="font-black text-emerald-950 text-lg capitalize">{latestOrder.orderStatus}</p>
++                      </div>
++                    </div>
++                    <button 
++                      onClick={() => {
++                        setShowRecentOrderModal(false);
++                        onNavigate('track-order', latestOrder.orderNumber);
++                      }}
++                      className="w-full mt-4 py-2.5 bg-emerald-950 hover:bg-emerald-900 text-white rounded-xl text-sm font-bold shadow-sm transition-colors cursor-pointer"
++                    >
++                      View Full Details
++                    </button>
++                  </div>
++                );
++              })()}
++            </div>
++          </div>
++        </div>
++      )}
+     </header>

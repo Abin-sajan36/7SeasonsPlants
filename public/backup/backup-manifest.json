@@ -1,0 +1,70 @@
+{
+  "appName": "7Seasonsplants",
+  "backupDate": "2026-09-25T08:03:04.729183Z",
+  "totalFiles": 112,
+  "zipArchive": {
+    "filename": "7seasonsplants-full-site-backup.zip",
+    "sizeBytes": 1517409,
+    "sizeFormatted": "1.45 MB",
+    "sha256": "964172ec6dc047905be5facd72ba9ddcf83106d18476c91e996c70499b62f20d",
+    "downloadUrl": "/backup/7seasonsplants-full-site-backup.zip"
+  },
+  "tarArchive": {
+    "filename": "7seasonsplants-full-site-backup.tar.gz",
+    "sizeBytes": 1462719,
+    "sizeFormatted": "1.39 MB",
+    "sha256": "87851a24e3e89fe158c2c1cfa95ce64b443c8f4c1ffbcaec09957fd5e319f201",
+    "downloadUrl": "/backup/7seasonsplants-full-site-backup.tar.gz"
+  },
+  "databaseCollections": {
+    "combos": 4,
+    "products": 4,
+    "categories": 6,
+    "dailyDeals": 2,
+    "coupons": 4,
+    "banners": 3,
+    "plantCareGuides": 3,
+    "blogs": 3,
+    "users": 7,
+    "orders": 13,
+    "newsletter_subscribers": 0,
+    "complaints": 0,
+    "reviews": 0,
+    "storeSettings": 1,
+    "siteSettings": 0
+  },
+  "directoriesIncluded": [
+    "src",
+    "server",
+    "public",
+    "database_backup",
+    "scripts"
+  ],
+  "sampleIncludedFiles": [
+    ".env.example",
+    "README.md",
+    "SEASONS.png",
+    "database_backup/README.md",
+    "database_backup/banners.json",
+    "database_backup/blogs.json",
+    "database_backup/categories.json",
+    "database_backup/combos.json",
+    "database_backup/complaints.json",
+    "database_backup/coupons.json",
+    "database_backup/dailyDeals.json",
+    "database_backup/full_database_backup.json",
+    "database_backup/newsletter_subscribers.json",
+    "database_backup/orders.json",
+    "database_backup/plantCareGuides.json",
+    "database_backup/products.json",
+    "database_backup/reviews.json",
+    "database_backup/seed_banners.json",
+    "database_backup/seed_blogs.json",
+    "database_backup/seed_categories.json",
+    "database_backup/seed_combos.json",
+    "database_backup/seed_coupons.json",
+    "database_backup/seed_daily_deals.json",
+    "database_backup/seed_plant_care_guides.json",
+    "database_backup/seed_products.json"
+  ]
+}

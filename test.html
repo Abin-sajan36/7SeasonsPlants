@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { background: #06120e; padding: 50px; }
+    .logo-container {
+      display: inline-block;
+    }
+    .remove-white {
+      filter: url(#remove-white);
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0">
+    <filter id="remove-white" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="
+        1 0 0 0 0
+        0 1 0 0 0
+        0 0 1 0 0
+        -1 -1 -1 1 2" />
+    </filter>
+  </svg>
+  <img src="/logo.png" class="remove-white" width="300" />
+</body>
+</html>
