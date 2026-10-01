@@ -1078,18 +1078,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              {/* Optional Manual UPI Fallback trigger */}
-              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-600">
-                <span>Prefer scanning a direct UPI QR code?</span>
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentModal(true)}
-                  className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
-                >
-                  Open QR Code
-                </button>
-              </div>
-
               {/* No COD Policy Note */}
               <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
                 <strong className="text-amber-800">Nursery Freshness Policy:</strong> To ensure high survival rates and prevent transit delays for delicate live plants, Cash on Delivery (COD) is not supported. All plants are dispatched immediately upon payment confirmation.
