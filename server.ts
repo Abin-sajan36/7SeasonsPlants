@@ -916,10 +916,13 @@ app.post("/api/auth/verify-registration-otp", (req, res) => {
 
 // Razorpay SDK Instance
 function getRazorpayClient(customKeyId?: string, customKeySecret?: string): Razorpay | null {
-  const key_id = (customKeyId || process.env.RAZORPAY_KEY_ID || "").trim();
-  const key_secret = (customKeySecret || process.env.RAZORPAY_KEY_SECRET || "").trim();
-  if (!key_id || !key_secret || key_id === "rzp_test_TfQpwvQOSGYe9b" || key_secret === "kYvN6D3539sjzWB8p8UNO7HR") {
-    return null;
+  let key_id = (customKeyId || process.env.RAZORPAY_KEY_ID || "").trim();
+  let key_secret = (customKeySecret || process.env.RAZORPAY_KEY_SECRET || "").trim();
+  if (!key_id || key_id === "rzp_test_TfQpwvQOSGYe9b") {
+    key_id = "rzp_live_TfqZmXLVijODvH";
+  }
+  if (!key_secret || key_secret === "kYvN6D3539sjzWB8p8UNO7HR" || key_secret === "QRNqAqyWtScU7IXlEWZCdhoP") {
+    key_secret = "Kbc2cWwsxpsT2ilMVDAoysmd";
   }
   return new Razorpay({ key_id, key_secret });
 }
@@ -949,14 +952,21 @@ function isSuperAdminRequester(req: any): boolean {
 
 // Razorpay Public / Super Admin Config Endpoint
 app.get("/api/razorpay/config", async (req, res) => {
-  const keyId = (process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || "").trim();
-  const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+  let keyId = (process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || "").trim();
+  let keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+  if (!keyId || keyId === "rzp_test_TfQpwvQOSGYe9b") {
+    keyId = "rzp_live_TfqZmXLVijODvH";
+  }
+  if (!keySecret || keySecret === "kYvN6D3539sjzWB8p8UNO7HR" || keySecret === "QRNqAqyWtScU7IXlEWZCdhoP") {
+    keySecret = "Kbc2cWwsxpsT2ilMVDAoysmd";
+  }
   const webhookSecret = (process.env.RAZORPAY_WEBHOOK_SECRET || "").trim();
   const isConfigured = Boolean(
     keyId &&
     keySecret &&
     keyId !== "rzp_test_TfQpwvQOSGYe9b" &&
-    keySecret !== "kYvN6D3539sjzWB8p8UNO7HR"
+    keySecret !== "kYvN6D3539sjzWB8p8UNO7HR" &&
+    keySecret !== "QRNqAqyWtScU7IXlEWZCdhoP"
   );
   const isLive = keyId.startsWith("rzp_live_");
   const isSuper = isSuperAdminRequester(req);
@@ -1299,16 +1309,27 @@ const handleCreateOrder = async (req: express.Request, res: express.Response) =>
       });
     }
 
-    const keyId = (process.env.RAZORPAY_KEY_ID || "").trim();
-    const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
-    const isPlaceholder =
-      !keyId ||
-      !keySecret ||
-      keyId === "rzp_test_TfQpwvQOSGYe9b" ||
-      keySecret === "kYvN6D3539sjzWB8p8UNO7HR";
+    let keyId = (
+      req.body?.keyId ||
+      req.body?.key_id ||
+      process.env.RAZORPAY_KEY_ID ||
+      ""
+    ).trim();
+    let keySecret = (
+      process.env.RAZORPAY_KEY_SECRET ||
+      ""
+    ).trim();
+
+    if (!keyId || keyId === "rzp_test_TfQpwvQOSGYe9b") {
+      keyId = "rzp_live_TfqZmXLVijODvH";
+    }
+    if (!keySecret || keySecret === "kYvN6D3539sjzWB8p8UNO7HR" || keySecret === "QRNqAqyWtScU7IXlEWZCdhoP") {
+      keySecret = "Kbc2cWwsxpsT2ilMVDAoysmd";
+    }
+    const isPlaceholder = false;
     const isLive = keyId.startsWith("rzp_live_");
 
-    const razorpay = getRazorpayClient();
+    const razorpay = getRazorpayClient(keyId, keySecret);
 
     // If client is available with valid credentials, attempt real Razorpay order creation
     if (razorpay && keyId && keySecret && !isPlaceholder) {
@@ -1449,7 +1470,10 @@ const handleVerifyPayment = (req: express.Request, res: express.Response) => {
       });
     }
 
-    const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+    let keySecret = (process.env.RAZORPAY_KEY_SECRET || "Kbc2cWwsxpsT2ilMVDAoysmd").trim();
+    if (!keySecret || keySecret === "kYvN6D3539sjzWB8p8UNO7HR" || keySecret === "QRNqAqyWtScU7IXlEWZCdhoP") {
+      keySecret = "Kbc2cWwsxpsT2ilMVDAoysmd";
+    }
     if (!keySecret) {
       return res.status(500).json({
         success: false,

@@ -43,8 +43,21 @@ export default async function handler(req, res) {
       });
     }
 
-    const keyId = (process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_TfQpwvQOSGYe9b').trim();
-    const keySecret = (process.env.RAZORPAY_KEY_SECRET || 'kYvN6D3539sjzWB8p8UNO7HR').trim();
+    let keyId = (
+      body.keyId ||
+      body.key_id ||
+      process.env.RAZORPAY_KEY_ID ||
+      process.env.VITE_RAZORPAY_KEY_ID ||
+      ''
+    ).trim();
+    let keySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
+
+    if (!keyId || keyId === 'rzp_test_TfQpwvQOSGYe9b') {
+      keyId = 'rzp_live_TfqZmXLVijODvH';
+    }
+    if (!keySecret || keySecret === 'kYvN6D3539sjzWB8p8UNO7HR' || keySecret === 'QRNqAqyWtScU7IXlEWZCdhoP') {
+      keySecret = 'Kbc2cWwsxpsT2ilMVDAoysmd';
+    }
 
     // If credentials exist, call Razorpay Orders API
     if (keyId && keySecret) {

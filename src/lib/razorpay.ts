@@ -297,6 +297,7 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
     let orderData: RazorpayOrderResponse | null = null;
 
     try {
+      const liveKey = (import.meta as any).env?.VITE_RAZORPAY_KEY_ID || 'rzp_live_TfqZmXLVijODvH';
       const response = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -305,6 +306,7 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
           currency,
           receipt: receipt || `rcpt_${Date.now()}`,
           notes: notes || {},
+          keyId: liveKey,
         }),
       });
 
@@ -328,6 +330,7 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
             currency,
             receipt: receipt || `rcpt_${Date.now()}`,
             notes: notes || {},
+            keyId: liveKey,
           }),
         });
         if (fallbackRes.ok) {

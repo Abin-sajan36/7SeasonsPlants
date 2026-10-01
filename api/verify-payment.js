@@ -58,7 +58,10 @@ export default async function handler(req, res) {
       });
     }
 
-    const keySecret = (process.env.RAZORPAY_KEY_SECRET || 'kYvN6D3539sjzWB8p8UNO7HR').trim();
+    let keySecret = (process.env.RAZORPAY_KEY_SECRET || 'Kbc2cWwsxpsT2ilMVDAoysmd').trim();
+    if (!keySecret || keySecret === 'kYvN6D3539sjzWB8p8UNO7HR' || keySecret === 'QRNqAqyWtScU7IXlEWZCdhoP') {
+      keySecret = 'Kbc2cWwsxpsT2ilMVDAoysmd';
+    }
 
     // Algorithm: HMAC-SHA256(order_id + "|" + payment_id, KEY_SECRET)
     const generatedSignature = crypto
