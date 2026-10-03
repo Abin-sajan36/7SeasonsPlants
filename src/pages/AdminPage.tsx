@@ -74,6 +74,8 @@ import { ComboCategoryManagerModal } from '../components/admin/ComboCategoryMana
 import { ImageUploadPicker } from '../components/admin/ImageUploadPicker';
 import { AdminLoginGate } from '../components/admin/AdminLoginGate';
 import { BackupManagementCard } from '../components/admin/BackupManagementCard';
+import { OnlineOrderImportModal } from '../components/admin/OnlineOrderImportModal';
+import { SelectiveSiteResetModal } from '../components/admin/SelectiveSiteResetModal';
 import { uploadImage } from '../lib/imageUploader';
 
 interface AdminPageProps {
@@ -546,8 +548,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [trackingNumberInput, setTrackingNumberInput] = useState('');
   const [courierPartnerInput, setCourierPartnerInput] = useState('Speed Post (India Post)');
 
-  // Export Modal States
+  // Export & Import Modal States
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isOnlineImportModalOpen, setIsOnlineImportModalOpen] = useState(false);
+  const [isSiteResetModalOpen, setIsSiteResetModalOpen] = useState(false);
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
   const [exportStatus, setExportStatus] = useState('all');
@@ -880,27 +884,70 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       filteredExportOrders = filteredExportOrders.filter(o => new Date(o.createdAt) <= new Date(exportEndDate + 'T23:59:59'));
     }
 
-    const headers = ['Timestamp', 'NAME', 'ADDRESS', 'DISTRICT', 'PIN', 'PHONE  NUMBER', 'ITEM', 'ORDER BY', 'COURIER', 'STATE'];
+    const headers = [
+      'order_number',
+      'status',
+      'tracking_number',
+      'courier',
+      'customer_name',
+      'customer_phone',
+      'customer_email',
+      'address',
+      'district',
+      'state',
+      'pincode',
+      'item_name',
+      'quantity',
+      'price',
+      'total',
+      'payment_status',
+      'notes',
+    ];
+
     const csvContent = [
       headers.join(','),
-      ...filteredExportOrders.map(o => {
-        const address = o.customer.shippingAddress || o.shippingAddress || {} as any;
-        const fullAddress = [address.addressLine1, address.addressLine2, address.street, address.landmark, address.nearbyLandmark].filter(Boolean).join(', ').replace(/"/g, '""');
-        const itemsList = o.items.map(i => i.name).join(' + ').replace(/"/g, '""');
-        
+      ...filteredExportOrders.map((o) => {
+        const address = o.customer?.shippingAddress || o.shippingAddress || ({} as any);
+        const fullAddress = [
+          address.addressLine1,
+          address.addressLine2,
+          address.street,
+          address.landmark,
+          address.nearbyLandmark,
+        ]
+          .filter(Boolean)
+          .join(', ')
+          .replace(/"/g, '""');
+
+        const itemsList =
+          (o.items || [])
+            .map((i) => (i.quantity > 1 ? `${i.quantity}x ${i.name}` : i.name))
+            .join(' + ')
+            .replace(/"/g, '""') || 'Botanical Order';
+
+        const totalQty = (o.items || []).reduce((acc, i) => acc + (i.quantity || 1), 0);
+        const itemPrice = o.items && o.items[0] ? o.items[0].price : o.subtotal || o.total;
+
         return [
-          `"${new Date(o.createdAt).toLocaleString()}"`,
-          `"${o.customer.name.replace(/"/g, '""')}"`,
+          `"${(o.orderNumber || o.id || '').replace(/"/g, '""')}"`,
+          `"${(o.orderStatus || 'Order Placed').replace(/"/g, '""')}"`,
+          `"${(o.trackingNumber || '').replace(/"/g, '""')}"`,
+          `"${(o.courierPartner || '').replace(/"/g, '""')}"`,
+          `"${(o.customer?.name || '').replace(/"/g, '""')}"`,
+          `"${(o.customer?.phone || address.phoneNumber || address.phone || '').replace(/"/g, '""')}"`,
+          `"${(o.customer?.email || '').replace(/"/g, '""')}"`,
           `"${fullAddress}"`,
           `"${(address.district || address.city || '').replace(/"/g, '""')}"`,
-          `"${address.pincode || ''}"`,
-          `"${o.customer.phone || address.phoneNumber || address.phone || ''}"`,
+          `"${(address.state || '').replace(/"/g, '""')}"`,
+          `"${(address.pincode || '').replace(/"/g, '""')}"`,
           `"${itemsList}"`,
-          `""`,
-          `"${o.courierPartner || ''}"`,
-          `"${(address.state || '').replace(/"/g, '""')}"`
+          `"${totalQty}"`,
+          `"${itemPrice}"`,
+          `"${o.total || 0}"`,
+          `"${(o.paymentStatus || 'paid').replace(/"/g, '""')}"`,
+          `"${(o.notes || '').replace(/"/g, '""')}"`,
         ].join(',');
-      })
+      }),
     ].join('\n');
     downloadCSV(csvContent, `7seasons_orders_${new Date().toISOString().split('T')[0]}.csv`);
     setIsExportModalOpen(false);
@@ -1367,6 +1414,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             </div>
 
             <div className="flex items-center gap-2 pl-2 border-l border-white/20">
+              {isCurrentSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setIsSiteResetModalOpen(true)}
+                  className="px-3.5 py-2 bg-rose-500/20 hover:bg-rose-500/35 border border-rose-300/40 text-rose-100 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  title="Selective Site Data Reset (Super Admin Only)"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-300" />
+                  <span>Reset Site Data</span>
+                </button>
+              )}
               <button
                 onClick={() => onNavigate('home')}
                 className="px-3.5 py-2 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
@@ -1832,7 +1890,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         <div className="flex items-center justify-between text-[11px] font-bold text-emerald-950">
                           <span className="flex items-center gap-1">
                             <Package className="w-3.5 h-3.5 text-emerald-700" />
-                            <span>Included in Pack ({combo.items.length} items):</span>
+                            <span>Included in Pack ({(combo.items || []).length} items):</span>
                           </span>
                           <span className="text-[10px] text-gray-500 font-normal">
                             Stock: {combo.stock}
@@ -1840,14 +1898,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         </div>
 
                         <div className="flex flex-wrap gap-1.5">
-                          {combo.items.map((item, idx) => (
+                          {(combo.items || []).map((item, idx) => (
                             <span
                               key={idx}
                               className="text-[10px] bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md text-gray-800 font-medium flex items-center gap-1"
-                              title={`${item.productName} (${item.itemType})`}
+                              title={`${item?.productName || 'Plant'} (${item?.itemType || 'item'})`}
                             >
-                              <span className="font-bold text-emerald-700">{item.quantity}x</span>
-                              <span className="truncate max-w-[120px]">{item.productName}</span>
+                              <span className="font-bold text-emerald-700">{item?.quantity || 1}x</span>
+                              <span className="truncate max-w-[120px]">{item?.productName || 'Plant'}</span>
                             </span>
                           ))}
                         </div>
@@ -2229,6 +2287,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     <Download className="w-4 h-4" />
                     <span>Export CSV</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsOnlineImportModalOpen(true)}
+                    className="px-5 py-2.5 bg-gradient-to-r from-emerald-800 to-green-700 hover:from-emerald-900 hover:to-green-800 text-white rounded-full text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer shrink-0"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Import / Update CSV</span>
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
@@ -2394,13 +2460,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         <div>
                           <strong className="text-emerald-950 block font-bold mb-1 flex items-center gap-1">
                             <Package className="w-3.5 h-3.5 text-emerald-700" />
-                            Items Packed ({ord.items.length}):
+                            Items Packed ({(ord.items || []).length}):
                           </strong>
                           <ul className="space-y-1 text-gray-600 max-h-24 overflow-y-auto pr-1">
-                            {ord.items.map((it, i) => (
+                            {(ord.items || []).map((it, i) => (
                               <li key={i} className="truncate flex items-center justify-between gap-1">
-                                <span className="truncate">• {it.name}</span>
-                                <span className="text-gray-400 font-semibold shrink-0">x{it.quantity}</span>
+                                <span className="truncate">• {it?.name || 'Plant'}</span>
+                                <span className="text-gray-400 font-semibold shrink-0">x{it?.quantity || 1}</span>
                               </li>
                             ))}
                           </ul>
@@ -4590,6 +4656,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         </div>
       )}
 
+      {/* Online Orders CSV Import / Upsert Modal */}
+      {isOnlineImportModalOpen && (
+        <OnlineOrderImportModal
+          isOpen={isOnlineImportModalOpen}
+          onClose={() => setIsOnlineImportModalOpen(false)}
+        />
+      )}
+
+      {/* Selective Site Data Reset Modal (Super Admin) */}
+      {isSiteResetModalOpen && (
+        <SelectiveSiteResetModal
+          isOpen={isSiteResetModalOpen}
+          onClose={() => setIsSiteResetModalOpen(false)}
+        />
+      )}
+
       {/* ADD NEW ADMIN ACCOUNT MODAL */}
       {isAddAdminModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -4751,24 +4833,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             {/* Order Items Table */}
             <div>
               <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider mb-3">
-                Ordered Plants ({selectedOrderDetails.items.length})
+                Ordered Plants ({(selectedOrderDetails.items || []).length})
               </h4>
               <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden">
-                {selectedOrderDetails.items.map((item, idx) => (
+                {(selectedOrderDetails.items || []).map((item, idx) => (
                   <div key={idx} className="p-3 sm:p-4 flex items-center gap-3 text-xs">
                     <img
-                      src={item.image}
-                      alt={item.name}
+                      src={item?.image || '/logo.png'}
+                      alt={item?.name || 'Plant'}
                       className="w-12 h-12 rounded-xl object-cover bg-emerald-50 shrink-0 border border-gray-100"
                     />
                     <div className="flex-1 min-w-0">
-                      <h5 className="font-bold text-gray-900 truncate">{item.name}</h5>
+                      <h5 className="font-bold text-gray-900 truncate">{item?.name || 'Plant'}</h5>
                       <p className="text-gray-500 text-[11px]">
-                        Qty: {item.quantity} • ₹{item.price} each
+                        Qty: {item?.quantity || 1} • ₹{item?.price || 0} each
                       </p>
                     </div>
                     <span className="font-bold text-emerald-950 text-sm">
-                      ₹{item.price * item.quantity}
+                      ₹{(item?.price || 0) * (item?.quantity || 1)}
                     </span>
                   </div>
                 ))}

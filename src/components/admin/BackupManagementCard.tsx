@@ -22,8 +22,10 @@ import {
   ChevronRight,
   ArrowUpRight,
   Crown,
+  Trash2,
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
+import { SelectiveSiteResetModal } from './SelectiveSiteResetModal';
 
 interface BackupManifest {
   appName?: string;
@@ -105,6 +107,7 @@ export const BackupManagementCard: React.FC = () => {
   const [isRestoring, setIsRestoring] = useState<boolean>(false);
   const [restoreResult, setRestoreResult] = useState<RestoreResponse | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   // File upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -375,6 +378,46 @@ export const BackupManagementCard: React.FC = () => {
         >
           <Download className="w-3.5 h-3.5 text-gray-500" />
           <span>📦 Download Archives</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsResetModalOpen(true)}
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer text-rose-700 hover:bg-rose-50"
+        >
+          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+          <span>⚠️ Selective Reset</span>
+          <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 rounded-md text-[10px]">
+            Purge Data
+          </span>
+        </button>
+      </div>
+
+      {/* Selective Reset Banner for Super Admin */}
+      <div className="p-4 sm:p-5 bg-gradient-to-r from-rose-50 to-orange-50/60 rounded-3xl border border-rose-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5">
+            <Trash2 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-black text-rose-950">Selective Site Data Reset</h4>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                Super Admin Only
+              </span>
+            </div>
+            <p className="text-xs text-rose-900/80 mt-1 max-w-xl">
+              Choose and permanently purge specific collections: Customer Orders, Combo Bundles, Site Categories, Plant Catalog, Customer Users, Reels, or Blogs. Store settings and secret credentials remain 100% untouched.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsResetModalOpen(true)}
+          className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>Launch Reset Tool</span>
         </button>
       </div>
 
@@ -930,6 +973,14 @@ npm run dev`}
             </div>
           </div>
         </div>
+      )}
+
+      {/* Selective Site Reset Modal */}
+      {isResetModalOpen && (
+        <SelectiveSiteResetModal
+          isOpen={isResetModalOpen}
+          onClose={() => setIsResetModalOpen(false)}
+        />
       )}
     </div>
   );

@@ -9,7 +9,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, query, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, query, where, writeBatch } from 'firebase/firestore';
 import {
   Product,
   PlantCombo,
@@ -156,6 +156,10 @@ interface StoreContextType {
   // Orders
   createOrder: (orderPayload: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'statusHistory'>) => Promise<Order>;
   importOrders: (newOrders: Order[]) => void;
+  upsertOrdersFromCsv: (
+    ordersToUpdate: Array<{ orderId: string; updates: Partial<Order> }>,
+    ordersToCreate: Order[]
+  ) => Promise<{ updatedCount: number; createdCount: number }>;
   updateOrderStatus: (
     orderId: string,
     status: OrderStatus,
@@ -270,6 +274,9 @@ interface StoreContextType {
 
   updateStoreSettings: (settings: Partial<StoreSettings>) => Promise<void> | void;
   resetToSampleData: () => Promise<void> | void;
+  selectiveResetSiteData: (
+    options: ('orders' | 'combos' | 'categories' | 'products' | 'users' | 'reels' | 'blogs')[]
+  ) => Promise<{ success: boolean; clearedItems: Record<string, number>; message: string }>;
 
   // Toasts
   addToast: (toast: Omit<ToastMessage, 'id'>) => void;
@@ -460,8 +467,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_orders`);
-    return saved ? JSON.parse(saved) : initialOrders;
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_orders`);
+      const parsed: Order[] = saved ? JSON.parse(saved) : initialOrders;
+      return (Array.isArray(parsed) ? parsed : initialOrders).map((o) => ({
+        ...o,
+        items: Array.isArray(o?.items) ? o.items : [],
+        statusHistory: Array.isArray(o?.statusHistory) ? o.statusHistory : [],
+        customer: o?.customer || { name: 'Customer', email: '', phone: '', shippingAddress: {} as any },
+      }));
+    } catch {
+      return initialOrders;
+    }
   });
 
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -778,39 +795,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Plant Combos from Firestore
   useEffect(() => {
-    let seeded = false;
     const unsubscribe = onSnapshot(
       collection(db, 'combos'),
-      async (snapshot) => {
+      (snapshot) => {
+        const deletedIds: string[] = JSON.parse(
+          localStorage.getItem(`${STORAGE_KEY}_deleted_combo_ids`) || '[]'
+        );
+        const deletedSet = new Set(deletedIds);
+
         if (!snapshot.empty) {
           const list: PlantCombo[] = [];
           snapshot.forEach((docSnap) => {
-            list.push({ ...(docSnap.data() as PlantCombo), id: docSnap.id });
-          });
-          setCombos((prev) => {
-            const serverIds = new Set(list.map((c) => c.id));
-            // Preserve locally created combos from the last 15 mins that haven't synced yet
-            const pendingRecent = prev.filter((c) => {
-              if (serverIds.has(c.id)) return false;
-              const createdTime = c.createdAt ? new Date(c.createdAt).getTime() : 0;
-              return Date.now() - createdTime < 15 * 60 * 1000;
-            });
-            const merged = [...pendingRecent, ...list];
-            try {
-              safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(merged));
-            } catch (err) {
-              console.warn('LocalStorage error:', err);
+            const c = { ...(docSnap.data() as PlantCombo), id: docSnap.id };
+            if (!deletedSet.has(c.id)) {
+              list.push(c);
             }
-            return merged;
           });
-        } else if (!seeded) {
-          seeded = true;
+          setCombos(list);
           try {
-            for (const item of initialPlantCombos) {
-              await setDoc(doc(db, 'combos', item.id), removeUndefined(item), { merge: true });
-            }
-          } catch (e) {
-            console.warn('Seeding initial combos note:', e);
+            safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(list));
+          } catch (err) {
+            console.warn('LocalStorage error:', err);
+          }
+        } else {
+          setCombos([]);
+          try {
+            safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify([]));
+          } catch (err) {
+            console.warn('LocalStorage error:', err);
           }
         }
       },
@@ -824,38 +836,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Products from Firestore
   useEffect(() => {
-    let seeded = false;
     const unsubscribe = onSnapshot(
       collection(db, 'products'),
-      async (snapshot) => {
+      (snapshot) => {
+        const deletedIds: string[] = JSON.parse(
+          localStorage.getItem(`${STORAGE_KEY}_deleted_product_ids`) || '[]'
+        );
+        const deletedSet = new Set(deletedIds);
+
         if (!snapshot.empty) {
           const list: Product[] = [];
           snapshot.forEach((docSnap) => {
-            list.push({ ...(docSnap.data() as Product), id: docSnap.id });
-          });
-          setProducts((prev) => {
-            const serverIds = new Set(list.map((p) => p.id));
-            const pendingRecent = prev.filter((p) => {
-              if (serverIds.has(p.id)) return false;
-              const createdTime = p.createdAt ? new Date(p.createdAt).getTime() : 0;
-              return Date.now() - createdTime < 15 * 60 * 1000;
-            });
-            const merged = [...pendingRecent, ...list];
-            try {
-              safeSetItem(`${STORAGE_KEY}_products`, JSON.stringify(merged));
-            } catch (err) {
-              console.warn('LocalStorage error:', err);
+            const p = { ...(docSnap.data() as Product), id: docSnap.id };
+            if (!deletedSet.has(p.id)) {
+              list.push(p);
             }
-            return merged;
           });
-        } else if (!seeded) {
-          seeded = true;
+          setProducts(list);
           try {
-            for (const item of initialProducts) {
-              await setDoc(doc(db, 'products', item.id), removeUndefined(item), { merge: true });
-            }
-          } catch (e) {
-            console.warn('Seeding initial products note:', e);
+            safeSetItem(`${STORAGE_KEY}_products`, JSON.stringify(list));
+          } catch (err) {
+            console.warn('LocalStorage error:', err);
+          }
+        } else {
+          setProducts([]);
+          try {
+            safeSetItem(`${STORAGE_KEY}_products`, JSON.stringify([]));
+          } catch (err) {
+            console.warn('LocalStorage error:', err);
           }
         }
       },
@@ -869,11 +877,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Categories from Firestore
   useEffect(() => {
-    let seeded = false;
     const unsubscribe = onSnapshot(
       collection(db, 'categories'),
-      async (snapshot) => {
-        const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_category_ids`) || '[]');
+      (snapshot) => {
+        const deletedIds: string[] = JSON.parse(
+          localStorage.getItem(`${STORAGE_KEY}_deleted_category_ids`) || '[]'
+        );
         const deletedSet = new Set(deletedIds);
 
         if (!snapshot.empty) {
@@ -884,37 +893,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               list.push(cat);
             }
           });
-          if (list.length > 0) {
-            setCategories((prev) => {
-              const serverIds = new Set(list.map((c) => c.id));
-              const pendingRecent = prev.filter((c) => {
-                if (serverIds.has(c.id) || deletedSet.has(c.id) || deletedSet.has(c.slug)) return false;
-                const isRecentId = c.id.startsWith('cat-') && !isNaN(Number(c.id.replace('cat-', '')));
-                if (isRecentId) {
-                  const ts = Number(c.id.replace('cat-', ''));
-                  return Date.now() - ts < 15 * 60 * 1000;
-                }
-                return false;
-              });
-              const merged = [...list, ...pendingRecent];
-              try {
-                safeSetItem(`${STORAGE_KEY}_categories`, JSON.stringify(merged));
-              } catch (err) {
-                console.warn('LocalStorage error:', err);
-              }
-              return merged;
-            });
-          }
-        } else if (!seeded) {
-          seeded = true;
+          setCategories(list);
           try {
-            for (const item of initialCategories) {
-              if (!deletedSet.has(item.id) && !deletedSet.has(item.slug)) {
-                await setDoc(doc(db, 'categories', item.id), removeUndefined(item), { merge: true });
-              }
-            }
-          } catch (e) {
-            console.warn('Seeding initial categories note:', e);
+            safeSetItem(`${STORAGE_KEY}_categories`, JSON.stringify(list));
+          } catch (err) {
+            console.warn('LocalStorage error:', err);
+          }
+        } else {
+          setCategories([]);
+          try {
+            safeSetItem(`${STORAGE_KEY}_categories`, JSON.stringify([]));
+          } catch (err) {
+            console.warn('LocalStorage error:', err);
           }
         }
       },
@@ -1318,7 +1308,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const fetchedOrders: Order[] = [];
           snapshot.forEach((d) => {
             const data = d.data() as Order;
-            fetchedOrders.push({ ...data, id: d.id });
+            fetchedOrders.push({
+              ...data,
+              id: d.id,
+              orderNumber: data.orderNumber || d.id,
+              items: Array.isArray(data?.items) ? data.items : [],
+              statusHistory: Array.isArray(data?.statusHistory) ? data.statusHistory : [],
+              customer: data?.customer || {
+                name: 'Customer',
+                email: '',
+                phone: '',
+                shippingAddress: {} as any,
+              },
+            });
           });
           setOrders((prev) => {
             const map = new Map<string, Order>();
@@ -1798,6 +1800,72 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setOrders(prev => [...newOrders, ...prev]);
   };
 
+  const upsertOrdersFromCsv = async (
+    ordersToUpdate: Array<{ orderId: string; updates: Partial<Order> }>,
+    ordersToCreate: Order[]
+  ): Promise<{ updatedCount: number; createdCount: number }> => {
+    // 1. Process updates in local state
+    setOrders((prevOrders: Order[]) => {
+      const updateMap = new Map(ordersToUpdate.map((u) => [u.orderId, u.updates]));
+      const updatedList: Order[] = prevOrders.map((ord) => {
+        const updateData = updateMap.get(ord.id);
+        if (updateData) {
+          const prevAddr = ord.shippingAddress || ord.customer?.shippingAddress;
+          const mergedAddr = {
+            id: prevAddr?.id || `addr-${ord.id}`,
+            fullName: prevAddr?.fullName || ord.customer?.name || '',
+            phoneNumber: prevAddr?.phoneNumber || ord.customer?.phone || '',
+            addressLine1: prevAddr?.addressLine1 || '',
+            city: prevAddr?.city || '',
+            district: prevAddr?.district || '',
+            state: prevAddr?.state || 'Kerala',
+            pincode: prevAddr?.pincode || '',
+            ...(updateData.customer?.shippingAddress || updateData.shippingAddress || {}),
+          };
+          const mergedCustomer = {
+            ...ord.customer,
+            ...(updateData.customer || {}),
+            shippingAddress: mergedAddr,
+          };
+          return {
+            ...ord,
+            ...updateData,
+            customer: mergedCustomer,
+            shippingAddress: mergedAddr,
+            updatedAt: new Date().toISOString(),
+          } as Order;
+        }
+        return ord;
+      });
+
+      return [...ordersToCreate, ...updatedList];
+    });
+
+    // 2. Persist updates and new orders to Firestore
+    let updatedCount = 0;
+    let createdCount = 0;
+
+    for (const item of ordersToUpdate) {
+      try {
+        await setDoc(doc(db, 'orders', item.orderId), removeUndefined(item.updates), { merge: true });
+        updatedCount++;
+      } catch (err) {
+        console.warn('Failed to update order in Firestore:', item.orderId, err);
+      }
+    }
+
+    for (const newOrd of ordersToCreate) {
+      try {
+        await setDoc(doc(db, 'orders', newOrd.id), removeUndefined(newOrd));
+        createdCount++;
+      } catch (err) {
+        console.warn('Failed to create order in Firestore:', newOrd.id, err);
+      }
+    }
+
+    return { updatedCount, createdCount };
+  };
+
   const createOrder = async (
     orderPayload: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'statusHistory'>
   ): Promise<Order> => {
@@ -1917,6 +1985,35 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           cart: [],
           updatedAt: timestamp,
         }, { merge: true }).catch(console.warn);
+      }
+    }
+
+    // Send Order Confirmation Email to the user
+    if (newOrder.customer?.email) {
+      try {
+        fetch('/api/orders/send-status-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: newOrder.id,
+            orderNumber: newOrder.orderNumber,
+            customerName: newOrder.customer.name,
+            customerEmail: newOrder.customer.email,
+            status: 'Order Placed',
+            total: newOrder.total,
+            items: newOrder.items.map((i) => ({
+              name: i.name,
+              quantity: i.quantity,
+              price: i.price,
+            })),
+            shippingAddress: newOrder.customer.shippingAddress,
+            courierPartner: newOrder.courierPartner,
+          }),
+        }).catch((mailErr) => {
+          console.warn('[Order Notification] Confirmation email note:', mailErr);
+        });
+      } catch (err) {
+        console.warn('[Order Notification] Failed to trigger confirmation email:', err);
       }
     }
 
@@ -3342,6 +3439,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: (prod as any).id || `prod-${Date.now()}`,
       createdAt: (prod as any).createdAt || new Date().toISOString(),
     };
+
+    // Ensure it is not in deleted set
+    const deletedIds: string[] = JSON.parse(
+      localStorage.getItem(`${STORAGE_KEY}_deleted_product_ids`) || '[]'
+    );
+    if (deletedIds.includes(newProd.id)) {
+      safeSetItem(
+        `${STORAGE_KEY}_deleted_product_ids`,
+        JSON.stringify(deletedIds.filter((d) => d !== newProd.id))
+      );
+    }
+
     setProducts((prev) => {
       const next = [newProd, ...prev.filter((p) => p.id !== newProd.id)];
       try {
@@ -3400,7 +3509,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteProduct = async (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    // 1. Record in deleted IDs set
+    const deletedIds: string[] = JSON.parse(
+      localStorage.getItem(`${STORAGE_KEY}_deleted_product_ids`) || '[]'
+    );
+    if (!deletedIds.includes(id)) {
+      deletedIds.push(id);
+      safeSetItem(`${STORAGE_KEY}_deleted_product_ids`, JSON.stringify(deletedIds));
+    }
+
+    // 2. Remove from local state and LocalStorage immediately
+    setProducts((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      safeSetItem(`${STORAGE_KEY}_products`, JSON.stringify(next));
+      return next;
+    });
+
+    // 3. Delete from Firestore
     try {
       await deleteDoc(doc(db, 'products', id));
     } catch (e) {
@@ -3414,13 +3539,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteProducts = async (ids: string[]) => {
-    setProducts((prev) => prev.filter((p) => !ids.includes(p.id)));
+    // 1. Record in deleted IDs set
+    const deletedIds: string[] = JSON.parse(
+      localStorage.getItem(`${STORAGE_KEY}_deleted_product_ids`) || '[]'
+    );
     for (const id of ids) {
-      try {
-        await deleteDoc(doc(db, 'products', id));
-      } catch (e) {
-        console.warn('Could not delete product from Firestore:', e);
+      if (!deletedIds.includes(id)) deletedIds.push(id);
+    }
+    safeSetItem(`${STORAGE_KEY}_deleted_product_ids`, JSON.stringify(deletedIds));
+
+    // 2. Remove from local state and LocalStorage immediately
+    setProducts((prev) => {
+      const next = prev.filter((p) => !ids.includes(p.id));
+      safeSetItem(`${STORAGE_KEY}_products`, JSON.stringify(next));
+      return next;
+    });
+
+    // 3. Delete from Firestore via batch
+    try {
+      let batch = writeBatch(db);
+      let batchCount = 0;
+      for (const id of ids) {
+        batch.delete(doc(db, 'products', id));
+        batchCount++;
+        if (batchCount >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        }
       }
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Could not delete products from Firestore:', e);
     }
     addToast({
       type: 'info',
@@ -3520,7 +3672,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteCombo = async (id: string) => {
-    setCombos((prev) => prev.filter((c) => c.id !== id));
+    // 1. Record in deleted IDs set
+    const deletedIds: string[] = JSON.parse(
+      localStorage.getItem(`${STORAGE_KEY}_deleted_combo_ids`) || '[]'
+    );
+    if (!deletedIds.includes(id)) {
+      deletedIds.push(id);
+      safeSetItem(`${STORAGE_KEY}_deleted_combo_ids`, JSON.stringify(deletedIds));
+    }
+
+    // 2. Remove from local state and LocalStorage immediately
+    setCombos((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(next));
+      return next;
+    });
+
+    // 3. Delete from Firestore
     try {
       await deleteDoc(doc(db, 'combos', id));
     } catch (e) {
@@ -3534,13 +3702,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteCombos = async (ids: string[]) => {
-    setCombos((prev) => prev.filter((c) => !ids.includes(c.id)));
+    // 1. Record in deleted IDs set
+    const deletedIds: string[] = JSON.parse(
+      localStorage.getItem(`${STORAGE_KEY}_deleted_combo_ids`) || '[]'
+    );
     for (const id of ids) {
-      try {
-        await deleteDoc(doc(db, 'combos', id));
-      } catch (e) {
-        console.warn('Could not delete combo from Firestore:', e);
+      if (!deletedIds.includes(id)) deletedIds.push(id);
+    }
+    safeSetItem(`${STORAGE_KEY}_deleted_combo_ids`, JSON.stringify(deletedIds));
+
+    // 2. Remove from local state and LocalStorage immediately
+    setCombos((prev) => {
+      const next = prev.filter((c) => !ids.includes(c.id));
+      safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(next));
+      return next;
+    });
+
+    // 3. Delete from Firestore via batch
+    try {
+      let batch = writeBatch(db);
+      let batchCount = 0;
+      for (const id of ids) {
+        batch.delete(doc(db, 'combos', id));
+        batchCount++;
+        if (batchCount >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        }
       }
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Could not delete combos from Firestore:', e);
     }
     addToast({
       type: 'info',
@@ -4107,6 +4302,140 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const selectiveResetSiteData = async (
+    options: ('orders' | 'combos' | 'categories' | 'products' | 'users' | 'reels' | 'blogs')[]
+  ): Promise<{ success: boolean; clearedItems: Record<string, number>; message: string }> => {
+    if (!isCurrentSuperAdmin) {
+      throw new Error('Unauthorized: Only Super Administrators can perform site data resets.');
+    }
+
+    const clearedItems: Record<string, number> = {
+      orders: 0,
+      combos: 0,
+      categories: 0,
+      products: 0,
+      users: 0,
+      reels: 0,
+      blogs: 0,
+    };
+
+    // Helper to purge documents in a Firestore collection
+    const purgeCollection = async (
+      collectionName: string,
+      filterFn?: (data: any) => boolean
+    ): Promise<number> => {
+      try {
+        const snap = await getDocs(collection(db, collectionName));
+        if (snap.empty) return 0;
+        let count = 0;
+        let batch = writeBatch(db);
+        let batchCount = 0;
+
+        for (const docSnap of snap.docs) {
+          if (!filterFn || filterFn(docSnap.data())) {
+            batch.delete(docSnap.ref);
+            count++;
+            batchCount++;
+            if (batchCount >= 400) {
+              await batch.commit();
+              batch = writeBatch(db);
+              batchCount = 0;
+            }
+          }
+        }
+        if (batchCount > 0) {
+          await batch.commit();
+        }
+        return count;
+      } catch (err) {
+        console.warn(`[Site Reset] Error purging ${collectionName}:`, err);
+        return 0;
+      }
+    };
+
+    // 1. ORDERS
+    if (options.includes('orders')) {
+      const count = await purgeCollection('orders');
+      clearedItems.orders = count || orders.length;
+      setOrders([]);
+      try {
+        localStorage.removeItem(`${STORAGE_KEY}_orders`);
+      } catch {}
+    }
+
+    // 2. COMBOS
+    if (options.includes('combos')) {
+      const count = await purgeCollection('combos');
+      clearedItems.combos = count || combos.length;
+      setCombos([]);
+      try {
+        safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify([]));
+        localStorage.removeItem(`${STORAGE_KEY}_deleted_combo_ids`);
+      } catch {}
+    }
+
+    // 3. CATEGORIES
+    if (options.includes('categories')) {
+      const count = await purgeCollection('categories');
+      clearedItems.categories = count || categories.length;
+      setCategories([]);
+      try {
+        safeSetItem(`${STORAGE_KEY}_categories`, JSON.stringify([]));
+        localStorage.removeItem(`${STORAGE_KEY}_deleted_category_ids`);
+      } catch {}
+    }
+
+    // 4. PLANT CATALOG (PRODUCTS)
+    if (options.includes('products')) {
+      const count = await purgeCollection('products');
+      clearedItems.products = count || products.length;
+      setProducts([]);
+      try {
+        safeSetItem(`${STORAGE_KEY}_products`, JSON.stringify([]));
+        localStorage.removeItem(`${STORAGE_KEY}_deleted_product_ids`);
+      } catch {}
+    }
+
+    // 5. CUSTOMER USERS (Preserves super admin & manager accounts)
+    if (options.includes('users')) {
+      const count = await purgeCollection('users', (data) => {
+        const role = (data?.role || '').toLowerCase();
+        return !role.includes('admin') && role !== 'nursery_manager' && role !== 'inventory_staff';
+      });
+      clearedItems.users = count || registeredUsers.length;
+      setRegisteredUsers([]);
+      try {
+        localStorage.removeItem(`${STORAGE_KEY}_registered_users`);
+      } catch {}
+    }
+
+    // 6. INSTAGRAM REELS
+    if (options.includes('reels')) {
+      const count = await purgeCollection('instagramReels');
+      clearedItems.reels = count || instagramReels.length;
+      setInstagramReels([]);
+      try {
+        localStorage.removeItem(`${STORAGE_KEY}_instagram_reels`);
+      } catch {}
+    }
+
+    // 7. BOTANICAL BLOGS
+    if (options.includes('blogs')) {
+      const count = await purgeCollection('blogs');
+      clearedItems.blogs = count || blogs.length;
+      setBlogs([]);
+      try {
+        localStorage.removeItem(`${STORAGE_KEY}_blogs`);
+      } catch {}
+    }
+
+    return {
+      success: true,
+      clearedItems,
+      message: `Selected data successfully reset (${options.length} categories purged).`,
+    };
+  };
+
   return (
     <StoreContext.Provider
       value={{
@@ -4184,6 +4513,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         createOrder,
         importOrders,
+        upsertOrdersFromCsv,
         updateOrderStatus,
         deleteOrder,
         getOrderById,
@@ -4264,6 +4594,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         updateStoreSettings,
         resetToSampleData,
+        selectiveResetSiteData,
 
         addToast,
         removeToast,

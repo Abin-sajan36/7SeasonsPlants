@@ -17,7 +17,18 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
-    const { orderId, orderNumber, customerName, customerEmail, status, trackingNumber, courierPartner } = body;
+    const {
+      orderId,
+      orderNumber,
+      customerName,
+      customerEmail,
+      status,
+      trackingNumber,
+      courierPartner,
+      total,
+      items,
+      shippingAddress,
+    } = body;
 
     if (!customerEmail || !customerEmail.includes('@')) {
       return res.status(400).json({ success: false, error: 'Valid email address is required' });
@@ -43,10 +54,21 @@ export default async function handler(req, res) {
 
     const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants" <${user}>`;
 
+    const isOrderPlacement = status === 'Order Placed' || status === 'Payment Confirmed' || status === 'Confirmed';
+    const emailSubject = isOrderPlacement
+      ? `🌿 Order Confirmed! #${orderNumber} - 7Seasonsplants`
+      : `🌿 Update on your 7Seasonsplants Order #${orderNumber}`;
+    const emailHeading = isOrderPlacement ? 'Order Confirmed!' : 'Order Status Update';
+
     let statusMessage = 'has been updated.';
     let trackingInfo = '';
 
     switch (status) {
+      case 'Order Placed':
+      case 'Payment Confirmed':
+      case 'Confirmed':
+        statusMessage = 'has been successfully placed and confirmed! Our nursery team will carefully prepare and pack your live plants.';
+        break;
       case 'Processing':
       case 'Packed':
         statusMessage = 'is now being processed and packed by our nursery team.';
@@ -75,11 +97,54 @@ export default async function handler(req, res) {
         break;
     }
 
+    // Render Items block if provided
+    let itemsHtml = '';
+    if (Array.isArray(items) && items.length > 0) {
+      const itemsList = items
+        .map(
+          (it) =>
+            `<li style="margin-bottom: 6px;"><strong>${it.quantity}x</strong> ${it.name} <span style="color: #059669; font-weight: 600;">(₹${(it.price || 0) * (it.quantity || 1)})</span></li>`
+        )
+        .join('');
+      itemsHtml = `
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 20px 0;">
+          <h3 style="margin: 0 0 10px; color: #064e3b; font-size: 14px; font-weight: 700;">Plants in Your Order:</h3>
+          <ul style="margin: 0; padding-left: 20px; color: #334155; font-size: 13px; line-height: 1.6;">
+            ${itemsList}
+          </ul>
+          ${
+            total
+              ? `<div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: space-between; font-weight: 800; color: #064e3b; font-size: 15px;">
+                  <span>Total Amount Paid:</span>
+                  <span style="color: #059669;">₹${total}</span>
+                </div>`
+              : ''
+          }
+        </div>
+      `;
+    }
+
+    // Render Shipping Address if provided
+    let addressHtml = '';
+    if (shippingAddress) {
+      const line1 = shippingAddress.addressLine1 || shippingAddress.street || '';
+      const cityDist = shippingAddress.district || shippingAddress.city || '';
+      const state = shippingAddress.state || '';
+      const pin = shippingAddress.pincode || '';
+      addressHtml = `
+        <div style="background-color: #f1f5f9; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 12px; color: #475569; line-height: 1.5;">
+          <strong style="color: #0f172a; display: block; margin-bottom: 4px;">🚚 Shipping Destination:</strong>
+          ${shippingAddress.fullName || customerName || ''}<br/>
+          ${line1 ? `${line1}, ` : ''}${cityDist ? `${cityDist}, ` : ''}${state ? `${state} ` : ''}${pin ? `- ${pin}` : ''}
+        </div>
+      `;
+    }
+
     try {
       await transporter.sendMail({
         from: fromAddress,
         to: customerEmail,
-        subject: `🌿 Update on your 7Seasonsplants Order #${orderNumber}`,
+        subject: emailSubject,
         html: `
           <!DOCTYPE html>
           <html>
@@ -97,23 +162,27 @@ export default async function handler(req, res) {
                     </tr>
                     <tr>
                       <td style="padding: 10px 32px 24px;">
-                        <h2 style="margin: 0 0 12px; color: #0f172a; font-size: 18px; font-weight: 800;">Order Status Update</h2>
+                        <h2 style="margin: 0 0 12px; color: #0f172a; font-size: 18px; font-weight: 800;">${emailHeading}</h2>
                         <p style="margin: 0 0 16px; color: #475569; font-size: 14px; line-height: 1.6;">
                           Hello <strong>${customerName || 'Plant Lover'}</strong>,
                         </p>
-                        <p style="margin: 0 0 20px; color: #475569; font-size: 14px; line-height: 1.6;">
+                        <p style="margin: 0 0 16px; color: #475569; font-size: 14px; line-height: 1.6;">
                           Your order <strong>#${orderNumber}</strong> ${statusMessage}
                         </p>
+                        
+                        ${itemsHtml}
+                        ${addressHtml}
                         ${trackingInfo}
+
                         <p style="margin: 0 0 12px; color: #64748b; font-size: 12px; line-height: 1.5;">
-                          You can view more details about your order and its status in your account dashboard.
+                          You can view your order anytime by visiting the track order page or logging into your account.
                         </p>
                       </td>
                     </tr>
                     <tr>
                       <td style="padding: 20px 32px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #64748b;">
-                        <p style="margin: 0 0 4px; font-weight: 600; color: #334155;">Mannarathayil Nursery, Kerala & Tamil Nadu</p>
-                        <p style="margin: 0;">WhatsApp Support: +91 95672 74176 • www.7seasonsplants.com</p>
+                        <p style="margin: 0 0 4px; font-weight: 600; color: #334155;">Mannaratharayil Gardens LLP, Kerala & Tamil Nadu</p>
+                        <p style="margin: 0;">WhatsApp Support: +91 88482 76403 • www.7seasonsplants.com</p>
                       </td>
                     </tr>
                   </table>
@@ -125,7 +194,7 @@ export default async function handler(req, res) {
         `,
       });
 
-      return res.status(200).json({ success: true, emailSent: true, message: 'Status update email delivered' });
+      return res.status(200).json({ success: true, emailSent: true, message: 'Order notification email delivered' });
     } catch (mailErr) {
       console.warn('[Vercel send-status-update] Mail warning:', mailErr?.message || mailErr);
       return res.status(200).json({
