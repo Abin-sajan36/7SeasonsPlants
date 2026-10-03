@@ -105,10 +105,16 @@ const registrationOtps = new Map<string, StoredOtp>();
 
 // Lazily initialize mail transporter if SMTP credentials are provided
 function getMailTransporter(): nodemailer.Transporter | null {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const host = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
+  const user = (process.env.SMTP_USER || "mannaratharayil@gmail.com").trim();
+  let pass = (process.env.SMTP_PASS || "").trim();
   const port = parseInt(process.env.SMTP_PORT || "587", 10);
+
+  // If pass is empty or is the revoked old placeholder, use the verified active Google App Password
+  if (!pass || pass === "bsey qyqn wwmh hedc") {
+    pass = "exyu mdov exwb ofej";
+    process.env.SMTP_PASS = pass;
+  }
 
   if (!host || !user || !pass) {
     return null;
@@ -122,6 +128,7 @@ function getMailTransporter(): nodemailer.Transporter | null {
       user,
       pass,
     },
+    connectionTimeout: 10000,
   });
 }
 
@@ -419,7 +426,7 @@ app.post("/api/orders/send-status-update", async (req, res) => {
       return res.json({ success: true, message: "Status logged, no email sent (SMTP not configured)" });
     }
 
-    const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants" <${process.env.SMTP_USER}>`;
+    const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
     
     let statusMessage = "has been updated.";
     let trackingInfo = "";
@@ -453,11 +460,12 @@ app.post("/api/orders/send-status-update", async (req, res) => {
         break;
     }
 
-    await transporter.sendMail({
-      from: fromAddress,
-      to: customerEmail,
-      subject: `🌿 Update on your 7Seasonsplants Order #${orderNumber}`,
-      html: `
+    try {
+      await transporter.sendMail({
+        from: fromAddress,
+        to: customerEmail,
+        subject: `🌿 Update on your 7Seasonsplants Order #${orderNumber}`,
+        html: `
         <!DOCTYPE html>
         <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4FAF5; margin: 0; padding: 24px; color: #064e3b;">
@@ -502,13 +510,21 @@ app.post("/api/orders/send-status-update", async (req, res) => {
         </body>
         </html>
       `
-    });
+      });
 
-    console.log(`[7Seasons Notifications] ✉️ Order ${orderNumber} status update email sent to ${customerEmail}`);
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Error sending order status email:", error);
-    res.status(500).json({ success: false, error: "Failed to send email" });
+      console.log(`[7Seasons Notifications] ✉️ Order ${orderNumber} status update email sent to ${customerEmail}`);
+      return res.json({ success: true, emailSent: true, message: "Status update email sent" });
+    } catch (mailErr: any) {
+      console.warn(`[7Seasons Notifications] Email sending warning for #${orderNumber}:`, mailErr?.message || mailErr);
+      return res.json({
+        success: true,
+        emailSent: false,
+        warning: mailErr?.message || "Failed to deliver email through SMTP",
+      });
+    }
+  } catch (error: any) {
+    console.error("Error processing order status update:", error);
+    res.status(500).json({ success: false, error: "Failed to process order status update" });
   }
 });
 
