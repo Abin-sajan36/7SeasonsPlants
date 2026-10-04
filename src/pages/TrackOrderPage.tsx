@@ -9,6 +9,7 @@ import {
   Phone,
   AlertCircle,
   Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { Order } from '../types';
@@ -176,9 +177,39 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ initialOrderId, 
                   </p>
                 )}
                 {searchedOrder.trackingNumber && (
-                  <p className="text-xs text-gray-600 font-mono mt-0.5">
-                    AWB: {searchedOrder.trackingNumber}
-                  </p>
+                  <div className="mt-1 space-y-1.5">
+                    <p className="text-xs text-gray-600 font-mono">
+                      AWB: {searchedOrder.trackingNumber}
+                    </p>
+                    {(() => {
+                      const c = (searchedOrder.courierPartner || '').toLowerCase();
+                      let trackingUrl = 'https://www.indiapost.gov.in/_layouts/15/dpt.cept.tracking/trackconsignment.aspx';
+                      let courierTitle = 'Speed Post (India Post)';
+
+                      if (c.includes('dtdc')) {
+                        trackingUrl = 'https://www.dtdc.in/tracking.asp';
+                        courierTitle = 'DTDC Courier';
+                      } else if (c.includes('professional') || c.includes('tpc')) {
+                        trackingUrl = 'https://www.tpcindia.com';
+                        courierTitle = 'Professional Courier';
+                      } else if (c.includes('india post')) {
+                        trackingUrl = 'https://www.indiapost.gov.in/_layouts/15/dpt.cept.tracking/trackconsignment.aspx';
+                        courierTitle = 'India Post';
+                      }
+
+                      return (
+                        <a
+                          href={trackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-full text-[11px] font-bold shadow-2xs transition-colors cursor-pointer"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>Track on {courierTitle}</span>
+                        </a>
+                      );
+                    })()}
+                  </div>
                 )}
               </div>
             </div>

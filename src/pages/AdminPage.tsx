@@ -56,6 +56,7 @@ import {
   Database,
   Video,
   BookOpen,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
@@ -67,6 +68,7 @@ import { ReviewsManagementTab } from '../components/admin/ReviewsManagementTab';
 import { BlogsManagementTab } from '../components/admin/BlogsManagementTab';
 import { SecretsVaultTab } from '../components/admin/SecretsVaultTab';
 import { ReelsManagementTab } from '../components/admin/ReelsManagementTab';
+import { BannersManagementTab } from '../components/admin/BannersManagementTab';
 import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus, StoreSettings, COURIER_SERVICES } from '../types';
 import { initialCourierRates } from '../data/initialData';
 import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
@@ -119,9 +121,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     importOrders,
     instagramReels,
     blogs,
+    banners,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'combos' | 'categories' | 'coupons' | 'reviews' | 'blogs' | 'reels' | 'orders' | 'offline-orders' | 'accounts' | 'users' | 'complaints' | 'settings' | 'ai-tools' | 'backup-restore' | 'secrets'>('analytics');
+  const [activeTab, setActiveTab] = useState<
+    | 'analytics'
+    | 'products'
+    | 'combos'
+    | 'categories'
+    | 'banners'
+    | 'coupons'
+    | 'reviews'
+    | 'blogs'
+    | 'reels'
+    | 'orders'
+    | 'offline-orders'
+    | 'accounts'
+    | 'users'
+    | 'complaints'
+    | 'settings'
+    | 'ai-tools'
+    | 'backup-restore'
+    | 'secrets'
+  >('analytics');
   
   const [complaintsList, setComplaintsList] = useState<any[]>([]);
   const [loadingComplaints, setLoadingComplaints] = useState(false);
@@ -1015,8 +1037,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
   const filteredOrders = onlineOrders.filter((o) => {
     // Status filter
-    if (orderStatusFilter !== 'all' && o.orderStatus !== orderStatusFilter) {
-      return false;
+    if (orderStatusFilter !== 'all') {
+      if (orderStatusFilter === 'Order Placed') {
+        if (o.orderStatus !== 'Order Placed' && o.orderStatus !== 'Payment Confirmed') {
+          return false;
+        }
+      } else if (o.orderStatus !== orderStatusFilter) {
+        return false;
+      }
     }
 
     const q = orderSearch.toLowerCase().trim();
@@ -1032,8 +1060,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
   const filteredOfflineOrders = offlineOrdersList.filter((o) => {
     // Status filter
-    if (orderStatusFilter !== 'all' && o.orderStatus !== orderStatusFilter) {
-      return false;
+    if (orderStatusFilter !== 'all') {
+      if (orderStatusFilter === 'Order Placed') {
+        if (o.orderStatus !== 'Order Placed' && o.orderStatus !== 'Payment Confirmed') {
+          return false;
+        }
+      } else if (o.orderStatus !== orderStatusFilter) {
+        return false;
+      }
     }
 
     const q = orderSearch.toLowerCase().trim();
@@ -1451,6 +1485,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             { id: 'products', label: `Plant Catalog (${products.length})`, icon: Package },
             { id: 'combos', label: `Combo Bundles (${combos.length})`, icon: Layers },
             { id: 'categories', label: `Categories (${categories.length})`, icon: Tag },
+            { id: 'banners', label: `Hero Banners (${banners.length})`, icon: ImageIcon },
             { id: 'coupons', label: `Coupons (${coupons.length})`, icon: Ticket },
             { id: 'reviews', label: `Reviews (${reviews.length})`, icon: MessageSquare },
             { id: 'blogs', label: `Botanical Blogs (${blogs.length})`, icon: BookOpen },
@@ -2304,7 +2339,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   {(
                     [
                       { id: 'all', label: `All (${onlineOrders.length})` },
-                      { id: 'Order Placed', label: `Placed (${onlineOrders.filter((o) => o.orderStatus === 'Order Placed').length})` },
+                      {
+                        id: 'Order Placed',
+                        label: `Placed (${onlineOrders.filter((o) => o.orderStatus === 'Order Placed' || o.orderStatus === 'Payment Confirmed').length})`,
+                      },
                       { id: 'Processing', label: `Packing (${onlineOrders.filter((o) => o.orderStatus === 'Processing').length})` },
                       { id: 'Shipped', label: `Shipped (${onlineOrders.filter((o) => o.orderStatus === 'Shipped').length})` },
                       { id: 'Delivered', label: `Delivered (${onlineOrders.filter((o) => o.orderStatus === 'Delivered').length})` },
@@ -2407,10 +2445,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                             </span>
                             <span
                               className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${getStatusBadgeClass(
-                                ord.orderStatus
+                                ord.orderStatus === 'Payment Confirmed' ? 'Order Placed' : ord.orderStatus
                               )}`}
                             >
-                              {ord.orderStatus}
+                              {ord.orderStatus === 'Payment Confirmed' ? 'Order Placed' : ord.orderStatus}
                             </span>
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
@@ -2484,7 +2522,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                                 AWB: {ord.trackingNumber}
                               </p>
                               <p className="text-gray-500 text-[11px]">
-                                Partner: {ord.courierPartner || 'Kerala Express'}
+                                Partner: {ord.courierPartner || 'Speed Post (India Post)'}
                               </p>
                             </div>
                           ) : (
@@ -2500,7 +2538,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-bold text-emerald-950">Update Status:</span>
                           <select
-                            value={ord.orderStatus}
+                            value={ord.orderStatus === 'Payment Confirmed' ? 'Order Placed' : ord.orderStatus}
                             onChange={(e) =>
                               updateOrderStatus(ord.id, e.target.value as OrderStatus)
                             }
@@ -2769,7 +2807,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         <div>
                           <span className="text-xs font-black text-emerald-950">Order #{ord.orderNumber || ord.id}</span>
                           <span className="ml-3 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border bg-purple-100 text-purple-900 border-purple-300">
-                            {ord.orderStatus}
+                            {ord.orderStatus === 'Payment Confirmed' ? 'Order Placed' : ord.orderStatus}
                           </span>
                         </div>
                         <div className="text-right">
@@ -2807,7 +2845,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       
                       <div className="pt-4 flex flex-wrap gap-2">
                           <select
-                            value={ord.orderStatus}
+                            value={ord.orderStatus === 'Payment Confirmed' ? 'Order Placed' : ord.orderStatus}
                             onChange={(e) => updateOrderStatus(ord.id, e.target.value as any)}
                             className="bg-gray-50 border border-gray-200 text-gray-900 text-xs rounded-full focus:ring-emerald-500 focus:border-emerald-500 block px-3 py-1.5 outline-hidden"
                           >
@@ -3993,7 +4031,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
                   <div className="mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-gray-500">
                     <span>💡 Rates apply dynamically at checkout based on destination state and active courier weight slab.</span>
-                    <span className="font-semibold text-emerald-800">5 Courier Partners • 3 Delivery States Configured</span>
+                    <span className="font-semibold text-emerald-800">4 Courier Partners • 3 Delivery States Configured</span>
                   </div>
                 </div>
               </div>
@@ -4298,6 +4336,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             onNavigateToBlog={() => onNavigate('blog')}
             onSwitchToBlogsTab={() => setActiveTab('blogs')}
           />
+        )}
+
+        {/* HOMEPAGE HERO BANNERS MANAGEMENT TAB */}
+        {activeTab === 'banners' && (
+          <BannersManagementTab onNavigateToHome={() => onNavigate('home')} />
         )}
 
         {/* DEDICATED BACKUP & RESTORE TAB (SUPER ADMIN ONLY) */}
@@ -4962,9 +5005,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   <option value="Speed Post (India Post)">Speed Post (India Post)</option>
                   <option value="India Post (Standard Parcel)">India Post (Standard Parcel)</option>
                   <option value="DTDC Express Courier">DTDC Express Courier</option>
-                  <option value="The Professional Couriers (TPC)">The Professional Couriers</option>
-                  <option value="Delhivery Express Plant Logistics">Delhivery Express Plant Logistics</option>
-                  <option value="Blue Dart Safe Express">Blue Dart Safe Express</option>
+                  <option value="The Professional Couriers (TPC)">The Professional Couriers (TPC)</option>
                 </select>
               </div>
 

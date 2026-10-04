@@ -410,6 +410,52 @@ app.post("/api/instagram/fetch-details", handleInstagramFetchMetadata);
 app.post("/api/instagram/generate-ai-copy", handleInstagramGenerateAiCopy);
 
 
+// Courier tracking portal link resolver (Strictly: Speed Post, India Post, DTDC, Professional Courier)
+function getCourierTrackingDetails(courierPartner?: string, trackingNumber?: string): {
+  courierName: string;
+  trackingUrl: string;
+} {
+  const c = (courierPartner || '').toLowerCase().trim();
+
+  // 1. Speed Post (India Post)
+  if (c.includes('speed')) {
+    return {
+      courierName: 'Speed Post (India Post)',
+      trackingUrl: 'https://www.indiapost.gov.in/_layouts/15/dpt.cept.tracking/trackconsignment.aspx',
+    };
+  }
+
+  // 2. India Post (Standard Parcel)
+  if (c.includes('india post') || c.includes('post') || c.includes('postal')) {
+    return {
+      courierName: 'India Post (Standard Parcel)',
+      trackingUrl: 'https://www.indiapost.gov.in/_layouts/15/dpt.cept.tracking/trackconsignment.aspx',
+    };
+  }
+
+  // 3. DTDC Express Courier
+  if (c.includes('dtdc')) {
+    return {
+      courierName: 'DTDC Express Courier',
+      trackingUrl: 'https://www.dtdc.in/tracking.asp',
+    };
+  }
+
+  // 4. The Professional Couriers (TPC)
+  if (c.includes('professional') || c.includes('tpc')) {
+    return {
+      courierName: 'The Professional Couriers (TPC)',
+      trackingUrl: 'https://www.tpcindia.com',
+    };
+  }
+
+  // Default fallback to Speed Post (India Post)
+  return {
+    courierName: courierPartner || 'Speed Post (India Post)',
+    trackingUrl: 'https://www.indiapost.gov.in/_layouts/15/dpt.cept.tracking/trackconsignment.aspx',
+  };
+}
+
 // Send Order Status Update / Confirmation Email
 app.post("/api/orders/send-status-update", async (req, res) => {
   try {
@@ -461,15 +507,6 @@ app.post("/api/orders/send-status-update", async (req, res) => {
       case 'Shipped':
       case 'Dispatched':
         statusMessage = "has been dispatched and is on its way to you!";
-        if (trackingNumber) {
-          trackingInfo = `
-            <div style="background-color: #ECFDF5; border: 1px solid #059669; border-radius: 12px; padding: 16px; margin: 20px 0;">
-              <h3 style="margin: 0 0 8px; color: #064e3b; font-size: 16px;">Tracking Details</h3>
-              <p style="margin: 0 0 4px; color: #0f172a; font-size: 14px;"><strong>Courier:</strong> ${courierPartner || 'Standard Shipping'}</p>
-              <p style="margin: 0; color: #0f172a; font-size: 14px;"><strong>Tracking Number:</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold;">${trackingNumber}</span></p>
-            </div>
-          `;
-        }
         break;
       case 'Delivered':
         statusMessage = "has been successfully delivered. Happy growing!";
@@ -480,6 +517,46 @@ app.post("/api/orders/send-status-update", async (req, res) => {
       default:
         statusMessage = `has been updated to: ${status}`;
         break;
+    }
+
+    if (trackingNumber) {
+      const courier = getCourierTrackingDetails(courierPartner, trackingNumber);
+      trackingInfo = `
+        <div style="background-color: #ECFDF5; border: 1.5px solid #059669; border-radius: 14px; padding: 18px 20px; margin: 20px 0; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08);">
+          <div style="margin-bottom: 12px;">
+            <h3 style="margin: 0 0 4px; color: #064e3b; font-size: 15px; font-weight: 800;">
+              🚚 Shipment & Tracking Information
+            </h3>
+            <p style="margin: 0; color: #047857; font-size: 12px;">
+              Your live plants are on their way via our shipping partner.
+            </p>
+          </div>
+
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 14px; font-size: 13px;">
+            <tr>
+              <td style="padding: 5px 0; color: #475569; width: 130px; font-weight: 600;">Courier Service:</td>
+              <td style="padding: 5px 0; color: #0f172a; font-weight: 700;">${courier.courierName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; color: #475569; font-weight: 600;">Tracking / AWB #:</td>
+              <td style="padding: 5px 0;">
+                <span style="font-family: 'Courier New', Courier, monospace; background-color: #ffffff; border: 1px solid #10b981; border-radius: 6px; padding: 4px 10px; font-size: 14px; font-weight: 800; color: #064e3b; letter-spacing: 0.5px; display: inline-block;">
+                  ${trackingNumber}
+                </span>
+              </td>
+            </tr>
+          </table>
+
+          <div style="text-align: center; margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(5, 150, 105, 0.35);">
+            <a href="${courier.trackingUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #059669; color: #ffffff !important; font-size: 13px; font-weight: 800; text-decoration: none; padding: 11px 24px; border-radius: 9999px; box-shadow: 0 3px 6px rgba(5, 150, 105, 0.25);">
+              📦 Track Order on ${courier.courierName} &rarr;
+            </a>
+            <p style="margin: 8px 0 0; color: #065f46; font-size: 11px; line-height: 1.4;">
+              Click the button above to open the courier tracking portal with your tracking number.
+            </p>
+          </div>
+        </div>
+      `;
     }
 
     // Render Items block if provided

@@ -44,16 +44,6 @@ interface ComboCustomizerModalProps {
   onSaveCombo: (combo: PlantCombo) => void;
 }
 
-const DEFAULT_CATEGORIES = [
-  'Air Purifying Combos',
-  'Starter Pack & Beginners',
-  'Balcony Garden Combos',
-  'Low Light Living Combos',
-  'Bedroom Oxygen Boosters',
-  'Flowering & Ornamental',
-  'Office Desk Combos',
-  'Rare & Exotic Bundles',
-];
 
 const POPULAR_PLANT_PRESETS = [
   {
@@ -103,13 +93,19 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
 }) => {
   const { categories, addCategory, addToast } = useStore();
 
-  // Dynamic available categories merged from categories database and defaults
+  // Only show existing categories from the categories database
   const availableCategories = React.useMemo(() => {
-    const fromStore = categories
-      .filter((c) => c.type === 'combo' || c.type === 'both')
-      .map((c) => c.name);
-    return Array.from(new Set([...fromStore, ...DEFAULT_CATEGORIES]));
-  }, [categories]);
+    const existing = categories
+      .map((c) => c.name?.trim())
+      .filter((n): n is string => Boolean(n && n.length > 0));
+
+    // If editing an existing combo, ensure its assigned category is visible
+    if (comboToEdit?.category && !existing.includes(comboToEdit.category.trim())) {
+      existing.unshift(comboToEdit.category.trim());
+    }
+
+    return Array.from(new Set(existing));
+  }, [categories, comboToEdit?.category]);
 
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [showQuickAddCategory, setShowQuickAddCategory] = useState(false);
@@ -120,8 +116,10 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
   // Form State
   const [name, setName] = useState(comboToEdit?.name || '');
   const [slug, setSlug] = useState(comboToEdit?.slug || '');
-  const [category, setCategory] = useState(comboToEdit?.category || 'Air Purifying Combos');
-  const [customCategory, setCustomCategory] = useState('');
+  const [category, setCategory] = useState<string>(() => {
+    if (comboToEdit?.category) return comboToEdit.category;
+    return categories[0]?.name || '';
+  });
   const [shortDescription, setShortDescription] = useState(
     comboToEdit?.shortDescription || 'Curated tropical nursery bundle with matched plants and planters.'
   );
@@ -197,7 +195,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
     if (comboToEdit) {
       setName(comboToEdit.name || '');
       setSlug(comboToEdit.slug || '');
-      setCategory(comboToEdit.category || 'Air Purifying Combos');
+      setCategory(comboToEdit.category || categories[0]?.name || '');
       setShortDescription(comboToEdit.shortDescription || '');
       setDescription(comboToEdit.description || '');
       setPrice(comboToEdit.price || 599);
@@ -217,8 +215,10 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
       setSellableStates(comboToEdit.sellableStates || ['Kerala', 'Tamil Nadu', 'Karnataka']);
       setCareSummary(comboToEdit.careSummary || '');
       setDeliveryInfo(comboToEdit.deliveryInfo || '');
+    } else {
+      setCategory(categories[0]?.name || '');
     }
-  }, [comboToEdit]);
+  }, [comboToEdit, categories]);
 
   // UI Tabs & Modals within customizer
   const [activeSubTab, setActiveSubTab] = useState<'items' | 'general' | 'images' | 'pricing' | 'benefits'>('items');
@@ -452,7 +452,11 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
 
     setIsSaving(true);
     try {
-      const finalCategory = (category === 'custom' ? customCategory.trim() : category) || 'Air Purifying Combos';
+      const finalCategory =
+        category.trim() ||
+        availableCategories[0] ||
+        categories[0]?.name ||
+        'Curated Combos';
       const finalSlug = slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
       // 1. Sanitize & upload combo gallery images (strictly capped to max 5 photos)
@@ -1538,29 +1542,22 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-full border border-[#4A3E31]/15 focus:bg-white outline-hidden font-semibold"
+                    className="w-full px-4 py-2.5 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-full border border-[#4A3E31]/15 focus:bg-white outline-hidden font-semibold cursor-pointer"
+                    required
                   >
-                    {availableCategories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
+                    {availableCategories.length === 0 ? (
+                      <option value="" disabled>
+                        -- No Existing Categories Available (Use + New Category above) --
                       </option>
-                    ))}
-                    <option value="custom">-- Custom Category (Type Below) --</option>
+                    ) : (
+                      availableCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
-
-                {category === 'custom' && (
-                  <div>
-                    <label className="font-bold text-[#4A3E31] block mb-1">Custom Category Name</label>
-                    <input
-                      type="text"
-                      value={customCategory}
-                      onChange={(e) => setCustomCategory(e.target.value)}
-                      placeholder="e.g. Kerala Monsoon Specials"
-                      className="w-full px-4 py-2.5 bg-[#EAE6DB]/40 text-[#4A3E31] rounded-full border border-[#4A3E31]/15 outline-hidden font-semibold"
-                    />
-                  </div>
-                )}
 
                 <div>
                   <label className="font-bold text-[#4A3E31] block mb-1">Status</label>

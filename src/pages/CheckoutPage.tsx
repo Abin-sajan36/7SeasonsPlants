@@ -470,7 +470,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
             paymentMethod: 'razorpay',
             razorpayOrderId: paymentPayload.razorpay_order_id,
             razorpayPaymentId: paymentPayload.razorpay_payment_id,
-            orderStatus: 'Payment Confirmed',
+            orderStatus: 'Order Placed',
             courierPartner: selectedCourier.displayName,
             estimatedDelivery: selectedCourier.deliveryTime,
             notes: formData.notes
@@ -578,7 +578,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         paymentStatus: 'paid',
         paymentMethod: method === 'qr' ? 'UPI QR' : method === 'upi' ? 'UPI ID' : 'Net Banking',
         razorpayPaymentId: paymentId,
-        orderStatus: 'Payment Confirmed',
+        orderStatus: 'Order Placed',
         courierPartner: selectedCourier.displayName,
         estimatedDelivery: selectedCourier.deliveryTime,
         notes: formData.notes

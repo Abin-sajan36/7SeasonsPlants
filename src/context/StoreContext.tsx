@@ -2104,15 +2104,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           body: JSON.stringify({
             orderId: orderToUpdate.id,
             orderNumber: orderToUpdate.orderNumber,
-            customerName: orderToUpdate.customer.name,
-            customerEmail: orderToUpdate.customer.email,
+            customerName:
+              orderToUpdate.customer?.name ||
+              (orderToUpdate.customer?.shippingAddress as any)?.fullName ||
+              'Plant Lover',
+            customerEmail: orderToUpdate.customer?.email || (orderToUpdate as any).email,
             status: status,
             trackingNumber: trackingNumber || orderToUpdate.trackingNumber,
             courierPartner: courierPartner || orderToUpdate.courierPartner,
-          })
+            total: orderToUpdate.total,
+            items: orderToUpdate.items,
+            shippingAddress:
+              orderToUpdate.customer?.shippingAddress || orderToUpdate.shippingAddress,
+          }),
         });
       } catch (err) {
-        console.error("Failed to send order update email", err);
+        console.error('Failed to send order update email', err);
       }
     }
   };
