@@ -9,9 +9,10 @@ import {
   ShieldCheck,
   MapPin,
   CheckCircle2,
+  Trash2,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { CustomerAddress, OrderItem, COURIER_SERVICES, CourierServiceOption } from '../types';
+import { CustomerAddress, OrderItem, CartItem, PlantCombo, COURIER_SERVICES, CourierServiceOption, isCourierEnabledForState } from '../types';
 import {
   SUPPORTED_DELIVERY_STATES,
   SupportedDeliveryState,
@@ -103,6 +104,7 @@ interface CheckoutPageProps {
 export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const {
     cart,
+    removeFromCart,
     cartSubtotal,
     cartDiscount,
     cartDeliveryFee,
@@ -160,11 +162,27 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     notes: '',
   });
 
+  // Filter couriers enabled for destination state
+  const availableCouriers = React.useMemo(() => {
+    return COURIER_SERVICES.filter((c) =>
+      isCourierEnabledForState(storeSettings?.enabledCouriersByState, c.id, formData.state)
+    );
+  }, [storeSettings?.enabledCouriersByState, formData.state]);
+
   // Courier selection state
-  const [selectedCourierId, setSelectedCourierId] = useState<string>('dtdc');
+  const [selectedCourierId, setSelectedCourierId] = useState<string>('speed-post');
+
+  // Keep selected courier valid whenever destination state or enabled list changes
+  useEffect(() => {
+    const isValid = availableCouriers.some((c) => c.id === selectedCourierId);
+    if (!isValid && availableCouriers.length > 0) {
+      setSelectedCourierId(availableCouriers[0].id);
+    }
+  }, [availableCouriers, selectedCourierId]);
+
   const selectedCourier = React.useMemo(() => {
-    return COURIER_SERVICES.find((c) => c.id === selectedCourierId) || COURIER_SERVICES[0];
-  }, [selectedCourierId]);
+    return availableCouriers.find((c) => c.id === selectedCourierId) || availableCouriers[0] || COURIER_SERVICES[0];
+  }, [availableCouriers, selectedCourierId]);
 
   // Dynamically calculate delivery fee and order total based on selected courier and destination state
   const checkoutDeliveryFee = React.useMemo(() => {
@@ -192,14 +210,33 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     }
   }, [selectedDeliveryState]);
 
-  const invalidCartItems = React.useMemo(() => {
-    return cart.filter((item) => {
-      if (item.type !== 'combo') return false;
-      const combo = combos.find((c) => c.id === item.id);
-      if (!combo || !combo.sellableStates || combo.sellableStates.length === 0) return false;
-      return !combo.sellableStates.includes(formData.state);
-    });
+  const undeliverableCombos = React.useMemo(() => {
+    return cart
+      .filter((item) => item.type === 'combo')
+      .map((item) => {
+        const combo = combos.find((c) => c.id === item.id || c.slug === item.slug);
+        if (!combo || !combo.sellableStates || combo.sellableStates.length === 0) {
+          return null;
+        }
+        const targetState = formData.state.trim().toLowerCase();
+        const isEligible = combo.sellableStates.some((s) => {
+          const sNorm = s.trim().toLowerCase();
+          return sNorm === targetState || sNorm === 'all india' || sNorm === 'all';
+        });
+
+        if (isEligible) return null;
+        return {
+          item,
+          combo,
+          allowedStates: combo.sellableStates,
+        };
+      })
+      .filter(Boolean) as { item: CartItem; combo: PlantCombo; allowedStates: string[] }[];
   }, [cart, combos, formData.state]);
+
+  const invalidCartItems = React.useMemo(() => {
+    return undeliverableCombos.map((u) => u.item);
+  }, [undeliverableCombos]);
 
   // Real-time PIN code state match feedback
   const pinValidationFeedback = React.useMemo(() => {
@@ -536,6 +573,16 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         return;
       }
 
+      if (undeliverableCombos.length > 0) {
+        setFormError(
+          `The following item(s) in your cart cannot be delivered to ${formData.state}: ${undeliverableCombos
+            .map((u) => u.item.name)
+            .join(', ')}. Please remove them or choose a supported delivery state.`
+        );
+        setIsProcessing(false);
+        return;
+      }
+
       const shippingAddress: CustomerAddress = {
         id: `addr_${Date.now()}`,
         fullName: formData.fullName,
@@ -649,15 +696,54 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               )}
 
               {/* Undeliverable Cart Items Alert */}
-              {invalidCartItems.length > 0 && (
-                <div className="mb-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block mb-0.5">Item(s) Not Deliverable to {formData.state}:</strong>
-                    <span>
-                      {invalidCartItems.map((i) => i.name).join(', ')} cannot be shipped to {formData.state}.
-                      Please change delivery state or update your cart before proceeding.
-                    </span>
+              {undeliverableCombos.length > 0 && (
+                <div className="mb-6 p-4 rounded-3xl bg-rose-50 border-2 border-rose-300 text-rose-950 text-xs shadow-xs space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="font-black text-rose-950 text-sm">
+                        Combo Unavailable for Delivery to {formData.state}
+                      </h4>
+                      <p className="text-xs text-rose-800 mt-0.5 leading-relaxed">
+                        The following item(s) cannot be shipped to <strong>{formData.state}</strong> due to regional plant dispatch restrictions. Please remove them or choose an eligible delivery state to continue.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-rose-200/60 bg-white/90 rounded-2xl p-3 border border-rose-200 shadow-2xs">
+                    {undeliverableCombos.map(({ item, allowedStates }) => (
+                      <div key={item.id} className="py-2.5 first:pt-1 last:pb-1 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="w-11 h-11 rounded-xl object-cover bg-rose-50 border border-rose-200 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-bold text-rose-950 truncate text-xs">{item.name}</p>
+                            <p className="text-[10px] text-rose-700 mt-0.5">
+                              Deliverable only to: <strong className="font-bold">{allowedStates.join(', ')}</strong>
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            removeFromCart(item.id);
+                            addToast({
+                              title: 'Combo Removed',
+                              message: `Removed ${item.name} from your cart.`,
+                              type: 'info',
+                            });
+                          }}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full text-[11px] font-bold shrink-0 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Remove Item</span>
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -921,8 +1007,16 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                 <strong className="text-emerald-950">{formData.district || 'Your District'}, {formData.state}</strong>. Live plants are packed with breathable corrugated safeguards.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {COURIER_SERVICES.map((courier) => {
+              {availableCouriers.length === 0 ? (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>
+                    No courier services are currently active for deliveries to <strong>{formData.state}</strong>. Please contact nursery support.
+                  </span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {availableCouriers.map((courier) => {
                   const isSelected = selectedCourierId === courier.id;
                   const ratePerKg = getDeliveryChargePerKg(courier.id, formData.state);
                   const courierFee = calculateDeliveryFee(courier.id, formData.state);
@@ -1002,8 +1096,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                   );
                 })}
               </div>
+            )}
 
-              <div className="p-3 bg-emerald-50/60 rounded-2xl border border-emerald-200 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="p-3 bg-emerald-50/60 rounded-2xl border border-emerald-200 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-start sm:items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5 sm:mt-0" />
                   <div>
@@ -1100,24 +1195,57 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
 
               {/* Cart items preview */}
               <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-                {cart.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 text-xs">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-12 h-12 rounded-xl object-cover bg-emerald-50 shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-emerald-950 truncate">{item.name}</h4>
-                      <p className="text-[11px] text-gray-500">
-                        Qty: {item.quantity} × ₹{item.price}
-                      </p>
+                {cart.map((item) => {
+                  const isUndeliverable = undeliverableCombos.some((u) => u.item.id === item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      className={`flex items-center gap-3 text-xs p-2 rounded-2xl transition-all ${
+                        isUndeliverable ? 'bg-rose-50/90 border border-rose-300 ring-1 ring-rose-200' : ''
+                      }`}
+                    >
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className={`w-12 h-12 rounded-xl object-cover shrink-0 ${
+                          isUndeliverable ? 'bg-rose-50 border border-rose-300' : 'bg-emerald-50'
+                        }`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-emerald-950 truncate">{item.name}</h4>
+                        {isUndeliverable && (
+                          <span className="inline-block text-[9px] font-extrabold uppercase text-rose-700 bg-rose-100/90 px-2 py-0.5 rounded-full mt-0.5 border border-rose-200">
+                            ✕ Unavailable in {formData.state}
+                          </span>
+                        )}
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Qty: {item.quantity} × ₹{item.price}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-bold text-emerald-950 block">
+                          ₹{item.price * item.quantity}
+                        </span>
+                        {isUndeliverable && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              removeFromCart(item.id);
+                              addToast({
+                                title: 'Item Removed',
+                                message: `Removed ${item.name} from your cart.`,
+                                type: 'info',
+                              });
+                            }}
+                            className="text-[10px] text-rose-600 hover:text-rose-800 hover:underline font-bold cursor-pointer mt-1 block"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <span className="font-bold text-emerald-950 shrink-0">
-                      ₹{item.price * item.quantity}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Coupon Applicator */}
@@ -1221,13 +1349,26 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               <button
                 type="submit"
                 form="checkout-form"
-                disabled={isProcessing}
-                className="w-full py-4 bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white rounded-full font-black text-sm shadow-md hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                disabled={isProcessing || undeliverableCombos.length > 0}
+                className={`w-full py-4 text-white rounded-full font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
+                  undeliverableCombos.length > 0
+                    ? 'bg-rose-600 hover:bg-rose-700 cursor-not-allowed opacity-90 shadow-none'
+                    : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 hover:shadow-xl cursor-pointer disabled:opacity-50'
+                }`}
               >
-                <Lock className="w-4 h-4 text-amber-300" />
-                <span>
-                  {isProcessing ? 'Processing Order...' : `Proceed to Payment (₹${Math.round(checkoutTotal)})`}
-                </span>
+                {undeliverableCombos.length > 0 ? (
+                  <>
+                    <AlertCircle className="w-4 h-4 text-white shrink-0" />
+                    <span>Remove Combos Unavailable in {formData.state}</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 text-amber-300" />
+                    <span>
+                      {isProcessing ? 'Processing Order...' : `Proceed to Payment (₹${Math.round(checkoutTotal)})`}
+                    </span>
+                  </>
+                )}
               </button>
 
               <div className="flex items-center justify-center gap-2 text-[10px] text-gray-500">

@@ -45,6 +45,7 @@ import {
 import {
   initialStoreSettings,
   initialCourierRates,
+  initialEnabledCouriersByState,
   initialCategories,
   initialProducts,
   initialPlantCombos,
@@ -342,6 +343,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ...initialStoreSettings,
         ...parsed,
         courierRates: rates,
+        enabledCouriersByState: parsed.enabledCouriersByState || initialStoreSettings.enabledCouriersByState || initialEnabledCouriersByState,
         couriersWithPer100gRate: parsed.couriersWithPer100gRate || initialStoreSettings.couriersWithPer100gRate,
         freeDeliveryEnabled: parsed.freeDeliveryEnabled !== false,
         email: parsed.email,
@@ -771,6 +773,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             ...prev,
             ...data,
             courierRates: rates,
+            enabledCouriersByState: data.enabledCouriersByState || prev.enabledCouriersByState || initialEnabledCouriersByState,
             couriersWithPer100gRate: data.couriersWithPer100gRate || initialStoreSettings.couriersWithPer100gRate,
             freeDeliveryEnabled: data.freeDeliveryEnabled !== false,
             email: data.email || 'mannaratharayil@gmail.com',

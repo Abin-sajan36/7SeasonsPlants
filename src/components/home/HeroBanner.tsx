@@ -108,17 +108,17 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
               key={currentBanner.id || currentIndex}
               src={currentBanner.imageUrl}
               alt={currentBanner.title}
-              initial={{ scale: 1.15, x: '2%', opacity: 0 }}
-              animate={{ scale: 1.15, x: '-2%', opacity: 0.8 }}
+              initial={{ scale: 1.02, x: '1%', opacity: 0 }}
+              animate={{ scale: 1.02, x: '-1%', opacity: 0.9 }}
               exit={{ opacity: 0 }}
               transition={{
-                opacity: { duration: 1 },
-                x: { duration: 25, ease: 'linear', repeat: Infinity, repeatType: 'reverse' },
+                opacity: { duration: 0.8 },
+                x: { duration: 35, ease: 'linear', repeat: Infinity, repeatType: 'reverse' },
               }}
               className="absolute inset-0 w-full h-full object-cover"
             />
           </AnimatePresence>
-          <div className="absolute inset-0 bg-gradient-to-r from-[#041A10]/80 via-[#093520]/50 to-[#041A10]/20 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#041A10]/75 via-[#093520]/35 to-[#041A10]/15 pointer-events-none" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(34,197,94,0.1),transparent_70%)] pointer-events-none" />
         </div>
 

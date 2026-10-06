@@ -150,8 +150,8 @@ export const BannersManagementTab: React.FC<BannersManagementTabProps> = ({ onNa
 
     setIsUploading(true);
     try {
-      // Compress to high-resolution landscape banner (1920x1080, quality 0.85)
-      const stats = await compressImageFileWithStats(file, 1920, 1080, 0.85);
+      // Compress to 2K high-resolution landscape banner with HD WebP encoding
+      const stats = await compressImageFileWithStats(file, 2560, 1440, 0.93);
       setFormImageUrl(stats.dataUrl);
       setUploadStats({
         original: stats.originalSize,
@@ -159,8 +159,8 @@ export const BannersManagementTab: React.FC<BannersManagementTabProps> = ({ onNa
       });
 
       addToast({
-        title: 'Image Loaded & Compressed',
-        message: `Saved ${stats.savingsPercent}% (${formatBytes(stats.compressedSize)}). Ready to save!`,
+        title: 'Image Loaded in High-Definition',
+        message: `Optimized in HD (${stats.width}×${stats.height}px, ${formatBytes(stats.compressedSize)}). Ready to publish!`,
         type: 'success',
       });
     } catch (err: any) {

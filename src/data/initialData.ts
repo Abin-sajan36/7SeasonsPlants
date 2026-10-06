@@ -39,6 +39,27 @@ export const initialCourierRates: CourierRatesByState = {
   },
 };
 
+export const initialEnabledCouriersByState: Record<string, Record<string, boolean>> = {
+  'Kerala': {
+    'speed-post': true,
+    'india-post': true,
+    'dtdc': true,
+    'professional-courier': true,
+  },
+  'Tamil Nadu': {
+    'speed-post': true,
+    'india-post': true,
+    'dtdc': true,
+    'professional-courier': true,
+  },
+  'Karnataka': {
+    'speed-post': true,
+    'india-post': true,
+    'dtdc': true,
+    'professional-courier': true,
+  },
+};
+
 export const initialStoreSettings: StoreSettings = {
   businessName: '7Seasonsplants',
   tagline: 'Vibrant Plants & Curated Green Combos',
@@ -52,6 +73,7 @@ export const initialStoreSettings: StoreSettings = {
   supportedStates: ['Kerala', 'Tamil Nadu', 'Karnataka'],
   deliveryCharge: 80,
   courierRates: initialCourierRates,
+  enabledCouriersByState: initialEnabledCouriersByState,
   defaultWeightSlabGrams: 500,
   minBillableWeightGrams: 1000,
   courierWeightSlabs: {

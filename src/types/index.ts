@@ -455,6 +455,33 @@ export function getCourierRatePerKg(
   return fallbackRate;
 }
 
+export function isCourierEnabledForState(
+  enabledCouriersByState: Record<string, Record<string, boolean>> | undefined,
+  courierId: string,
+  state: string
+): boolean {
+  if (!enabledCouriersByState || !state || !courierId) return true;
+  const targetState = state.trim().toLowerCase();
+  const targetCourier = courierId.trim().toLowerCase();
+
+  const matchedStateKey = Object.keys(enabledCouriersByState).find(
+    (k) => k.trim().toLowerCase() === targetState
+  );
+  if (!matchedStateKey) return true;
+
+  const stateConfig = enabledCouriersByState[matchedStateKey];
+  if (!stateConfig) return true;
+
+  const matchedCourierKey = Object.keys(stateConfig).find(
+    (c) => c.trim().toLowerCase() === targetCourier
+  );
+  if (matchedCourierKey && typeof stateConfig[matchedCourierKey] === 'boolean') {
+    return stateConfig[matchedCourierKey];
+  }
+
+  return true;
+}
+
 export function getCourierRatePer100g(
   courierRates: CourierRatesByState | undefined,
   courierId: string,
@@ -520,6 +547,7 @@ export interface StoreSettings {
   supportedStates: string[];
   deliveryCharge: number;
   courierRates?: CourierRatesByState;
+  enabledCouriersByState?: Record<string, Record<string, boolean>>; // state -> courierId -> boolean (active toggle)
   courierWeightSlabs?: Record<string, number>; // Courier ID -> weight slab in grams (e.g. 1000 for 1kg, 500, 250, 100)
   defaultWeightSlabGrams?: number; // Default slab in grams (e.g. 500 or 1000)
   minBillableWeightGrams?: number; // Minimum base weight in grams (defaults to 1000)

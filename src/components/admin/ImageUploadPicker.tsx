@@ -43,7 +43,7 @@ export const ImageUploadPicker: React.FC<ImageUploadPickerProps> = ({
     }
 
     setIsProcessing(true);
-    setProcessingStatus(`Auto-compressing ${files.length} photo(s) in real time...`);
+    setProcessingStatus(`Optimizing ${files.length} photo(s) in High-Definition WebP...`);
     setErrorMsg(null);
     setCompressionNotice(null);
 
@@ -102,7 +102,7 @@ export const ImageUploadPicker: React.FC<ImageUploadPickerProps> = ({
           Math.round(((totalOriginalBytes - totalCompressedBytes) / totalOriginalBytes) * 100)
         );
         setCompressionNotice(
-          `⚡ Auto-compressed ${validUrls.length} photo(s): ${formatBytes(totalOriginalBytes)} → ${formatBytes(totalCompressedBytes)} (${totalSavedPercent}% size reduction)! Fast loading enabled.`
+          `⚡ Optimized ${validUrls.length} photo(s) in High-Definition WebP: ${formatBytes(totalOriginalBytes)} → ${formatBytes(totalCompressedBytes)} (${totalSavedPercent}% size reduction)! Crystal-clear clarity enabled.`
         );
       }
 

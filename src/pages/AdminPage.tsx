@@ -69,8 +69,8 @@ import { BlogsManagementTab } from '../components/admin/BlogsManagementTab';
 import { SecretsVaultTab } from '../components/admin/SecretsVaultTab';
 import { ReelsManagementTab } from '../components/admin/ReelsManagementTab';
 import { BannersManagementTab } from '../components/admin/BannersManagementTab';
-import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus, StoreSettings, COURIER_SERVICES } from '../types';
-import { initialCourierRates } from '../data/initialData';
+import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus, StoreSettings, COURIER_SERVICES, isCourierEnabledForState } from '../types';
+import { initialCourierRates, initialEnabledCouriersByState } from '../data/initialData';
 import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
 import { ComboCategoryManagerModal } from '../components/admin/ComboCategoryManagerModal';
 import { ImageUploadPicker } from '../components/admin/ImageUploadPicker';
@@ -593,6 +593,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     supportedStates: storeSettings?.supportedStates || ['Kerala', 'Tamil Nadu', 'Karnataka'],
     deliveryCharge: storeSettings?.deliveryCharge ?? 80,
     courierRates: storeSettings?.courierRates || initialCourierRates,
+    enabledCouriersByState: storeSettings?.enabledCouriersByState || initialEnabledCouriersByState,
     courierWeightSlabs: storeSettings?.courierWeightSlabs || {
       'speed-post': 500,
       'india-post': 1000,
@@ -649,6 +650,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         supportedStates: storeSettings.supportedStates || ['Kerala', 'Tamil Nadu', 'Karnataka'],
         deliveryCharge: storeSettings.deliveryCharge ?? 80,
         courierRates: storeSettings.courierRates || initialCourierRates,
+        enabledCouriersByState: storeSettings.enabledCouriersByState || initialEnabledCouriersByState,
         courierWeightSlabs: storeSettings.courierWeightSlabs || {
           'speed-post': 500,
           'india-post': 1000,
@@ -704,6 +706,43 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     setIsSettingsDirty(true);
   };
 
+  const handleToggleCourierState = async (courierId: string, state: string, isEnabled: boolean) => {
+    const courierObj = COURIER_SERVICES.find((c) => c.id === courierId);
+    const courierName = courierObj?.name || courierId;
+
+    const currentMap = settingsForm.enabledCouriersByState || storeSettings.enabledCouriersByState || initialEnabledCouriersByState;
+    const stateObj = currentMap[state] || {
+      'speed-post': true,
+      'india-post': true,
+      'dtdc': true,
+      'professional-courier': true,
+    };
+
+    const nextMap = {
+      ...currentMap,
+      [state]: {
+        ...stateObj,
+        [courierId]: isEnabled,
+      },
+    };
+
+    setSettingsForm((prev) => ({
+      ...prev,
+      enabledCouriersByState: nextMap,
+    }));
+
+    try {
+      await updateStoreSettings({ enabledCouriersByState: nextMap });
+      addToast({
+        title: isEnabled ? 'Courier Enabled' : 'Courier Disabled',
+        message: `${courierName} is now ${isEnabled ? 'ACTIVE' : 'OFF'} for ${state}. Checkout updated immediately.`,
+        type: isEnabled ? 'success' : 'info',
+      });
+    } catch (err) {
+      console.warn('Failed auto-saving courier state toggle:', err);
+    }
+  };
+
   const handleToggleCourierPer100g = (courierId: string) => {
     setSettingsForm((prev) => {
       const currentList = prev.couriersWithPer100gRate ?? [
@@ -755,6 +794,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         ...settingsForm,
         deliveryCharge: Number(settingsForm.deliveryCharge) || 0,
         courierRates: settingsForm.courierRates || initialCourierRates,
+        enabledCouriersByState: settingsForm.enabledCouriersByState || initialEnabledCouriersByState,
         courierWeightSlabs: settingsForm.courierWeightSlabs || {
           'speed-post': 500,
           'india-post': 1000,
@@ -3826,9 +3866,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <thead>
                         <tr className="bg-emerald-50/70 border-b border-gray-200 text-emerald-950">
                           <th className="py-2.5 px-3 font-bold min-w-[170px]">Courier Service</th>
-                          <th className="py-2.5 px-3 font-bold text-center min-w-[100px]">Kerala (₹/kg)</th>
-                          <th className="py-2.5 px-3 font-bold text-center min-w-[100px]">Tamil Nadu (₹/kg)</th>
-                          <th className="py-2.5 px-3 font-bold text-center min-w-[100px]">Karnataka (₹/kg)</th>
+                          <th className="py-2.5 px-3 font-bold text-center min-w-[110px]">Kerala (Status & ₹/kg)</th>
+                          <th className="py-2.5 px-3 font-bold text-center min-w-[110px]">Tamil Nadu (Status & ₹/kg)</th>
+                          <th className="py-2.5 px-3 font-bold text-center min-w-[110px]">Karnataka (Status & ₹/kg)</th>
                           <th className="py-2.5 px-3 font-bold text-center min-w-[210px]">
                             Weight Rounding Slab (in Grams)
                           </th>
@@ -3837,6 +3877,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <tbody className="divide-y divide-gray-100">
                         {COURIER_SERVICES.map((courier) => {
                           const rates = (settingsForm.courierRates || initialCourierRates)[courier.id] || {};
+                          const isKeralaActive = isCourierEnabledForState(settingsForm.enabledCouriersByState, courier.id, 'Kerala');
+                          const isTamilNaduActive = isCourierEnabledForState(settingsForm.enabledCouriersByState, courier.id, 'Tamil Nadu');
+                          const isKarnatakaActive = isCourierEnabledForState(settingsForm.enabledCouriersByState, courier.id, 'Karnataka');
+
                           const currentSlabs = settingsForm.courierWeightSlabs || {
                             'speed-post': 500,
                             'india-post': 1000,
@@ -3859,46 +3903,94 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
                               {/* Kerala */}
                               <td className="py-2.5 px-3">
-                                <div className="relative max-w-[90px] mx-auto">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₹</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={rates['Kerala'] ?? 60}
-                                    onChange={(e) => handleCourierRateChange(courier.id, 'Kerala', e.target.value)}
-                                    className="w-full pl-6 pr-2 py-1.5 text-center bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold text-xs"
-                                  />
+                                <div className="flex flex-col items-center gap-1.5 max-w-[100px] mx-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleCourierState(courier.id, 'Kerala', !isKeralaActive)}
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors cursor-pointer flex items-center gap-1 ${
+                                      isKeralaActive
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                        : 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200'
+                                    }`}
+                                    title={isKeralaActive ? 'Click to turn OFF for Kerala' : 'Click to turn ON for Kerala'}
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isKeralaActive ? 'bg-emerald-600' : 'bg-gray-400'}`} />
+                                    <span>{isKeralaActive ? 'Active' : 'Off'}</span>
+                                  </button>
+
+                                  <div className={`relative w-full ${!isKeralaActive ? 'opacity-40' : ''}`}>
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₹</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      value={rates['Kerala'] ?? 60}
+                                      onChange={(e) => handleCourierRateChange(courier.id, 'Kerala', e.target.value)}
+                                      className="w-full pl-6 pr-2 py-1 text-center bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold text-xs"
+                                    />
+                                  </div>
                                 </div>
                               </td>
 
                               {/* Tamil Nadu */}
                               <td className="py-2.5 px-3">
-                                <div className="relative max-w-[90px] mx-auto">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₹</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={rates['Tamil Nadu'] ?? 75}
-                                    onChange={(e) => handleCourierRateChange(courier.id, 'Tamil Nadu', e.target.value)}
-                                    className="w-full pl-6 pr-2 py-1.5 text-center bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold text-xs"
-                                  />
+                                <div className="flex flex-col items-center gap-1.5 max-w-[100px] mx-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleCourierState(courier.id, 'Tamil Nadu', !isTamilNaduActive)}
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors cursor-pointer flex items-center gap-1 ${
+                                      isTamilNaduActive
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                        : 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200'
+                                    }`}
+                                    title={isTamilNaduActive ? 'Click to turn OFF for Tamil Nadu' : 'Click to turn ON for Tamil Nadu'}
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isTamilNaduActive ? 'bg-emerald-600' : 'bg-gray-400'}`} />
+                                    <span>{isTamilNaduActive ? 'Active' : 'Off'}</span>
+                                  </button>
+
+                                  <div className={`relative w-full ${!isTamilNaduActive ? 'opacity-40' : ''}`}>
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₹</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      value={rates['Tamil Nadu'] ?? 75}
+                                      onChange={(e) => handleCourierRateChange(courier.id, 'Tamil Nadu', e.target.value)}
+                                      className="w-full pl-6 pr-2 py-1 text-center bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold text-xs"
+                                    />
+                                  </div>
                                 </div>
                               </td>
 
                               {/* Karnataka */}
                               <td className="py-2.5 px-3">
-                                <div className="relative max-w-[90px] mx-auto">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₹</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={rates['Karnataka'] ?? 85}
-                                    onChange={(e) => handleCourierRateChange(courier.id, 'Karnataka', e.target.value)}
-                                    className="w-full pl-6 pr-2 py-1.5 text-center bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold text-xs"
-                                  />
+                                <div className="flex flex-col items-center gap-1.5 max-w-[100px] mx-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleCourierState(courier.id, 'Karnataka', !isKarnatakaActive)}
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors cursor-pointer flex items-center gap-1 ${
+                                      isKarnatakaActive
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                        : 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200'
+                                    }`}
+                                    title={isKarnatakaActive ? 'Click to turn OFF for Karnataka' : 'Click to turn ON for Karnataka'}
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isKarnatakaActive ? 'bg-emerald-600' : 'bg-gray-400'}`} />
+                                    <span>{isKarnatakaActive ? 'Active' : 'Off'}</span>
+                                  </button>
+
+                                  <div className={`relative w-full ${!isKarnatakaActive ? 'opacity-40' : ''}`}>
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₹</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      value={rates['Karnataka'] ?? 85}
+                                      onChange={(e) => handleCourierRateChange(courier.id, 'Karnataka', e.target.value)}
+                                      className="w-full pl-6 pr-2 py-1 text-center bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:border-emerald-600 outline-hidden font-bold text-xs"
+                                    />
+                                  </div>
                                 </div>
                               </td>
 
@@ -3954,6 +4046,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         })}
                       </tbody>
                     </table>
+                  </div>
+
+                  <div className="mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-gray-500">
+                    <span>💡 Toggle couriers Active / Off per state. Couriers toggled Off will be hidden from checkout when delivering to that state.</span>
+                    <span className="font-semibold text-emerald-800">4 Courier Partners • 3 Delivery States Configured</span>
                   </div>
 
                   {/* Interactive Live Weight Rounding Simulator */}
