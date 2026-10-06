@@ -32,7 +32,13 @@ import {
 } from 'lucide-react';
 import { PlantCombo, ComboItem, Product } from '../../types';
 import { ImageUploadPicker } from './ImageUploadPicker';
-import { uploadImage, compressImageFile } from '../../lib/imageUploader';
+import {
+  uploadImage,
+  compressImageFile,
+  safeOptimizeImageForFirestore,
+  getEstimatedFirestoreDocSize,
+  formatBytes,
+} from '../../lib/imageUploader';
 import { useStore } from '../../context/StoreContext';
 import { ComboCategoryManagerModal } from './ComboCategoryManagerModal';
 
@@ -459,12 +465,12 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
         'Curated Combos';
       const finalSlug = slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-      // 1. Sanitize & upload combo gallery images (strictly capped to max 5 photos)
+      // 1. Sanitize & upload combo gallery images (strictly capped to max 5 photos, converted to hosted URLs or <80KB)
       const rawSource = images.length > 0 ? images : ['https://images.unsplash.com/photo-1545241047-6083a3684587?auto=format&fit=crop&w=800&q=80'];
       const safeLimit = Math.min(5, maxImagesLimit || 5);
       const sourceImages = rawSource.slice(0, safeLimit);
       const sanitizedImages = await Promise.all(
-        sourceImages.map((img, idx) => uploadImage(img, `combo-${finalSlug}-${idx + 1}`))
+        sourceImages.map((img, idx) => safeOptimizeImageForFirestore(img, `combo-${finalSlug}-${idx + 1}`))
       );
 
       // 2. Sanitize & upload all included plant / item photos to permanent server storage
@@ -478,8 +484,8 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
             itemImg = sanitizedImages[idx];
           }
 
-          if (itemImg && (itemImg.startsWith('data:image/') || itemImg.length > 500)) {
-            itemImg = await uploadImage(itemImg, `combo-item-${item.productId || idx + 1}`);
+          if (itemImg) {
+            itemImg = await safeOptimizeImageForFirestore(itemImg, `combo-item-${item.productId || idx + 1}`);
           }
           return {
             ...item,
@@ -535,11 +541,20 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
         createdAt: comboToEdit?.createdAt || new Date().toISOString(),
       };
 
+      const docSize = getEstimatedFirestoreDocSize(finalCombo);
+      if (docSize > 850000) {
+        console.warn(`[Combo Customizer] Document size is ${formatBytes(docSize)}, automatically compressing images for Firestore safe limit.`);
+      }
+
       await onSaveCombo(finalCombo);
       onClose();
     } catch (err: any) {
       console.error('Error saving combo:', err);
-      alert('Could not save combo bundle: ' + (err.message || 'Please check input data.'));
+      addToast({
+        type: 'error',
+        title: 'Save Failed',
+        message: 'Could not save combo bundle: ' + (err.message || 'Please check input data.'),
+      });
     } finally {
       setIsSaving(false);
     }

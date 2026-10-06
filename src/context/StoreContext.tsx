@@ -43,6 +43,11 @@ import {
   sanitizeUsersListForStorage,
 } from '../lib/storage';
 import {
+  safeOptimizeImageForFirestore,
+  getEstimatedFirestoreDocSize,
+  compressDataUrl,
+} from '../lib/imageUploader';
+import {
   initialStoreSettings,
   initialCourierRates,
   initialEnabledCouriersByState,
@@ -3442,6 +3447,70 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  // Image optimization safeguards for Firestore documents to prevent 1MB document limit
+  const prepareProductForFirestore = async (product: Product): Promise<Product> => {
+    const sanitized = { ...product };
+    if (Array.isArray(sanitized.images) && sanitized.images.length > 0) {
+      sanitized.images = await Promise.all(
+        sanitized.images.slice(0, 6).map((img, idx) =>
+          safeOptimizeImageForFirestore(img, `prod-${sanitized.slug || 'photo'}-${idx + 1}`)
+        )
+      );
+    }
+    return sanitized;
+  };
+
+  const prepareComboForFirestore = async (combo: PlantCombo): Promise<PlantCombo> => {
+    const sanitized: PlantCombo = { ...combo };
+
+    // 1. Sanitize & host combo gallery photos (max 5 photos)
+    if (Array.isArray(sanitized.images) && sanitized.images.length > 0) {
+      sanitized.images = await Promise.all(
+        sanitized.images.slice(0, 5).map((img, idx) =>
+          safeOptimizeImageForFirestore(img, `combo-${sanitized.slug || 'bundle'}-${idx + 1}`)
+        )
+      );
+    }
+
+    // 2. Sanitize & host included bundle items photos
+    if (Array.isArray(sanitized.items) && sanitized.items.length > 0) {
+      sanitized.items = await Promise.all(
+        sanitized.items.map(async (item, idx) => {
+          let itemImg = item.image;
+          if (itemImg && (itemImg.startsWith('data:image/') || itemImg.length > 500)) {
+            itemImg = await safeOptimizeImageForFirestore(itemImg, `combo-item-${sanitized.slug || 'item'}-${idx + 1}`);
+          }
+          return {
+            ...item,
+            image: itemImg || '',
+          };
+        })
+      );
+    }
+
+    // 3. Strict document size quota verification (Firestore hard limit is 1,048,576 bytes)
+    let currentDocBytes = getEstimatedFirestoreDocSize(sanitized);
+    if (currentDocBytes > 850000) {
+      console.warn(`[Firestore Safe Guard] Combo document size is ${currentDocBytes} bytes. Compressing further to guarantee safe Firestore sync...`);
+      if (sanitized.images && sanitized.images.length > 0) {
+        sanitized.images = await Promise.all(
+          sanitized.images.map(async (img) => {
+            if (img.startsWith('data:image/')) {
+              return await compressDataUrl(img, 640, 640, 0.68);
+            }
+            return img;
+          })
+        );
+      }
+      currentDocBytes = getEstimatedFirestoreDocSize(sanitized);
+      if (currentDocBytes > 950000 && sanitized.images.length > 3) {
+        sanitized.images = sanitized.images.slice(0, 3);
+      }
+    }
+
+    return sanitized;
+  };
+
   // Admin CRUD for Products
   const addProduct = async (prod: Omit<Product, 'id' | 'createdAt'>) => {
     const newProd: Product = {
@@ -3472,7 +3541,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     try {
-      await setDoc(doc(db, 'products', newProd.id), removeUndefined(newProd));
+      const firestoreSafeProd = await prepareProductForFirestore(newProd);
+      await setDoc(doc(db, 'products', firestoreSafeProd.id), removeUndefined(firestoreSafeProd));
+      setProducts((prev) => prev.map((p) => (p.id === firestoreSafeProd.id ? firestoreSafeProd : p)));
       addToast({
         type: 'success',
         title: 'Product Created',
@@ -3501,7 +3572,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     try {
-      await setDoc(doc(db, 'products', updated.id), removeUndefined(updated), { merge: true });
+      const firestoreSafeProd = await prepareProductForFirestore(updated);
+      await setDoc(doc(db, 'products', firestoreSafeProd.id), removeUndefined(firestoreSafeProd), { merge: true });
+      setProducts((prev) => prev.map((p) => (p.id === firestoreSafeProd.id ? firestoreSafeProd : p)));
       addToast({
         type: 'success',
         title: 'Product Updated',
@@ -3604,7 +3677,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     setProducts((prev) => [duplicated, ...prev]);
     try {
-      await setDoc(doc(db, 'products', duplicated.id), removeUndefined(duplicated));
+      const safeProduct = await prepareProductForFirestore(duplicated);
+      await setDoc(doc(db, 'products', safeProduct.id), removeUndefined(safeProduct));
+      setProducts((prev) => prev.map((p) => (p.id === safeProduct.id ? safeProduct : p)));
     } catch (e) {
       console.warn('Could not duplicate product in Firestore:', e);
     }
@@ -3635,7 +3710,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     try {
-      await setDoc(doc(db, 'combos', newCombo.id), removeUndefined(newCombo));
+      const firestoreSafeCombo = await prepareComboForFirestore(newCombo);
+      await setDoc(doc(db, 'combos', firestoreSafeCombo.id), removeUndefined(firestoreSafeCombo));
+      setCombos((prev) => prev.map((c) => (c.id === firestoreSafeCombo.id ? firestoreSafeCombo : c)));
       addToast({
         type: 'success',
         title: 'Plant Combo Created 🌿',
@@ -3664,7 +3741,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     try {
-      await setDoc(doc(db, 'combos', updated.id), removeUndefined(updated), { merge: true });
+      const firestoreSafeCombo = await prepareComboForFirestore(updated);
+      await setDoc(doc(db, 'combos', firestoreSafeCombo.id), removeUndefined(firestoreSafeCombo), { merge: true });
+      setCombos((prev) => prev.map((c) => (c.id === firestoreSafeCombo.id ? firestoreSafeCombo : c)));
       addToast({
         type: 'success',
         title: 'Combo Updated',
@@ -3767,7 +3846,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     setCombos((prev) => [duplicated, ...prev]);
     try {
-      await setDoc(doc(db, 'combos', duplicated.id), removeUndefined(duplicated));
+      const safeCombo = await prepareComboForFirestore(duplicated);
+      await setDoc(doc(db, 'combos', safeCombo.id), removeUndefined(safeCombo));
+      setCombos((prev) => prev.map((c) => (c.id === safeCombo.id ? safeCombo : c)));
     } catch (e) {
       console.warn('Could not duplicate combo in Firestore:', e);
     }

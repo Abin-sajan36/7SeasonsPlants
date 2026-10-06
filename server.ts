@@ -336,16 +336,21 @@ app.post("/api/upload-image", async (req, res) => {
     const fileUrl = `/uploads/${filename}`;
 
     // 2. Persist to Firestore uploaded_images collection so photos are permanent across container restarts
+    // Ensure document does not exceed Firestore's 1MB limit by verifying payload is under 900 KB
     try {
-      const db = getDb();
-      await setDoc(doc(db, "uploaded_images", filename), {
-        filename,
-        dataUrl: image,
-        contentType: `image/${rawExt === "jpg" ? "jpeg" : rawExt}`,
-        size: buffer.length,
-        createdAt: new Date().toISOString(),
-      });
-      console.log(`[7Seasons Storage] ☁️ Persisted ${filename} to Firestore uploaded_images`);
+      if (image.length <= 900000) {
+        const db = getDb();
+        await setDoc(doc(db, "uploaded_images", filename), {
+          filename,
+          dataUrl: image,
+          contentType: `image/${rawExt === "jpg" ? "jpeg" : rawExt}`,
+          size: buffer.length,
+          createdAt: new Date().toISOString(),
+        });
+        console.log(`[7Seasons Storage] ☁️ Persisted ${filename} to Firestore uploaded_images`);
+      } else {
+        console.log(`[7Seasons Storage] 📁 Image ${filename} saved on disk (${Math.round(buffer.length / 1024)} KB); skipped raw Firestore dataUrl copy to stay under 1MB limit.`);
+      }
     } catch (cloudErr: any) {
       console.warn(`[7Seasons Storage] Cloud persistence note for ${filename}:`, cloudErr.message || cloudErr);
     }
