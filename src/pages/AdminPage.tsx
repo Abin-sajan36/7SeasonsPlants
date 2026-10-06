@@ -3838,9 +3838,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <div className="relative">
                         <input
                           type="number"
-                          min="50"
-                          step="50"
+                          min="10"
+                          step="any"
                           value={settingsForm.defaultWeightSlabGrams ?? 500}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              (e.target as HTMLElement).blur();
+                            }
+                          }}
                           onChange={(e) => {
                             setSettingsForm((prev) => ({
                               ...prev,
@@ -4001,9 +4007,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                                     <input
                                       type="number"
                                       min="10"
-                                      step="50"
+                                      step="any"
                                       value={slabGrams}
                                       onChange={(e) => handleCourierSlabChange(courier.id, Number(e.target.value))}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          (e.target as HTMLElement).blur();
+                                        }
+                                      }}
                                       className="w-full pl-2 pr-7 py-1 text-center bg-emerald-50/70 font-extrabold text-emerald-950 rounded-lg border border-emerald-300 focus:bg-white focus:border-emerald-600 outline-hidden text-xs"
                                       title="Enter rounding increment in grams (e.g. 500, 1000, 250, 100)"
                                     />
@@ -4073,10 +4085,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         <div className="relative w-28">
                           <input
                             type="number"
-                            min="100"
-                            step="50"
+                            min="1"
+                            step="any"
                             value={testWeightGrams}
                             onChange={(e) => setTestWeightGrams(Math.max(10, Number(e.target.value) || 0))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                (e.target as HTMLElement).blur();
+                              }
+                            }}
                             className="w-full pl-2 pr-7 py-1 text-center bg-white font-extrabold text-emerald-950 rounded-xl border border-emerald-300 focus:border-emerald-600 outline-hidden text-xs shadow-2xs"
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-[11px] pointer-events-none">
