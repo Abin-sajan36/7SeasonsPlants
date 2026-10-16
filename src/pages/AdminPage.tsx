@@ -81,10 +81,11 @@ import { SelectiveSiteResetModal } from '../components/admin/SelectiveSiteResetM
 import { uploadImage } from '../lib/imageUploader';
 
 interface AdminPageProps {
+  initialTab?: string;
   onNavigate: (view: string, param?: string) => void;
 }
 
-export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
+export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) => {
   const {
     products,
     combos,
@@ -143,7 +144,35 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     | 'ai-tools'
     | 'backup-restore'
     | 'secrets'
-  >('analytics');
+  >(() => {
+    const validTabs = [
+      'analytics', 'products', 'combos', 'categories', 'banners',
+      'coupons', 'reviews', 'blogs', 'reels', 'orders', 'offline-orders',
+      'accounts', 'users', 'complaints', 'settings', 'ai-tools', 'backup-restore', 'secrets'
+    ];
+    if (initialTab && validTabs.includes(initialTab)) {
+      return initialTab as any;
+    }
+    try {
+      const stored = sessionStorage.getItem('7seasons_view_param');
+      if (stored && validTabs.includes(stored)) {
+        return stored as any;
+      }
+    } catch {}
+    return 'analytics';
+  });
+
+  // Keep activeTab in sync if initialTab changes
+  useEffect(() => {
+    const validTabs = [
+      'analytics', 'products', 'combos', 'categories', 'banners',
+      'coupons', 'reviews', 'blogs', 'reels', 'orders', 'offline-orders',
+      'accounts', 'users', 'complaints', 'settings', 'ai-tools', 'backup-restore', 'secrets'
+    ];
+    if (initialTab && validTabs.includes(initialTab)) {
+      setActiveTab(initialTab as any);
+    }
+  }, [initialTab]);
   
   const [complaintsList, setComplaintsList] = useState<any[]>([]);
   const [loadingComplaints, setLoadingComplaints] = useState(false);
@@ -4449,6 +4478,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         {activeTab === 'reels' && (
           <ReelsManagementTab
             onNavigateToBlog={() => onNavigate('blog')}
+            onNavigateToHome={() => onNavigate('home')}
             onSwitchToBlogsTab={() => setActiveTab('blogs')}
           />
         )}

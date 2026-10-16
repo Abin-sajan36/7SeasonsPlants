@@ -14,6 +14,7 @@ import {
   AdminAccount,
   InstagramReel,
   CourierRatesByState,
+  TrustBenefitItem,
 } from '../types';
 
 export const initialCourierRates: CourierRatesByState = {
@@ -60,6 +61,44 @@ export const initialEnabledCouriersByState: Record<string, Record<string, boolea
   },
 };
 
+export const initialTrustBenefits: TrustBenefitItem[] = [
+  {
+    id: 'benefit-1',
+    iconName: 'ShieldCheck',
+    title: 'Carefully Selected Plants',
+    description: 'Healthy, acclimated specimens nurtured at Mannaratharayil Gardens LLP with robust root systems.',
+    color: 'emerald',
+  },
+  {
+    id: 'benefit-2',
+    iconName: 'Sparkles',
+    title: 'Curated Plant Combos',
+    description: 'Expertly paired plant bundles with matching care rhythms and up to 35% bundled savings.',
+    color: 'amber',
+  },
+  {
+    id: 'benefit-3',
+    iconName: 'Box',
+    title: 'Safe 5-Ply Packaging',
+    description: 'Ventilated root pods and shock-resistant cartons protect foliage safely during transit.',
+    color: 'green',
+  },
+  {
+    id: 'benefit-4',
+    iconName: 'Truck',
+    title: 'Kerala, Tamil Nadu & Karnataka Shipping',
+    description: 'Direct dispatch to all PIN codes across Kerala, Tamil Nadu, and Karnataka in 2-4 business days.',
+    color: 'cyan',
+  },
+  {
+    id: 'benefit-5',
+    iconName: 'BookOpen',
+    title: 'Expert Care Guidance',
+    description: 'Free WhatsApp support and our 7Seasons Plant Doctor AI tool.',
+    color: 'rose',
+  },
+];
+
 export const initialStoreSettings: StoreSettings = {
   businessName: '7Seasonsplants',
   tagline: 'Vibrant Plants & Curated Green Combos',
@@ -100,6 +139,7 @@ export const initialStoreSettings: StoreSettings = {
     wishlist: true,
     contact: true,
   },
+  trustBenefits: initialTrustBenefits,
 };
 
 export const initialCategories: Category[] = [

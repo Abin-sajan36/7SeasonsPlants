@@ -416,6 +416,7 @@ export interface InstagramReel {
   displayOrder?: number;
   isActive: boolean;
   featuredOnBlog?: boolean;
+  showOnHome?: boolean;
   createdAt: string;
 }
 
@@ -533,6 +534,14 @@ export function getRoundedBillableWeightKg(
   return Number((billableGrams / 1000).toFixed(2));
 }
 
+export interface TrustBenefitItem {
+  id: string;
+  iconName: string;
+  title: string;
+  description: string;
+  color?: string;
+}
+
 export interface StoreSettings {
   businessName: string;
   tagline: string;
@@ -562,6 +571,7 @@ export interface StoreSettings {
   razorpayKeyId: string;
   razorpayEnabled: boolean;
   menuVisibility?: Record<string, boolean>;
+  trustBenefits?: TrustBenefitItem[];
 }
 
 export interface ToastMessage {

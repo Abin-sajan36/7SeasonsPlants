@@ -26,7 +26,7 @@ interface BlogPageProps {
 }
 
 export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
-  const { blogs, instagramReels } = useStore();
+  const { blogs, instagramReels, isAdminAuthenticated } = useStore();
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
   const [activeMediaTab, setActiveMediaTab] = useState<'all' | 'articles' | 'reels'>('all');
   const [activeReelModal, setActiveReelModal] = useState<InstagramReel | null>(null);
@@ -195,16 +195,30 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
                 </p>
               </div>
 
-              <a
-                href="https://instagram.com/7seasonsplants"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-800 to-green-700 hover:from-emerald-900 hover:to-green-800 text-white rounded-full text-xs font-bold shadow-sm transition-all cursor-pointer shrink-0"
-              >
-                <Instagram className="w-4 h-4 text-rose-300" />
-                <span>Follow @7seasonsplants</span>
-                <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
-              </a>
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                {isAdminAuthenticated && onNavigate && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('admin', 'reels')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-full text-xs font-bold shadow-sm transition-all cursor-pointer"
+                    title="Manage reels & select which appear on Home Page"
+                  >
+                    <Film className="w-3.5 h-3.5" />
+                    <span>Manage / Select Reels</span>
+                  </button>
+                )}
+
+                <a
+                  href="https://instagram.com/7seasonsplants"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-800 to-green-700 hover:from-emerald-900 hover:to-green-800 text-white rounded-full text-xs font-bold shadow-sm transition-all cursor-pointer"
+                >
+                  <Instagram className="w-4 h-4 text-rose-300" />
+                  <span>Follow @7seasonsplants</span>
+                  <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
+                </a>
+              </div>
             </div>
 
             {/* Reels Cards Grid */}

@@ -177,7 +177,7 @@ const AppContent: React.FC = () => {
         return <AccountPage initialParam={viewParam} onNavigate={handleNavigate} />;
 
       case 'admin':
-        return <AdminPage onNavigate={handleNavigate} />;
+        return <AdminPage initialTab={viewParam} onNavigate={handleNavigate} />;
 
       case 'about':
         return <AboutPage onNavigate={handleNavigate} />;

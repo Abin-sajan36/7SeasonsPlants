@@ -21,8 +21,15 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
-  const { storeSettings } = useStore();
+  const { categories, storeSettings } = useStore();
   const visibility = storeSettings?.menuVisibility || {};
+
+  const displayCategories = React.useMemo(() => {
+    return (categories || [])
+      .filter((c) => c && c.name?.trim())
+      .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
+      .slice(0, 6);
+  }, [categories]);
   return (
     <footer className="bg-[#0A2618] text-[#E2F5EA] border-t border-emerald-800/40">
       {/* Top Value Banner */}
@@ -90,75 +97,22 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Col 2: Shop & Categories */}
+          {/* Col 2: Categories */}
           <div>
             <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-3.5">
-              Shop Combos
+              Categories
             </h3>
             <ul className="space-y-2.5 text-xs">
-              {visibility.combos !== false && (
-              <li>
-                <button
-                  onClick={() => onNavigate('combos')}
-                  className="hover:text-white transition-colors flex items-center gap-1.5 font-bold text-white cursor-pointer"
-                >
-                  <span>Curated Plant Combos</span>
-                  <span className="text-[9px] bg-rose-700 text-white font-extrabold px-1.5 py-0.5 rounded-full shadow-xs">
-                    SAVE 35%
-                  </span>
-                </button>
-              </li>
-            )}
-              <li>
-                <button
-                  onClick={() => onNavigate('combos')}
-                  className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
-                >
-                  All Plant Combos
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate('combos', 'category:Indoor Plants')}
-                  className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
-                >
-                  Air Purifying Combos
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate('combos', 'category:Flowering Plants')}
-                  className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
-                >
-                  Balcony Flowering Sets
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate('combos', 'category:Low Maintenance')}
-                  className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
-                >
-                  Low Maintenance Sets
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate('combos', 'category:Succulents & Cactus')}
-                  className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer"
-                >
-                  Succulent & Desk Combos
-                </button>
-              </li>
-              {visibility.deals !== false && (
-              <li>
-                <button
-                  onClick={() => onNavigate('home', 'section:deals')}
-                  className="hover:text-amber-200 transition-colors text-amber-300 font-semibold cursor-pointer"
-                >
-                  Today's Daily Deals 🔥
-                </button>
-              </li>
-            )}
+              {displayCategories.map((cat) => (
+                <li key={cat.id || cat.slug || cat.name}>
+                  <button
+                    onClick={() => onNavigate('combos', `category:${cat.name}`)}
+                    className="text-[#A7F3D0]/80 hover:text-white transition-colors cursor-pointer text-left block"
+                  >
+                    {cat.name}
+                  </button>
+                </li>
+              ))}
             </ul>
           </div>
 

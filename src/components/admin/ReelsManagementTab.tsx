@@ -17,6 +17,7 @@ import {
   Image,
   Upload,
   BookOpen,
+  Home,
 } from 'lucide-react';
 import { InstagramReel } from '../../types';
 import { useStore } from '../../context/StoreContext';
@@ -32,14 +33,19 @@ import { ReelPlayerModal } from '../common/ReelPlayerModal';
 
 interface ReelsManagementTabProps {
   onNavigateToBlog?: () => void;
+  onNavigateToHome?: () => void;
   onSwitchToBlogsTab?: () => void;
 }
 
-export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNavigateToBlog, onSwitchToBlogsTab }) => {
+export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({
+  onNavigateToBlog,
+  onNavigateToHome,
+  onSwitchToBlogsTab,
+}) => {
   const { instagramReels, addInstagramReel, updateInstagramReel, deleteInstagramReel, addToast } = useStore();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'home' | 'inactive'>('all');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,6 +64,7 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
   const [formDate, setFormDate] = useState<string>('');
   const [formDisplayOrder, setFormDisplayOrder] = useState<number>(1);
   const [formIsActive, setFormIsActive] = useState<boolean>(true);
+  const [formShowOnHome, setFormShowOnHome] = useState<boolean>(true);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Preview & Enhancement State
@@ -105,6 +112,7 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
     setFormDate('');
     setFormDisplayOrder((instagramReels.length || 0) + 1);
     setFormIsActive(true);
+    setFormShowOnHome(true);
     setFormError(null);
     setModalPreviewTab('card');
     setIsModalOpen(true);
@@ -123,6 +131,7 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
     setFormDate(reel.date || '');
     setFormDisplayOrder(reel.displayOrder || 1);
     setFormIsActive(reel.isActive);
+    setFormShowOnHome(reel.showOnHome !== false);
     setFormError(null);
     setModalPreviewTab('card');
     setIsModalOpen(true);
@@ -170,11 +179,12 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
         date: formDate.trim() || 'Recent',
         displayOrder: Number(formDisplayOrder) || 1,
         isActive: formIsActive,
+        showOnHome: formShowOnHome,
       });
 
       addToast({
         title: 'Reel Updated',
-        message: `"${formTitle.trim()}" updated successfully for the Blog page.`,
+        message: `"${formTitle.trim()}" updated successfully.`,
         type: 'success',
       });
     } else {
@@ -191,11 +201,12 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
         displayOrder: Number(formDisplayOrder) || 1,
         isActive: formIsActive,
         featuredOnBlog: true,
+        showOnHome: formShowOnHome,
       });
 
       addToast({
         title: 'Instagram Reel Added 🎬',
-        message: 'New reel added from @7seasonsplants and published to the Blog page.',
+        message: 'New reel added from @7seasonsplants.',
         type: 'success',
       });
     }
@@ -212,9 +223,54 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
     addToast({
       title: reel.isActive ? 'Reel Hidden' : 'Reel Published',
       message: reel.isActive
-        ? `"${reel.title}" is now hidden from the Blog page.`
+        ? `"${reel.title}" is now hidden from the Blog and Home page.`
         : `"${reel.title}" is now live on the Blog page.`,
       type: 'info',
+    });
+  };
+
+  // Active reels count
+  const activeCount = instagramReels.filter((r) => r.isActive).length;
+
+  // Active reels that are candidates for the Home Page
+  const activeReels = instagramReels.filter((r) => r.isActive);
+  const hasExplicitHomeConfig = activeReels.some((r) => typeof r.showOnHome === 'boolean');
+
+  // Selected reels for home
+  const homeSelectedReels = hasExplicitHomeConfig
+    ? activeReels.filter((r) => r.showOnHome === true)
+    : activeReels.filter((r) => r.showOnHome !== false);
+
+  // The strictly capped 4 reels displayed on the home page (sorted by displayOrder)
+  const displayedHomeReels = [...homeSelectedReels]
+    .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
+    .slice(0, 4);
+
+  const homeCount = homeSelectedReels.length;
+
+  // Toggle Home Page visibility
+  const handleToggleShowOnHome = (reel: InstagramReel) => {
+    // Determine current on-home status
+    const isCurrentlyOnHome = hasExplicitHomeConfig
+      ? reel.showOnHome === true
+      : reel.showOnHome !== false;
+
+    const nextVal = !isCurrentlyOnHome;
+    updateInstagramReel({
+      ...reel,
+      showOnHome: nextVal,
+    });
+
+    const newHomeCount = instagramReels.filter((r) =>
+      r.isActive && (r.id === reel.id ? nextVal : (r.showOnHome === true))
+    ).length;
+
+    addToast({
+      title: nextVal ? 'Featured on Home 🏠' : 'Removed from Home',
+      message: nextVal
+        ? `"${reel.title}" selected for Home Page! (Total selected: ${newHomeCount}${newHomeCount > 4 ? ' — first 4 by Order # will display' : ''})`
+        : `"${reel.title}" removed from the Home Page showcase.`,
+      type: nextVal ? 'success' : 'info',
     });
   };
 
@@ -237,15 +293,16 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
       (reel.caption || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       reel.reelUrl.toLowerCase().includes(searchQuery.toLowerCase());
 
+    const isReelOnHome = hasExplicitHomeConfig ? reel.showOnHome === true : reel.showOnHome !== false;
+
     const matchesStatus =
       filterStatus === 'all' ||
       (filterStatus === 'active' && reel.isActive) ||
+      (filterStatus === 'home' && isReelOnHome && reel.isActive) ||
       (filterStatus === 'inactive' && !reel.isActive);
 
     return matchesSearch && matchesStatus;
   });
-
-  const activeCount = instagramReels.filter((r) => r.isActive).length;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -257,14 +314,18 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
             <span>@7seasonsplants Social Integration</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
-            <span>Instagram Reels on Blog</span>
+            <span>Instagram Reels</span>
             <span className="text-xs font-black uppercase bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 px-3 py-1 rounded-full">
               {activeCount} Active on Blog
             </span>
+            <span className="text-xs font-black uppercase bg-amber-500/30 text-amber-300 border border-amber-400/40 px-3 py-1 rounded-full flex items-center gap-1">
+              <Home className="w-3 h-3 text-amber-300" />
+              <span>{homeCount} on Home (Cap: 4)</span>
+            </span>
           </h2>
           <p className="text-xs text-emerald-200/80 max-w-2xl leading-relaxed">
-            Curate and embed viral plant packing videos, greenhouse tours, and gardening tips from the official{' '}
-            <strong className="text-white">@7seasonsplants</strong> Instagram account directly onto the customer-facing Blog page.
+            Curate and embed viral plant packing videos, greenhouse tours, and gardening tips from{' '}
+            <strong className="text-white">@7seasonsplants</strong>. Select which reels appear in the 4-reel showcase on the Home Page and on the Blog page.
           </p>
         </div>
 
@@ -324,19 +385,126 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
           <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Active on Blog</span>
           <span className="text-2xl font-black text-emerald-700 mt-1 block">{activeCount}</span>
-          <span className="text-[11px] text-emerald-600/80">Visible to shoppers</span>
+          <span className="text-[11px] text-emerald-600/80">Visible on Blog page</span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-          <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block">Est. Video Views</span>
-          <span className="text-2xl font-black text-gray-900 mt-1 block">85K+</span>
-          <span className="text-[11px] text-gray-500">Across Instagram Reels</span>
+          <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Featured on Home</span>
+          <span className="text-2xl font-black text-amber-700 mt-1 block">{homeCount}</span>
+          <span className="text-[11px] text-amber-700/80">Max 4 displayed on Home</span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
           <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider block">Account Handle</span>
           <span className="text-base font-black text-gray-900 mt-1 truncate block">@7seasonsplants</span>
           <span className="text-[11px] text-blue-600">Official Instagram</span>
+        </div>
+      </div>
+
+      {/* 4-SLOT HOME PAGE SHOWCASE MANAGER */}
+      <div className="bg-gradient-to-br from-amber-500/10 via-emerald-500/5 to-white p-6 sm:p-7 rounded-3xl border border-amber-300/60 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-700">
+              <Home className="w-4 h-4 text-amber-600" />
+              <span>Home Page Video Showcase — 4 Capped Slots</span>
+            </div>
+            <h3 className="text-lg font-black text-gray-900 flex items-center gap-2 mt-0.5">
+              <span>Customer Home Page Showcase</span>
+              <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                {displayedHomeReels.length} of 4 Slots Active
+              </span>
+              {homeCount > 4 && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                  {homeCount} selected (top 4 shown by Order #)
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-gray-600 mt-0.5 max-w-2xl leading-relaxed">
+              These are the exact video reels shown on the customer Home Page. Only the first 4 reels (sorted by Order #) are displayed. Use the buttons below or inside each reel card to select or swap reels.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {onNavigateToHome && (
+              <button
+                type="button"
+                onClick={onNavigateToHome}
+                className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Preview Home Page</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 4 Visual Slots Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+          {[0, 1, 2, 3].map((slotIndex) => {
+            const slotReel = displayedHomeReels[slotIndex];
+            if (slotReel) {
+              return (
+                <div
+                  key={slotReel.id}
+                  className="bg-white rounded-2xl p-3 border-2 border-amber-400 shadow-xs flex items-center gap-3 relative group hover:border-amber-500 transition-all"
+                >
+                  <div
+                    className="relative w-14 h-18 rounded-xl overflow-hidden bg-gray-900 shrink-0 cursor-pointer"
+                    onClick={() => setPreviewReel(slotReel)}
+                    title="Click to preview reel"
+                  >
+                    <img
+                      src={slotReel.thumbnailUrl}
+                      alt={slotReel.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center shadow-xs">
+                      #{slotIndex + 1}
+                    </div>
+                    <div className="absolute inset-0 bg-black/25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Play className="w-4 h-4 text-white fill-white" />
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-w-0 pr-6">
+                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
+                      Slot {slotIndex + 1} • Order #{slotReel.displayOrder || slotIndex + 1}
+                    </span>
+                    <h4 className="text-xs font-black text-gray-900 truncate leading-snug">
+                      {slotReel.title}
+                    </h4>
+                    <span className="text-[10px] text-gray-500 block truncate">
+                      {slotReel.viewsCount || '1K'} views • {slotReel.date || 'Recent'}
+                    </span>
+                  </div>
+
+                  {/* Quick Remove from Home Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleShowOnHome(slotReel)}
+                    className="absolute top-2.5 right-2.5 p-1 text-gray-400 hover:text-rose-600 rounded-full hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="Remove from Home Page showcase"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={`empty-slot-${slotIndex}`}
+                className="rounded-2xl p-4 border-2 border-dashed border-gray-300 bg-white/60 flex flex-col items-center justify-center text-center space-y-1 min-h-[90px]"
+              >
+                <div className="w-6 h-6 rounded-full bg-gray-100 text-gray-400 text-xs font-black flex items-center justify-center">
+                  #{slotIndex + 1}
+                </div>
+                <span className="text-xs font-bold text-gray-500">Empty Slot {slotIndex + 1}</span>
+                <span className="text-[10px] text-gray-400">Click &quot;Show on Home&quot; below to fill</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -354,17 +522,22 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
-          {(['all', 'active', 'inactive'] as const).map((status) => (
+          {[
+            { id: 'all', label: 'All Reels' },
+            { id: 'active', label: 'Published' },
+            { id: 'home', label: `Home Page (${homeCount})` },
+            { id: 'inactive', label: 'Hidden' },
+          ].map((item) => (
             <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors cursor-pointer whitespace-nowrap ${
-                filterStatus === status
-                  ? 'bg-emerald-800 text-white'
+              key={item.id}
+              onClick={() => setFilterStatus(item.id as any)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                filterStatus === item.id
+                  ? 'bg-emerald-800 text-white shadow-xs'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {status === 'all' ? 'All Reels' : status === 'active' ? 'Published' : 'Hidden'}
+              {item.label}
             </button>
           ))}
         </div>
@@ -391,78 +564,136 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredReels.map((reel) => (
-            <div
-              key={reel.id}
-              className="bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group"
-            >
-              <div>
-                {/* Thumbnail Preview with Play Overlay */}
-                <div className="relative aspect-9/14 w-full bg-emerald-950 overflow-hidden cursor-pointer" onClick={() => setPreviewReel(reel)}>
-                  <img
-                    src={reel.thumbnailUrl}
-                    alt={reel.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/30 flex flex-col justify-between p-3.5 text-white">
-                    {/* Top badging */}
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-xs text-[10px] font-bold text-white border border-white/20">
-                        <Instagram className="w-3 h-3 text-rose-400" />
-                        <span>@7seasonsplants</span>
-                      </span>
+          {filteredReels.map((reel) => {
+            const slotIndex = displayedHomeReels.findIndex((r) => r.id === reel.id);
+            const isSlotDisplayed = slotIndex !== -1;
+            const isHomeSelected = hasExplicitHomeConfig
+              ? reel.showOnHome === true
+              : reel.showOnHome !== false;
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleActive(reel);
-                        }}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase cursor-pointer border ${
-                          reel.isActive
-                            ? 'bg-emerald-500/80 text-white border-emerald-400'
-                            : 'bg-gray-800/80 text-gray-300 border-gray-600'
+            return (
+              <div
+                key={reel.id}
+                className={`bg-white rounded-2xl overflow-hidden border transition-all flex flex-col justify-between group ${
+                  isSlotDisplayed
+                    ? 'border-amber-400 shadow-md ring-1 ring-amber-300/50'
+                    : 'border-gray-200 shadow-2xs hover:shadow-md'
+                }`}
+              >
+                <div>
+                  {/* Thumbnail Preview with Play Overlay */}
+                  <div className="relative aspect-9/14 w-full bg-emerald-950 overflow-hidden cursor-pointer" onClick={() => setPreviewReel(reel)}>
+                    <img
+                      src={reel.thumbnailUrl}
+                      alt={reel.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/30 flex flex-col justify-between p-3.5 text-white">
+                      {/* Top badging */}
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-xs text-[10px] font-bold text-white border border-white/20">
+                          <Instagram className="w-3 h-3 text-rose-400" />
+                          <span>@7seasonsplants</span>
+                        </span>
+
+                        <div className="flex items-center gap-1">
+                          {isHomeSelected && (
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border flex items-center gap-1 ${
+                                isSlotDisplayed
+                                  ? 'bg-amber-500 text-white border-amber-400 shadow-xs'
+                                  : 'bg-amber-900/80 text-amber-200 border-amber-700'
+                              }`}
+                              title={isSlotDisplayed ? `Slot ${slotIndex + 1} on Home Page` : 'Selected for Home Page'}
+                            >
+                              <Home className="w-2.5 h-2.5" />
+                              <span>{isSlotDisplayed ? `Slot #${slotIndex + 1}` : 'Home'}</span>
+                            </span>
+                          )}
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleActive(reel);
+                            }}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase cursor-pointer border ${
+                              reel.isActive
+                                ? 'bg-emerald-500/80 text-white border-emerald-400'
+                                : 'bg-gray-800/80 text-gray-300 border-gray-600'
+                            }`}
+                            title="Click to toggle publish status"
+                          >
+                            {reel.isActive ? 'Published' : 'Hidden'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Center play icon */}
+                      <div className="self-center w-12 h-12 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white border border-white/40 shadow-lg group-hover:scale-110 transition-transform">
+                        <Play className="w-5 h-5 fill-current ml-0.5" />
+                      </div>
+
+                      {/* Bottom stats */}
+                      <div className="flex items-center justify-between text-[11px] font-bold">
+                        <span className="flex items-center gap-1 text-white/90">
+                          <Eye className="w-3.5 h-3.5 text-white/70" />
+                          {reel.viewsCount || '1K'}
+                        </span>
+                        <span className="flex items-center gap-1 text-rose-300">
+                          <Heart className="w-3.5 h-3.5 fill-current text-rose-400" />
+                          {reel.likesCount || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Content Details */}
+                  <div className="p-4 space-y-2">
+                    <h3 className="font-extrabold text-sm text-gray-900 leading-snug line-clamp-2">
+                      {reel.title}
+                    </h3>
+                    {reel.caption && (
+                      <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                        {reel.caption}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1">
+                      <span>Order: #{reel.displayOrder || 1}</span>
+                      <span>{reel.date || 'Recent'}</span>
+                    </div>
+                  </div>
+
+                  {/* Home Page Selection Toggle Button */}
+                  <div className="px-4 pb-3">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleShowOnHome(reel)}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                        isHomeSelected
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-2xs'
+                          : 'bg-gray-100 hover:bg-amber-50 hover:text-amber-900 text-gray-700 border border-gray-200'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        <Home className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">
+                          {isHomeSelected
+                            ? isSlotDisplayed
+                              ? `Shown on Home (Slot #${slotIndex + 1})`
+                              : 'Selected for Home (Queued)'
+                            : 'Show on Home Page'}
+                        </span>
+                      </span>
+                      <span
+                        className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
+                          isHomeSelected ? 'bg-amber-800/60 text-white' : 'bg-gray-200 text-gray-600'
                         }`}
-                        title="Click to toggle publish status"
                       >
-                        {reel.isActive ? 'Published' : 'Hidden'}
-                      </button>
-                    </div>
-
-                    {/* Center play icon */}
-                    <div className="self-center w-12 h-12 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white border border-white/40 shadow-lg group-hover:scale-110 transition-transform">
-                      <Play className="w-5 h-5 fill-current ml-0.5" />
-                    </div>
-
-                    {/* Bottom stats */}
-                    <div className="flex items-center justify-between text-[11px] font-bold">
-                      <span className="flex items-center gap-1 text-white/90">
-                        <Eye className="w-3.5 h-3.5 text-white/70" />
-                        {reel.viewsCount || '1K'}
+                        {isHomeSelected ? 'Active' : 'Off'}
                       </span>
-                      <span className="flex items-center gap-1 text-rose-300">
-                        <Heart className="w-3.5 h-3.5 fill-current text-rose-400" />
-                        {reel.likesCount || 0}
-                      </span>
-                    </div>
+                    </button>
                   </div>
                 </div>
-
-                {/* Content Details */}
-                <div className="p-4 space-y-2">
-                  <h3 className="font-extrabold text-sm text-gray-900 leading-snug line-clamp-2">
-                    {reel.title}
-                  </h3>
-                  {reel.caption && (
-                    <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
-                      {reel.caption}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1">
-                    <span>Order: #{reel.displayOrder || 1}</span>
-                    <span>{reel.date || 'Recent'}</span>
-                  </div>
-                </div>
-              </div>
 
               {/* Action Buttons */}
               <div className="p-4 pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
@@ -507,7 +738,8 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
 
@@ -813,6 +1045,27 @@ export const ReelsManagementTab: React.FC<ReelsManagementTabProps> = ({ onNaviga
                     className="sr-only peer"
                   />
                   <div className="w-9 h-5 bg-gray-300 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+
+              <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-amber-950 flex items-center gap-1.5">
+                    <Home className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Show on Home Page Showcase (Max 4)</span>
+                  </span>
+                  <span className="text-[11px] text-amber-900/80 block mt-0.5">
+                    Feature this video in the 4-reel showcase on the customer Home Page.
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formShowOnHome}
+                    onChange={(e) => setFormShowOnHome(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-gray-300 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
                 </label>
               </div>
 
