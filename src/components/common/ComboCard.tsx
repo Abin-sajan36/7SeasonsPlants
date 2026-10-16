@@ -1,5 +1,5 @@
 import React from 'react';
-import { Heart, ShoppingBag, Sparkles, Star, PackageCheck, Eye, MapPin } from 'lucide-react';
+import { Heart, ShoppingBag, Star, PackageCheck, Eye, MapPin } from 'lucide-react';
 import { PlantCombo } from '../../types';
 import { useStore } from '../../context/StoreContext';
 
@@ -41,11 +41,6 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
 
         {/* Top Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-          <div className="flex items-center gap-1.5 bg-emerald-700 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-md uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Curated Combo</span>
-          </div>
-
           <span className="bg-rose-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-xs uppercase tracking-wider w-fit">
             Save ₹{combo.savings} • {combo.discountPercentage}% OFF
           </span>
