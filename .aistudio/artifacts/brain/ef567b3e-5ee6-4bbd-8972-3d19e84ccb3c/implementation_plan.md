@@ -1,61 +1,55 @@
-# Implementation Plan: On-Screen Home Page Reels Picker Modal
+# Implementation Plan: Date Range Filter for Admin Analytics Dashboard
 
-Provide logged-in nursery administrators with an in-place editing modal directly on the Home Screen to select, swap, and reorder the 4 video reels displayed in the `@7seasonsplants` Instagram Reels section without navigating away from the page.
+Enable administrators to filter analytics by custom **From** and **To** dates, use 1-click preset shortcuts (Today, Last 7 Days, This Month, etc.), view adaptive daily or monthly trend charts, and export filtered reports.
 
 ---
 
 ## User Review Required
 
 > [!IMPORTANT]
-> The in-place reel editor will only be visible to logged-in nursery administrators (`isAdminAuthenticated` or users with `admin` role). Regular customers and guests will see the standard clean video reel showcase.
+> The date filter will adapt chart granularity automatically: date ranges of 31 days or fewer will plot daily revenue trends, while wider ranges (or "All Time") will group by month for long-term clarity.
 
 ---
 
 ## Proposed Changes
 
-### Component 1: `HomeReelsPickerModal` (`src/components/home/HomeReelsPickerModal.tsx`)
+### Component: `AnalyticsDashboard` (`src/components/admin/AnalyticsDashboard.tsx`)
 
-Create a dedicated, elegant modal component that opens directly over the Home Page:
-1. **Top Section: 4 Active Showcase Slots**
-   - Displays the 4 currently selected Home Page reels in visual slot cards (`Slot 1`, `Slot 2`, `Slot 3`, `Slot 4`).
-   - Each card displays the video thumbnail, title, and current display order.
-   - Quick action: **Remove (X)** button to instantly clear a slot.
-   - Reorder arrows (◀ / ▶) to quickly reorder slots 1 through 4.
-   - Empty slot indicators if fewer than 4 slots are filled.
+1. **Date Range Controls Bar**:
+   - **Quick Preset Shortcuts**: "Today", "Last 7 Days", "Last 30 Days", "This Month", "Last Month", "All Time".
+   - **Custom Date Pickers**:
+     - `From:` HTML5 date picker with formatted display and min/max constraints.
+     - `To:` HTML5 date picker defaulting to current local date.
+   - **Active Range Indicator**: A clean counter badge showing the number of matched orders and selected date window (e.g. *"18 orders found between Oct 01, 2026 – Oct 16, 2026"*).
+   - **Clear / Reset Button**: Reverts instantly to "All Time" with 1 click.
+   - **Export CSV Button**: Generates and downloads a summary report of sales, orders, and top products for the filtered range.
 
-2. **Bottom Section: All Available Catalog Reels**
-   - Displays all active reels from the blog knowledge base and `@7seasonsplants` database.
-   - Includes a quick search bar to filter by reel title or caption.
-   - Each reel card has a toggle button:
-     - If already in Home Showcase: marked as **Active in Slot #X** with an option to remove.
-     - If not on Home: click **"Add to Home"** to fill an open slot or swap into a slot.
-   - Direct link to open the full admin management panel if the admin wants to upload a brand new reel URL or edit captions.
+2. **Adaptive Analytics Calculation Engine**:
+   - Filter `orders` based on order creation timestamp (`createdAt` or `orderDate`) within `[fromDate 00:00:00, toDate 23:59:59]`.
+   - Exclude cancelled and failed orders from revenue figures.
+   - **Adaptive Chart Grouping**:
+     - $\le 31$ days: Group revenue chronologically by **Day** (`DD MMM`) with filled gap dates so the admin can clearly see daily surges.
+     - $> 31$ days: Group revenue chronologically by **Month** (`MMM YYYY`).
+   - Recalculate KPI summary metrics:
+     - Total Filtered Revenue (₹)
+     - Total Completed Orders
+     - Average Order Value (AOV)
+     - Sales by Category (Pie Chart)
+     - Top Selling Products (Bar Chart)
 
-3. **Instant Persistence & Feedback**
-   - Uses `updateInstagramReel` from `StoreContext` to instantly sync changes to Firestore and local state.
-   - Updates the live Home Screen in real-time behind the modal.
-   - Accessible keyboard controls (`Escape` to close, scroll-lock on background).
-
----
-
-### Component 2: `InstagramSection` (`src/components/home/InstagramSection.tsx`)
-
-Enhance the Home Page Instagram section:
-1. Add an admin action button: **"Change Reels (X/4)"** in the section header, styled with a distinct amber badge, visible only when `isAdminAuthenticated` is true.
-2. Add quick edit overlay buttons on the 4 reel cards when viewed by an admin (e.g., hover badge: "Edit / Swap Reel").
-3. Connect the `HomeReelsPickerModal` state to open and close seamlessly on the Home Screen.
+3. **Empty State & Edge Case Handling**:
+   - If no orders exist within the chosen dates, display an informative banner: *"No orders found for this date range — try adjusting your From and To dates"*, with a quick "Reset to All Time" action.
 
 ---
 
 ## Verification Plan
 
 ### Automated Verification
-1. Run `compile_applet` to verify TypeScript types, JSX props, and build compilation.
-2. Run `lint_applet` to check for unused imports and syntax errors.
+1. Run `compile_applet` to ensure TypeScript compilation succeeds without errors.
+2. Run `lint_applet` to ensure clean syntax, type definitions, and proper imports.
 
 ### Manual Verification
-1. **Admin Access Check**: Verify that when logged in as an admin, the "Change Reels" button appears in the Home Page reels section header.
-2. **Reel Selection**: Open the modal on the Home Screen, toggle reels on/off, verify slot numbers update from 1 to 4.
-3. **Instant Update**: Close the modal and confirm the Home Page immediately displays the selected 4 reels.
-4. **Blog Page Independence**: Verify that the Blog page still shows all reels without any capping.
-5. **Guest View**: Log out or view in guest mode to confirm the admin button is hidden from regular customers.
+1. **Preset Verification**: Click "Today", "Last 7 Days", and "This Month" to verify that From/To dates and chart metrics update accurately.
+2. **Custom Date Selection**: Pick custom From and To dates; verify that only orders placed in that interval appear in KPIs, line charts, pie charts, and top-selling tables.
+3. **Adaptive Granularity**: Verify that selecting a 7-day range shows daily revenue bars/points, while "All Time" groups by month.
+4. **CSV Export**: Click "Export Report" and confirm the downloaded CSV contains the filtered orders and revenue summary.
