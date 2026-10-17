@@ -42,12 +42,14 @@ export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCateg
     return ['All', ...Array.from(combinedSet)];
   }, [categories, combos]);
 
-  const filteredCombos = combos.filter((combo) => {
-    if (combo.status !== 'published') return false;
-    if (!isItemDeliverable(combo)) return false;
-    if (selectedCategory === 'All') return true;
-    return combo.category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase();
-  });
+  const filteredCombos = combos
+    .filter((combo) => {
+      if (combo.status !== 'published') return false;
+      if (!isItemDeliverable(combo)) return false;
+      if (selectedCategory === 'All') return true;
+      return combo.category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase();
+    })
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
   return (
     <div className="bg-[#F4FAF5] min-h-screen py-10">

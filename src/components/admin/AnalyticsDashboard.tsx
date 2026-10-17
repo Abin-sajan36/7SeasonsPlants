@@ -38,6 +38,31 @@ const formatDateToISO = (date: Date): string => {
   return `${y}-${m}-${d}`;
 };
 
+// Convert YYYY-MM-DD to DD/MM/YYYY
+const toDDMMYYYY = (iso: string): string => {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return '';
+};
+
+// Convert DD/MM/YYYY to YYYY-MM-DD
+const fromDDMMYYYY = (dmy: string): string => {
+  if (!dmy) return '';
+  const parts = dmy.split('/');
+  if (parts.length === 3) {
+    const d = parts[0].trim().padStart(2, '0');
+    const m = parts[1].trim().padStart(2, '0');
+    const y = parts[2].trim();
+    if (d.length === 2 && m.length === 2 && y.length === 4) {
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return '';
+};
+
 export const AnalyticsDashboard = () => {
   const { orders, products, combos } = useStore();
 
@@ -45,6 +70,9 @@ export const AnalyticsDashboard = () => {
   const [selectedPreset, setSelectedPreset] = useState<DatePreset>('allTime');
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
+
+  const fromPickerRef = React.useRef<HTMLInputElement>(null);
+  const toPickerRef = React.useRef<HTMLInputElement>(null);
 
   // Explicit chart view mode (auto, monthly, daily)
   const [chartViewMode, setChartViewMode] = useState<'auto' | 'monthly' | 'daily'>('auto');
@@ -417,27 +445,91 @@ export const AnalyticsDashboard = () => {
             })}
           </div>
 
-          {/* Custom Date Pickers */}
+          {/* Custom Date Pickers in DD/MM/YYYY */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200">
+            <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200 relative group hover:border-emerald-500 transition-colors">
               <span className="text-[11px] font-bold text-gray-500 uppercase">From:</span>
               <input
+                type="text"
+                value={toDDMMYYYY(fromDate)}
+                placeholder="DD/MM/YYYY"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const iso = fromDDMMYYYY(val);
+                  if (iso) {
+                    handleCustomDateChange('from', iso);
+                  } else if (!val) {
+                    handleCustomDateChange('from', '');
+                  }
+                }}
+                onClick={() => fromPickerRef.current?.showPicker?.()}
+                className="bg-transparent text-xs text-gray-900 font-bold outline-hidden cursor-pointer w-24 tracking-wide"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    fromPickerRef.current?.showPicker?.();
+                  } catch {
+                    fromPickerRef.current?.focus();
+                  }
+                }}
+                className="p-0.5 text-gray-400 hover:text-emerald-700 cursor-pointer"
+                title="Choose From Date"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+              </button>
+              <input
+                ref={fromPickerRef}
                 type="date"
                 value={fromDate}
                 onChange={(e) => handleCustomDateChange('from', e.target.value)}
                 max={toDate || undefined}
-                className="bg-transparent text-xs text-gray-900 font-bold outline-hidden cursor-pointer"
+                className="absolute opacity-0 pointer-events-none w-0 h-0"
+                tabIndex={-1}
               />
             </div>
 
-            <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200">
+            <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200 relative group hover:border-emerald-500 transition-colors">
               <span className="text-[11px] font-bold text-gray-500 uppercase">To:</span>
               <input
+                type="text"
+                value={toDDMMYYYY(toDate)}
+                placeholder="DD/MM/YYYY"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const iso = fromDDMMYYYY(val);
+                  if (iso) {
+                    handleCustomDateChange('to', iso);
+                  } else if (!val) {
+                    handleCustomDateChange('to', '');
+                  }
+                }}
+                onClick={() => toPickerRef.current?.showPicker?.()}
+                className="bg-transparent text-xs text-gray-900 font-bold outline-hidden cursor-pointer w-24 tracking-wide"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    toPickerRef.current?.showPicker?.();
+                  } catch {
+                    toPickerRef.current?.focus();
+                  }
+                }}
+                className="p-0.5 text-gray-400 hover:text-emerald-700 cursor-pointer"
+                title="Choose To Date"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+              </button>
+              <input
+                ref={toPickerRef}
                 type="date"
                 value={toDate}
                 onChange={(e) => handleCustomDateChange('to', e.target.value)}
                 min={fromDate || undefined}
-                className="bg-transparent text-xs text-gray-900 font-bold outline-hidden cursor-pointer"
+                className="absolute opacity-0 pointer-events-none w-0 h-0"
+                tabIndex={-1}
               />
             </div>
           </div>

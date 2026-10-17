@@ -1090,19 +1090,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     return list;
   }, [categories, combos]);
 
-  const filteredCombos = combos.filter((c) => {
-    const q = comboSearch.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      c.name.toLowerCase().includes(q) ||
-      (c.category && c.category.toLowerCase().includes(q)) ||
-      (c.items && c.items.some((it) => it.productName.toLowerCase().includes(q)));
-    if (!matchesSearch) return false;
-    if (selectedComboCategoryFilter !== 'all') {
-      return (c.category || '').toLowerCase().trim() === selectedComboCategoryFilter.toLowerCase().trim();
-    }
-    return true;
-  });
+  const filteredCombos = combos
+    .filter((c) => {
+      const q = comboSearch.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        c.name.toLowerCase().includes(q) ||
+        (c.category && c.category.toLowerCase().includes(q)) ||
+        (c.items && c.items.some((it) => it.productName.toLowerCase().includes(q)));
+      if (!matchesSearch) return false;
+      if (selectedComboCategoryFilter !== 'all') {
+        return (c.category || '').toLowerCase().trim() === selectedComboCategoryFilter.toLowerCase().trim();
+      }
+      return true;
+    })
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
   const filteredOrders = onlineOrders.filter((o) => {
     // Status filter

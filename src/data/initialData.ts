@@ -581,7 +581,7 @@ export const initialPlantCombos: PlantCombo[] = [
     tags: ['combo', 'indoor', 'jiffy', 'air-purifying'],
     careSummary: 'Water when dry, give bright light.',
     benefits: ['Looks great', 'Cleans air'],
-    createdAt: new Date().toISOString(),
+    createdAt: '2026-09-01T08:00:00.000Z',
   },
   {
     id: 'combo-balcony-bloomers',
@@ -609,7 +609,7 @@ export const initialPlantCombos: PlantCombo[] = [
     tags: ['combo', 'balcony', 'flowering'],
     careSummary: 'Water when dry, give bright light.',
     benefits: ['Pollinator magnet', 'Vibrant blooms'],
-    createdAt: new Date().toISOString(),
+    createdAt: '2026-09-15T09:30:00.000Z',
   },
   {
     id: 'combo-monsoon-balcony-garden',
@@ -637,7 +637,7 @@ export const initialPlantCombos: PlantCombo[] = [
     tags: ['combo', 'monsoon', 'tropical', 'rain-hardy'],
     careSummary: 'Well-draining pot mix, partial to full sun.',
     benefits: ['Heavy monsoon blooms', 'Hardy roots'],
-    createdAt: new Date().toISOString(),
+    createdAt: '2026-10-01T10:00:00.000Z',
   }
 ];
 

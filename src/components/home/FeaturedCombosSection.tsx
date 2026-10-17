@@ -10,10 +10,12 @@ interface FeaturedCombosSectionProps {
 export const FeaturedCombosSection: React.FC<FeaturedCombosSectionProps> = ({ onNavigate }) => {
   const { combos, selectedDeliveryState, isItemDeliverable, openStateModal } = useStore();
 
-  const deliverableCombos = combos.filter((c) => {
-    if (c.status !== 'published') return false;
-    return isItemDeliverable(c);
-  });
+  const deliverableCombos = combos
+    .filter((c) => {
+      if (c.status !== 'published') return false;
+      return isItemDeliverable(c);
+    })
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
   const featuredCombos = deliverableCombos.slice(0, 3);
 

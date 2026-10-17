@@ -150,8 +150,19 @@ export const BannersManagementTab: React.FC<BannersManagementTabProps> = ({ onNa
 
     setIsUploading(true);
     try {
-      // Compress to 2K high-resolution landscape banner with HD WebP encoding
-      const stats = await compressImageFileWithStats(file, 2560, 1440, 0.93);
+      // Pass 1: High quality 1920x1080 banner
+      let stats = await compressImageFileWithStats(file, 1920, 1080, 0.86);
+
+      // Pass 2: If image dataURL exceeds 750,000 chars (safe margin for Firestore 1MB document limit), compress further
+      if (stats.dataUrl.length > 750000) {
+        stats = await compressImageFileWithStats(file, 1600, 900, 0.80);
+      }
+
+      // Pass 3: Final safety check for very detailed foliage photos
+      if (stats.dataUrl.length > 750000) {
+        stats = await compressImageFileWithStats(file, 1440, 810, 0.74);
+      }
+
       setFormImageUrl(stats.dataUrl);
       setUploadStats({
         original: stats.originalSize,
@@ -159,8 +170,8 @@ export const BannersManagementTab: React.FC<BannersManagementTabProps> = ({ onNa
       });
 
       addToast({
-        title: 'Image Loaded in High-Definition',
-        message: `Optimized in HD (${stats.width}×${stats.height}px, ${formatBytes(stats.compressedSize)}). Ready to publish!`,
+        title: 'Image Optimized for Cloud',
+        message: `Optimized in HD (${stats.width}×${stats.height}px, ${formatBytes(stats.compressedSize)}). Ready to publish to cloud!`,
         type: 'success',
       });
     } catch (err: any) {

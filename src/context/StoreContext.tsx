@@ -382,7 +382,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [combos, setCombos] = useState<PlantCombo[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_combos`);
-    return saved ? JSON.parse(saved) : initialPlantCombos;
+    const list = saved ? JSON.parse(saved) : initialPlantCombos;
+    const array = Array.isArray(list) ? list : initialPlantCombos;
+    return [...array].sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
   });
 
   const [dailyDeals, setDailyDeals] = useState<DailyDeal[]>(() => {
@@ -819,6 +823,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               list.push(c);
             }
           });
+          list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
           setCombos(list);
           try {
             safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(list));
@@ -3700,7 +3705,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     // Immediately persist to local React state and LocalStorage
     setCombos((prev) => {
-      const next = [newCombo, ...prev.filter((c) => c.id !== newCombo.id)];
+      const next = [newCombo, ...prev.filter((c) => c.id !== newCombo.id)].sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
       try {
         safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(next));
       } catch (err) {
@@ -3712,7 +3719,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const firestoreSafeCombo = await prepareComboForFirestore(newCombo);
       await setDoc(doc(db, 'combos', firestoreSafeCombo.id), removeUndefined(firestoreSafeCombo));
-      setCombos((prev) => prev.map((c) => (c.id === firestoreSafeCombo.id ? firestoreSafeCombo : c)));
+      setCombos((prev) =>
+        prev
+          .map((c) => (c.id === firestoreSafeCombo.id ? firestoreSafeCombo : c))
+          .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+      );
       addToast({
         type: 'success',
         title: 'Plant Combo Created 🌿',
