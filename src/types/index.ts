@@ -572,6 +572,8 @@ export interface StoreSettings {
   razorpayEnabled: boolean;
   menuVisibility?: Record<string, boolean>;
   trustBenefits?: TrustBenefitItem[];
+  isConfiguredByAdmin?: boolean;
+  updatedAt?: string;
 }
 
 export interface ToastMessage {

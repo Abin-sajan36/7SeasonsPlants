@@ -766,7 +766,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Sync store settings with Firebase
   useEffect(() => {
-    let seeded = false;
     const unsubscribe = onSnapshot(
       doc(db, 'storeSettings', 'global'),
       async (docSnap) => {
@@ -776,25 +775,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             data.email = 'mannaratharayil@gmail.com';
             setDoc(doc(db, 'storeSettings', 'global'), { email: 'mannaratharayil@gmail.com' }, { merge: true }).catch(() => {});
           }
-          const rates = { ...(data.courierRates || initialCourierRates) };
-          delete rates['st-courier'];
-          setStoreSettings((prev) => ({
-            ...prev,
-            ...data,
-            courierRates: rates,
-            enabledCouriersByState: data.enabledCouriersByState || prev.enabledCouriersByState || initialEnabledCouriersByState,
-            couriersWithPer100gRate: data.couriersWithPer100gRate || initialStoreSettings.couriersWithPer100gRate,
-            freeDeliveryEnabled: data.freeDeliveryEnabled !== false,
-            email: data.email || 'mannaratharayil@gmail.com',
-          }));
-          safeSetItem(`${STORAGE_KEY}_settings`, JSON.stringify(data));
-        } else if (!seeded) {
-          seeded = true;
-          try {
-            await setDoc(doc(db, 'storeSettings', 'global'), removeUndefined(initialStoreSettings), { merge: true });
-          } catch (e) {
-            console.warn('Initial storeSettings seed note:', e);
-          }
+          setStoreSettings((prev) => {
+            const rates = { ...(data.courierRates || prev.courierRates || initialCourierRates) };
+            delete rates['st-courier'];
+            const merged: StoreSettings = {
+              ...prev,
+              ...data,
+              courierRates: rates,
+              enabledCouriersByState: data.enabledCouriersByState ?? prev.enabledCouriersByState ?? initialEnabledCouriersByState,
+              couriersWithPer100gRate: data.couriersWithPer100gRate ?? prev.couriersWithPer100gRate ?? initialStoreSettings.couriersWithPer100gRate,
+              freeDeliveryEnabled: typeof data.freeDeliveryEnabled === 'boolean' ? data.freeDeliveryEnabled : (prev.freeDeliveryEnabled !== false),
+              email: data.email || prev.email || 'mannaratharayil@gmail.com',
+            };
+            safeSetItem(`${STORAGE_KEY}_settings`, JSON.stringify(merged));
+            return merged;
+          });
         }
       },
       (error) => {
@@ -1031,10 +1026,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(list));
           } catch (e) {}
         } else {
-          setBanners([]);
-          try {
-            safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify([]));
-          } catch (e) {}
+          // Do not wipe banners when collection is unseeded; seed initial banners to Firestore
+          const toSeed = initialBanners;
+          toSeed.forEach((b) => {
+            setDoc(doc(db, 'banners', b.id), removeUndefined(b)).catch(() => {});
+          });
         }
       },
       (error) => {
@@ -4133,25 +4129,49 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Banners
   const addBanner = async (banner: Omit<HeroBanner, 'id'>) => {
     const newBanner: HeroBanner = { ...banner, id: `banner-${Date.now()}` };
-    setBanners((prev) => [...prev, newBanner]);
+    setBanners((prev) => {
+      const updated = [...prev, newBanner];
+      safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(updated));
+      return updated;
+    });
     try {
       await setDoc(doc(db, 'banners', newBanner.id), removeUndefined(newBanner));
-    } catch (e) {
-      console.warn('Could not save banner to Firestore:', e);
+    } catch (e: any) {
+      console.error('Could not save banner to Firestore:', e);
+      addToast({
+        type: 'warning',
+        title: 'Cloud Write Notice',
+        message: `Banner saved locally, but Cloud Firestore write reported an issue (${e?.message || 'size or network'}).`,
+        duration: 6000,
+      });
     }
   };
 
   const updateBanner = async (updated: HeroBanner) => {
-    setBanners((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+    setBanners((prev) => {
+      const next = prev.map((b) => (b.id === updated.id ? updated : b));
+      safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(next));
+      return next;
+    });
     try {
       await setDoc(doc(db, 'banners', updated.id), removeUndefined(updated), { merge: true });
-    } catch (e) {
-      console.warn('Could not update banner in Firestore:', e);
+    } catch (e: any) {
+      console.error('Could not update banner in Firestore:', e);
+      addToast({
+        type: 'warning',
+        title: 'Cloud Write Notice',
+        message: `Banner saved locally, but Cloud Firestore write reported an issue (${e?.message || 'size or network'}).`,
+        duration: 6000,
+      });
     }
   };
 
   const deleteBanner = async (id: string) => {
-    setBanners((prev) => prev.filter((b) => b.id !== id));
+    setBanners((prev) => {
+      const next = prev.filter((b) => b.id !== id);
+      safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(next));
+      return next;
+    });
     try {
       await deleteDoc(doc(db, 'banners', id));
     } catch (e) {
@@ -4328,29 +4348,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         delete normalized.razorpayKeyId;
       }
 
-      const mergedSettings = { ...storeSettings, ...normalized };
+      const mergedSettings: StoreSettings = {
+        ...storeSettings,
+        ...normalized,
+        isConfiguredByAdmin: true,
+        updatedAt: new Date().toISOString(),
+      };
       setStoreSettings(mergedSettings);
       safeSetItem(`${STORAGE_KEY}_settings`, JSON.stringify(mergedSettings));
 
+      const cleanPayload = removeUndefined(mergedSettings);
       try {
-        await setDoc(doc(db, 'storeSettings', 'global'), removeUndefined(mergedSettings), { merge: true });
-        await setDoc(doc(db, 'settings', 'global'), removeUndefined(mergedSettings), { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'storeSettings', 'global'), cleanPayload, { merge: true });
+        await setDoc(doc(db, 'settings', 'global'), cleanPayload, { merge: true }).catch(() => {});
         if (auth.currentUser?.uid) {
           await setDoc(
             doc(db, 'settings', auth.currentUser.uid),
-            removeUndefined({ ...mergedSettings, updatedAt: new Date().toISOString() }),
+            cleanPayload,
             { merge: true }
           ).catch(() => {});
         }
+        addToast({
+          type: 'success',
+          title: 'Store Settings Saved Permanently',
+          message: 'Nursery store settings have been saved and locked in Cloud Firestore.',
+        });
       } catch (firestoreErr: any) {
-        console.warn('[Firestore] Note updating storeSettings in cloud:', firestoreErr);
+        console.error('[Firestore] Error updating storeSettings in cloud:', firestoreErr);
+        addToast({
+          type: 'warning',
+          title: 'Cloud Write Issue',
+          message: `Saved locally, but Cloud Firestore write reported an issue (${firestoreErr?.message || 'network'}).`,
+          duration: 6000,
+        });
       }
-
-      addToast({
-        type: 'success',
-        title: 'Store Settings Saved',
-        message: 'Nursery store settings have been saved and applied globally to the database.',
-      });
     } catch (err: any) {
       console.error('Error updating store settings:', err);
       addToast({

@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan to fix banner and store data persistence by ensuring Firestore cloud database takes priority, preventing document size limit failures, and ensuring banner updates save reliably across deployments.",
-  "updatedAt": "2026-10-17T11:09:21.567127687Z",
+  "summary": "Implementation plan to prevent store settings and hero banners from reverting back to defaults by establishing Cloud Firestore as the permanent authoritative store, locking admin-configured values, and removing automatic fallback resets.",
+  "updatedAt": "2026-10-19T05:09:39.704349299Z",
   "requestFeedback": true,
   "userFacing": true
 }
