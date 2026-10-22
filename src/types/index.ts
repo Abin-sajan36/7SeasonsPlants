@@ -574,6 +574,18 @@ export interface StoreSettings {
   trustBenefits?: TrustBenefitItem[];
   isConfiguredByAdmin?: boolean;
   updatedAt?: string;
+
+  // Parcel Tariff Table Configuration (Speed Post & India Post)
+  useParcelTariffTable?: boolean;
+  speedPostTariffTable?: ParcelTariffRow[];
+  indiaPostTariffTable?: ParcelTariffRow[];
+}
+
+export interface ParcelTariffRow {
+  maxGrams: number;
+  kerala: number;
+  tamilNadu: number;
+  karnataka: number;
 }
 
 export interface ToastMessage {

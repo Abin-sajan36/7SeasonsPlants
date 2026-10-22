@@ -80,6 +80,7 @@ import { AdminLoginGate } from '../components/admin/AdminLoginGate';
 import { BackupManagementCard } from '../components/admin/BackupManagementCard';
 import { OnlineOrderImportModal } from '../components/admin/OnlineOrderImportModal';
 import { SelectiveSiteResetModal } from '../components/admin/SelectiveSiteResetModal';
+import { ParcelTariffSection } from '../components/admin/ParcelTariffSection';
 import { uploadImage } from '../lib/imageUploader';
 
 interface AdminPageProps {
@@ -638,6 +639,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     freeDeliveryEnabled: typeof storeSettings?.freeDeliveryEnabled === 'boolean' ? storeSettings.freeDeliveryEnabled : true,
     freeShippingThreshold: storeSettings?.freeShippingThreshold ?? storeSettings?.freeDeliveryThreshold ?? 899,
     freeDeliveryThreshold: storeSettings?.freeShippingThreshold ?? storeSettings?.freeDeliveryThreshold ?? 899,
+    useParcelTariffTable: storeSettings?.useParcelTariffTable ?? false,
+    speedPostTariffTable: storeSettings?.speedPostTariffTable || [],
+    indiaPostTariffTable: storeSettings?.indiaPostTariffTable || [],
     announcementBarText: storeSettings?.announcementBarText || storeSettings?.announcementText || '🌿 Fresh Plants • Curated Combos • Delivered Safely Across Kerala, Tamil Nadu & Karnataka • Free Shipping over ₹899!',
     announcementText: storeSettings?.announcementBarText || storeSettings?.announcementText || '🌿 Fresh Plants • Curated Combos • Delivered Safely Across Kerala, Tamil Nadu & Karnataka • Free Shipping over ₹899!',
     announcementBarActive: storeSettings?.announcementBarActive !== false,
@@ -695,6 +699,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
         freeDeliveryEnabled: typeof storeSettings.freeDeliveryEnabled === 'boolean' ? storeSettings.freeDeliveryEnabled : true,
         freeShippingThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
         freeDeliveryThreshold: storeSettings.freeShippingThreshold ?? storeSettings.freeDeliveryThreshold ?? 899,
+        useParcelTariffTable: storeSettings.useParcelTariffTable ?? false,
+        speedPostTariffTable: storeSettings.speedPostTariffTable || [],
+        indiaPostTariffTable: storeSettings.indiaPostTariffTable || [],
         announcementBarText: storeSettings.announcementBarText || storeSettings.announcementText || '',
         announcementText: storeSettings.announcementBarText || storeSettings.announcementText || '',
         announcementBarActive: storeSettings.announcementBarActive !== false,
@@ -838,6 +845,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
         freeDeliveryEnabled: Boolean(settingsForm.freeDeliveryEnabled),
         freeShippingThreshold: Number(settingsForm.freeShippingThreshold) || 0,
         freeDeliveryThreshold: Number(settingsForm.freeShippingThreshold) || 0,
+        useParcelTariffTable: Boolean(settingsForm.useParcelTariffTable),
+        speedPostTariffTable: settingsForm.speedPostTariffTable || [],
+        indiaPostTariffTable: settingsForm.indiaPostTariffTable || [],
         whatsapp: settingsForm.whatsapp.trim(),
         whatsappNumber: settingsForm.whatsapp.trim(),
         phone: settingsForm.phone.trim(),
@@ -4193,6 +4203,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                     <span>💡 Rates apply dynamically at checkout based on destination state and active courier weight slab.</span>
                     <span className="font-semibold text-emerald-800">4 Courier Partners • 3 Delivery States Configured</span>
                   </div>
+
+                  {/* SPEED POST & INDIA POST PARCEL TARIFF TABLES (XML) */}
+                  <ParcelTariffSection
+                    settingsForm={settingsForm}
+                    setSettingsForm={setSettingsForm}
+                    setIsSettingsDirty={setIsSettingsDirty}
+                    addToast={addToast}
+                  />
                 </div>
               </div>
 

@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan to add a dedicated User Activity Logs tab in the Admin Panel restricted exclusively to Super Administrators. Tracks login and authentication events with timestamps, user emails, roles, device types, and success/failure statuses in Cloud Firestore.",
-  "updatedAt":  "2026-10-22T05:26:11.624214055Z",
+  "summary":  "Revised implementation plan for separate Speed Post and India Post XML parcel tariff table imports with dedicated state columns (Kerala, Tamil Nadu, Karnataka), matching the official tariff chart format, with toggle switch between tariff table and standard calculation modes.",
+  "updatedAt":  "2026-10-22T06:16:30.281081445Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

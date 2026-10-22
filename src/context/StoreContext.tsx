@@ -48,6 +48,7 @@ import {
   getEstimatedFirestoreDocSize,
   compressDataUrl,
 } from '../lib/imageUploader';
+import { lookupTariffRate } from '../lib/parcelTariffXml';
 import {
   initialStoreSettings,
   initialCourierRates,
@@ -1576,6 +1577,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const activeCourier = courierId || 'dtdc';
       const activeState = state || selectedDeliveryState || 'Kerala';
+
+      // Check if Parcel Tariff Table Mode is enabled for Speed Post or India Post
+      if (
+        storeSettings.useParcelTariffTable &&
+        (activeCourier === 'speed-post' || activeCourier === 'india-post')
+      ) {
+        const table =
+          activeCourier === 'speed-post'
+            ? storeSettings.speedPostTariffTable
+            : storeSettings.indiaPostTariffTable;
+
+        if (table && table.length > 0) {
+          const weightGrams = Math.round(totalWeight * 1000);
+          const tariffRate = lookupTariffRate(weightGrams, activeState, table);
+          if (tariffRate !== null && !isNaN(tariffRate)) {
+            return tariffRate;
+          }
+        }
+      }
+
       const chargePerKg = getCourierRatePerKg(
         storeSettings.courierRates,
         activeCourier,

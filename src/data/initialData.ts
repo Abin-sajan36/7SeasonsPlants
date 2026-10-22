@@ -122,6 +122,7 @@ export const initialStoreSettings: StoreSettings = {
     'professional-courier': 500,
   },
   couriersWithPer100gRate: ['speed-post', 'india-post', 'dtdc', 'professional-courier'],
+  useParcelTariffTable: false,
   freeDeliveryEnabled: true,
   freeShippingThreshold: 899,
   announcementBarText: '🌿 Farm Fresh Live Plant Combos • Delivered Safely Across Kerala, Tamil Nadu & Karnataka • Free Shipping over ₹899!',
