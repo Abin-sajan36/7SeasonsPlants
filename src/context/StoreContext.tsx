@@ -9,7 +9,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, query, where, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, query, where, writeBatch, limit } from 'firebase/firestore';
 import {
   Product,
   PlantCombo,
@@ -30,6 +30,7 @@ import {
   OrderStatus,
   CustomerAddress,
   InstagramReel,
+  UserLoginLog,
   getCourierRatePerKg,
   getCourierRatePer100g,
   calculateOrderDeliveryCharge,
@@ -284,6 +285,11 @@ interface StoreContextType {
     options: ('orders' | 'combos' | 'categories' | 'products' | 'users' | 'reels' | 'blogs')[]
   ) => Promise<{ success: boolean; clearedItems: Record<string, number>; message: string }>;
 
+  // User Login & Activity Audit Logs (Super Admin only)
+  userLogs: UserLoginLog[];
+  recordUserLog: (log: Omit<UserLoginLog, 'id' | 'timestamp'>) => Promise<void>;
+  clearUserLogs: () => Promise<void>;
+
   // Toasts
   addToast: (toast: Omit<ToastMessage, 'id'>) => void;
   removeToast: (id: string) => void;
@@ -495,6 +501,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_cart`);
     return saved ? JSON.parse(saved) : [];
+  });
+
+  const [userLogs, setUserLogs] = useState<UserLoginLog[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_user_logs`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
 
@@ -867,12 +882,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             console.warn('LocalStorage error:', err);
           }
         } else {
-          setProducts([]);
-          try {
-            safeSetItem(`${STORAGE_KEY}_products`, JSON.stringify([]));
-          } catch (err) {
-            console.warn('LocalStorage error:', err);
-          }
+          // If cloud collection is unseeded, populate from initialProducts instead of wiping to empty array
+          initialProducts.forEach((p) => {
+            setDoc(doc(db, 'products', p.id), removeUndefined(p)).catch(() => {});
+          });
         }
       },
       (error) => {
@@ -1039,6 +1052,35 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
 
     return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of User Activity & Login Logs from Firestore (Super Admin audit)
+  useEffect(() => {
+    try {
+      const q = query(collection(db, 'user_logs'), limit(300));
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          if (!snapshot.empty) {
+            const list: UserLoginLog[] = [];
+            snapshot.forEach((docSnap) => {
+              list.push({ ...(docSnap.data() as UserLoginLog), id: docSnap.id });
+            });
+            list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+            setUserLogs(list);
+            try {
+              safeSetItem(`${STORAGE_KEY}_user_logs`, JSON.stringify(list));
+            } catch (e) {}
+          }
+        },
+        (error) => {
+          console.warn('Firestore user_logs sync note:', error.message || error);
+        }
+      );
+      return () => unsubscribe();
+    } catch (err) {
+      console.warn('User logs listener error:', err);
+    }
   }, []);
 
   // Real-time synchronization of Plant Care Guides from Firestore
@@ -2839,6 +2881,77 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  // User Login & Activity Audit Logging Utility
+  const getClientDeviceInfo = () => {
+    if (typeof window === 'undefined' || !navigator) {
+      return { device: 'Desktop', browser: 'Browser' };
+    }
+    const ua = navigator.userAgent || '';
+    let device = 'Desktop';
+    if (/mobile/i.test(ua)) device = 'Mobile';
+    else if (/tablet|ipad/i.test(ua)) device = 'Tablet';
+
+    let browser = 'Chrome';
+    if (/firefox/i.test(ua)) browser = 'Firefox';
+    else if (/safari/i.test(ua) && !/chrome|chromium|crios/i.test(ua)) browser = 'Safari';
+    else if (/edg/i.test(ua)) browser = 'Edge';
+    else if (/opera|opr/i.test(ua)) browser = 'Opera';
+
+    return { device, browser };
+  };
+
+  const recordUserLog = async (logData: Omit<UserLoginLog, 'id' | 'timestamp'>) => {
+    try {
+      const { device, browser } = getClientDeviceInfo();
+      const logEntry: UserLoginLog = {
+        id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        timestamp: new Date().toISOString(),
+        device: logData.device || device,
+        browser: logData.browser || browser,
+        ...logData,
+      };
+
+      setUserLogs((prev) => [logEntry, ...prev.filter((l) => l.id !== logEntry.id)]);
+      try {
+        safeSetItem(`${STORAGE_KEY}_user_logs`, JSON.stringify([logEntry, ...userLogs.slice(0, 150)]));
+      } catch (_) {}
+
+      await setDoc(doc(db, 'user_logs', logEntry.id), removeUndefined(logEntry));
+    } catch (err) {
+      console.warn('Could not record user log:', err);
+    }
+  };
+
+  const clearUserLogs = async () => {
+    if (!isCurrentSuperAdmin) {
+      addToast({
+        type: 'error',
+        title: 'Permission Denied',
+        message: 'Only Super Administrators can clear user activity logs.',
+      });
+      return;
+    }
+    setUserLogs([]);
+    try {
+      safeSetItem(`${STORAGE_KEY}_user_logs`, JSON.stringify([]));
+      const snap = await getDocs(collection(db, 'user_logs'));
+      const batch = writeBatch(db);
+      snap.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      addToast({
+        type: 'success',
+        title: 'Logs Cleared',
+        message: 'All user activity logs have been purged.',
+      });
+    } catch (err: any) {
+      console.error('Error clearing logs:', err);
+      addToast({
+        type: 'error',
+        title: 'Clear Failed',
+        message: err?.message || 'Could not clear logs from cloud.',
+      });
+    }
+  };
   
   const verifyAdminCredentials = async (email: string, password?: string) => {
     const cleanEmail = email.trim().toLowerCase();
@@ -2908,6 +3021,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cleanPass === 'mannaratharayil2026';
 
     if (!isPasswordValid) {
+      recordUserLog({
+        email: cleanEmail,
+        role: 'admin',
+        eventType: 'login_failed',
+        authMethod: 'admin_gate',
+        status: 'failed',
+        failureReason: 'Invalid administrator password',
+      });
       addToast({
         type: 'error',
         title: 'Access Denied',
@@ -2965,6 +3086,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           };
           setAdminAccounts((prev) => [matchingAccount!, ...prev.filter((a) => a.email.toLowerCase() !== cleanEmail)]);
         } else {
+          recordUserLog({
+            email: cleanEmail,
+            role: 'customer',
+            eventType: 'login_failed',
+            authMethod: 'admin_gate',
+            status: 'failed',
+            failureReason: 'Account does not have administrator privileges',
+          });
           addToast({
             type: 'error',
             title: 'Unauthorized Account',
@@ -3013,6 +3142,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map((a) => (a.email.toLowerCase() === cleanEmail ? updatedAccount : a))
     );
 
+    // Record successful admin login in audit log
+    recordUserLog({
+      userId: updatedAccount.id,
+      email: updatedAccount.email,
+      name: updatedAccount.name,
+      role: updatedAccount.role,
+      eventType: 'login_success',
+      authMethod: 'admin_gate',
+      status: 'success',
+      details: 'Administrator authenticated into Admin Panel',
+    });
+
     // If not currently authenticated with Firebase Auth, attempt sign-in to attach request.auth context
     if (!auth.currentUser && cleanPass) {
       try {
@@ -3033,6 +3174,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const logoutAdmin = () => {
+    if (currentAdmin) {
+      recordUserLog({
+        userId: currentAdmin.id,
+        email: currentAdmin.email || 'admin@7seasons.com',
+        name: currentAdmin.name,
+        role: currentAdmin.role || 'admin',
+        eventType: 'logout',
+        authMethod: 'admin_gate',
+        status: 'success',
+        details: 'Administrator signed out from Admin Panel',
+      });
+    }
     setCurrentAdmin(null);
     setIsAdminAuthenticated(false);
     sessionStorage.removeItem(`${STORAGE_KEY}_admin_auth`);
@@ -4677,6 +4830,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         grantAdminRoleToUser,
         revokeAdminRoleFromUser,
         refreshRegisteredUsers,
+        userLogs,
+        recordUserLog,
+        clearUserLogs,
 
         addReview,
         approveReview,

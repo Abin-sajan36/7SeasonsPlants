@@ -57,12 +57,14 @@ import {
   Video,
   BookOpen,
   Image as ImageIcon,
+  Activity,
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { useStore } from '../context/StoreContext';
 import { auth, db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { UserManagementTab } from '../components/admin/UserManagementTab';
+import { UserLogsTab } from '../components/admin/UserLogsTab';
 import { CouponsManagementTab } from '../components/admin/CouponsManagementTab';
 import { ReviewsManagementTab } from '../components/admin/ReviewsManagementTab';
 import { BlogsManagementTab } from '../components/admin/BlogsManagementTab';
@@ -139,6 +141,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     | 'offline-orders'
     | 'accounts'
     | 'users'
+    | 'user-logs'
     | 'complaints'
     | 'settings'
     | 'ai-tools'
@@ -148,7 +151,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     const validTabs = [
       'analytics', 'products', 'combos', 'categories', 'banners',
       'coupons', 'reviews', 'blogs', 'reels', 'orders', 'offline-orders',
-      'accounts', 'users', 'complaints', 'settings', 'ai-tools', 'backup-restore', 'secrets'
+      'accounts', 'users', 'user-logs', 'complaints', 'settings', 'ai-tools', 'backup-restore', 'secrets'
     ];
     if (initialTab && validTabs.includes(initialTab)) {
       return initialTab as any;
@@ -167,7 +170,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     const validTabs = [
       'analytics', 'products', 'combos', 'categories', 'banners',
       'coupons', 'reviews', 'blogs', 'reels', 'orders', 'offline-orders',
-      'accounts', 'users', 'complaints', 'settings', 'ai-tools', 'backup-restore', 'secrets'
+      'accounts', 'users', 'user-logs', 'complaints', 'settings', 'ai-tools', 'backup-restore', 'secrets'
     ];
     if (initialTab && validTabs.includes(initialTab)) {
       setActiveTab(initialTab as any);
@@ -498,7 +501,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
 
   // Guard restricted tabs: Non-super administrators cannot access accounts, user management, secrets, or backup-restore tabs
   useEffect(() => {
-    if (!isCurrentSuperAdmin && (activeTab === 'accounts' || activeTab === 'users' || activeTab === 'secrets' || activeTab === 'backup-restore')) {
+    if (!isCurrentSuperAdmin && (activeTab === 'accounts' || activeTab === 'users' || activeTab === 'user-logs' || activeTab === 'secrets' || activeTab === 'backup-restore')) {
       setActiveTab('analytics');
     }
   }, [isCurrentSuperAdmin, activeTab]);
@@ -1581,6 +1584,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                     id: 'users',
                     label: 'User Management',
                     icon: Users,
+                    isSuperAdminOnly: true,
+                  },
+                  {
+                    id: 'user-logs',
+                    label: 'User Logs',
+                    icon: Activity,
                     isSuperAdminOnly: true,
                   },
                   {
@@ -2955,6 +2964,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
         {/* TAB: USER MANAGEMENT (Restricted to Super Admin) */}
         {activeTab === 'users' && isCurrentSuperAdmin && (
           <UserManagementTab onNavigateToAccounts={() => setActiveTab('accounts')} />
+        )}
+
+        {/* TAB: USER ACTIVITY & LOGIN LOGS (Restricted to Super Admin) */}
+        {activeTab === 'user-logs' && isCurrentSuperAdmin && (
+          <UserLogsTab />
         )}
 
         {/* TAB 4: ADMIN ACCOUNTS & SECURITY (Restricted to Super Admin) */}

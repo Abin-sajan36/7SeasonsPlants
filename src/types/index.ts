@@ -583,3 +583,27 @@ export interface ToastMessage {
   message?: string;
   duration?: number;
 }
+
+export type AuthEventType =
+  | 'login_success'
+  | 'login_failed'
+  | 'logout'
+  | 'signup'
+  | 'password_reset';
+
+export interface UserLoginLog {
+  id: string;
+  userId?: string;
+  email: string;
+  name?: string;
+  role: AdminRole | 'customer' | string;
+  eventType: AuthEventType;
+  authMethod: 'email_password' | 'google_oauth' | 'admin_gate' | 'phone_otp' | 'system';
+  status: 'success' | 'failed';
+  device?: string;
+  browser?: string;
+  ipAddress?: string;
+  failureReason?: string;
+  timestamp: string;
+  details?: string;
+}

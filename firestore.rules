@@ -104,5 +104,9 @@ service cloud.firestore {
     match /uploaded_images/{imageId} {
       allow read, write: if true;
     }
+
+    match /user_logs/{logId} {
+      allow read, write: if true;
+    }
   }
 }

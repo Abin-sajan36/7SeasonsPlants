@@ -1,52 +1,84 @@
-# Implementation Plan: Permanent Admin Settings Lock & Cloud Persistence
+# Implementation Plan: Super Admin User Login & Activity Logs Tab
 
-Guarantee that all changes made in the Admin Panel (hero banners, free delivery options, courier delivery rates, state toggles, and contact info) persist permanently in Cloud Firestore and will never revert to default settings.
+Create a dedicated **User Activity Logs** tab in the Admin Panel accessible exclusively to Super Administrators. The system will log and display user and administrator login and authentication events with real-time timestamps, email, role, device/browser details, and success/failure statuses.
 
 ---
 
-## Root Cause Analysis
+## Architecture & Data Flow
 
-1. **Automatic Seed Overwrites on Listener Init**:
-   - In `StoreContext.tsx`, when the `onSnapshot` listener on `storeSettings/global` initialized or experienced temporary connection delays, it executed an automatic seed (`await setDoc(doc(db, 'storeSettings', 'global'), removeUndefined(initialStoreSettings), { merge: true })`). This wiped custom admin settings back to hardcoded defaults.
-2. **Strict Boolean & State Preservation**:
-   - Logic like `freeDeliveryEnabled: data.freeDeliveryEnabled !== false` and `courierRates: data.courierRates || initialCourierRates` caused customized values (such as explicitly disabling free shipping or disabling specific courier states) to be overwritten by initial values when loaded.
-3. **Silent Cloud Write Failures**:
-   - In `updateStoreSettings` and banner update functions, Firestore errors were caught with only `console.warn`. If a network glitch or session issue prevented a cloud write, the changes only existed in local browser memory (`localStorage`), giving the appearance of saving while disappearing on subsequent visits or on other devices.
+1. **Log Data Model (`UserLoginLog`)**:
+   - `id`: Unique identifier (`log-<timestamp>-<hash>`)
+   - `userId`: UID of the user or admin
+   - `email`: Email address of the account
+   - `name`: User's full name or admin handle
+   - `role`: `'super_admin' | 'admin' | 'customer'`
+   - `eventType`: `'login_success' | 'login_failed' | 'logout' | 'signup' | 'password_reset'`
+   - `authMethod`: `'email_password' | 'google_oauth' | 'admin_gate' | 'guest'`
+   - `status`: `'success' | 'failed'`
+   - `device`: Desktop, Mobile, or Tablet detection
+   - `browser`: Detected browser/platform (e.g. Chrome, Safari, Firefox)
+   - `failureReason`: Optional description if authentication failed
+   - `timestamp`: ISO 8601 string
+
+2. **Cloud Firestore Persistence**:
+   - Collection: `user_logs`
+   - Real-time listener (`onSnapshot`) in `StoreContext` populating `userLogs` state.
+   - Update `firestore.rules` to permit read/write on `/user_logs/{logId}`.
+
+3. **Automatic Event Capture**:
+   - Admin Gate login (success & failed attempts)
+   - Super Admin login & authentication
+   - Customer login (Email & Password, Google OAuth)
+   - Customer account registration
+   - Customer & Admin logout
+
+4. **Security & Access Control**:
+   - Restricted strictly to Super Administrators (`isCurrentSuperAdmin === true`).
+   - Guarded in `AdminPage.tsx`: hidden from the tab bar for standard admins, and redirects away if a non-super admin attempts access.
 
 ---
 
 ## Proposed Changes
 
-### 1. Lock Store Settings Against Default Overwrites (`src/context/StoreContext.tsx`)
-- **Remove Automatic Reset Seeding**: Remove the code path that automatically writes `initialStoreSettings` into `storeSettings/global` on listener startup.
-- **Admin Configuration Lock Flag**: Save an `adminConfigured: true` and `updatedAt` timestamp whenever settings are saved.
-- **Strict Data Merging**:
-  - Keep `freeDeliveryEnabled` strictly as saved by the admin (`typeof data.freeDeliveryEnabled === 'boolean' ? data.freeDeliveryEnabled : ...`).
-  - Keep customized courier rates, enabled states per courier, weight slabs, and announcement bar settings without injecting initial defaults over saved values.
-  - Make Cloud Firestore the single authoritative source of truth.
+### 1. Types & Models (`src/types/index.ts`)
+- Define `UserLoginLog` interface and event types.
 
-### 2. Awaited & Verified Cloud Writes with Feedback (`src/context/StoreContext.tsx`)
-- In `updateStoreSettings`:
-  - Await the `setDoc(doc(db, 'storeSettings', 'global'), ...)` call.
-  - If Firestore write fails, display a visible error toast to the admin so issues are immediately caught rather than silently failing to local storage.
-  - When successful, display a confirmation toast and update both React state and persistent storage.
-- In `updateBanner`, `addBanner`, and `deleteBanner`:
-  - Ensure all banner operations await Firestore cloud writes and provide explicit feedback.
+### 2. Firestore Rules (`firestore.rules`)
+- Add rule: `match /user_logs/{logId} { allow read, write: if true; }`.
+- Deploy using `deploy_firebase`.
 
-### 3. Nursery Settings Form Synchronization (`src/pages/AdminPage.tsx`)
-- Ensure `settingsForm` in `AdminPage.tsx` reliably updates when fresh settings arrive from Cloud Firestore.
-- In `handleSaveStoreSettings`: ensure the complete payload containing all courier rates, state toggles, and free delivery preferences is cleanly written to Firestore without missing fields.
+### 3. Context & Event Tracking (`src/context/StoreContext.tsx`)
+- Add `userLogs: UserLoginLog[]` state with Firestore real-time sync.
+- Create helper `recordUserLog(event: Omit<UserLoginLog, 'id' | 'timestamp'>)`.
+- Hook `recordUserLog` into:
+  - `loginAdmin` (recording success or failure)
+  - `logoutAdmin`
+  - Customer login/signup functions
+
+### 4. Dedicated UI Component (`src/components/admin/UserLogsTab.tsx`)
+- Create new Super Admin User Logs component featuring:
+  - Metric Summary Cards: Total Logins Today, Success Rate, Failed Attempts, Unique Active Users.
+  - Search & Filters: Search by email/name, filter by Role (Super Admin / Admin / Customer), Event Type, and Date Range.
+  - Paginated / Sortable Table: Timestamp (relative & exact), user identity, role tag, event badge, device info, and method.
+  - Export Logs button (CSV download for audit records).
+  - Clear / Prune Logs action (Super Admin only).
+
+### 5. Admin Panel Integration (`src/pages/AdminPage.tsx`)
+- Add `'user-logs'` to admin tab types.
+- Render tab button with a distinct Super Admin shield badge in the sidebar/header when `isCurrentSuperAdmin` is active.
+- Mount `<UserLogsTab />` under `activeTab === 'user-logs'`.
 
 ---
 
 ## Verification Plan
 
 ### Automated Verification
-1. Run `compile_applet` to confirm zero compilation errors.
-2. Run `lint_applet` to verify TypeScript types and syntax validity.
+1. Run `compile_applet` to ensure zero build errors.
+2. Run `lint_applet` to ensure clean TypeScript types and imports.
 
 ### Manual Verification
-1. In the Admin Panel, toggle **Free Delivery** (e.g., turn it OFF or change the threshold) and adjust a courier option.
-2. Click **Save Settings** and verify the save succeeds.
-3. Refresh the page, open in an incognito window, or clear local browser storage, and verify that the settings load directly from Cloud Firestore with the admin's changes intact.
-4. Verify hero banner updates persist cleanly across sessions.
+1. Log in to the Admin Panel as Super Admin (`annanvasu36@gmail.com`).
+2. Verify the **User Logs** tab appears in the navigation.
+3. Perform a login event (or test failed login) and verify the log appears with accurate timestamp, email, role, and device.
+4. Test search and filtering by role and event type.
+5. Verify standard non-super admin users cannot view or access the tab.
