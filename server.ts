@@ -492,9 +492,9 @@ app.post("/api/orders/send-status-update", async (req, res) => {
     
     const isOrderPlacement = status === 'Order Placed' || status === 'Payment Confirmed' || status === 'Confirmed';
     const emailSubject = isOrderPlacement
-      ? `🌿 Order Confirmed! #${orderNumber} - 7Seasonsplants`
-      : `🌿 Update on your 7Seasonsplants Order #${orderNumber}`;
-    const emailHeading = isOrderPlacement ? "Order Confirmed!" : "Order Status Update";
+      ? `7Seasonsplants Order #${orderNumber} Confirmed`
+      : `7Seasonsplants Order #${orderNumber}: Status Update (${status})`;
+    const emailHeading = isOrderPlacement ? "Order Confirmed!" : `Order Status: ${status}`;
 
     let statusMessage = "has been updated.";
     let trackingInfo = "";
@@ -524,8 +524,9 @@ app.post("/api/orders/send-status-update", async (req, res) => {
         break;
     }
 
-    if (trackingNumber) {
-      const courier = getCourierTrackingDetails(courierPartner, trackingNumber);
+    let courierDetails = trackingNumber ? getCourierTrackingDetails(courierPartner, trackingNumber) : null;
+
+    if (trackingNumber && courierDetails) {
       trackingInfo = `
         <div style="background-color: #ECFDF5; border: 1.5px solid #059669; border-radius: 14px; padding: 18px 20px; margin: 20px 0; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08);">
           <div style="margin-bottom: 12px;">
@@ -540,7 +541,7 @@ app.post("/api/orders/send-status-update", async (req, res) => {
           <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 14px; font-size: 13px;">
             <tr>
               <td style="padding: 5px 0; color: #475569; width: 130px; font-weight: 600;">Courier Service:</td>
-              <td style="padding: 5px 0; color: #0f172a; font-weight: 700;">${courier.courierName}</td>
+              <td style="padding: 5px 0; color: #0f172a; font-weight: 700;">${courierDetails.courierName}</td>
             </tr>
             <tr>
               <td style="padding: 5px 0; color: #475569; font-weight: 600;">Tracking / AWB #:</td>
@@ -553,8 +554,8 @@ app.post("/api/orders/send-status-update", async (req, res) => {
           </table>
 
           <div style="text-align: center; margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(5, 150, 105, 0.35);">
-            <a href="${courier.trackingUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #059669; color: #ffffff !important; font-size: 13px; font-weight: 800; text-decoration: none; padding: 11px 24px; border-radius: 9999px; box-shadow: 0 3px 6px rgba(5, 150, 105, 0.25);">
-              📦 Track Order on ${courier.courierName} &rarr;
+            <a href="${courierDetails.trackingUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #059669; color: #ffffff !important; font-size: 13px; font-weight: 800; text-decoration: none; padding: 11px 24px; border-radius: 9999px; box-shadow: 0 3px 6px rgba(5, 150, 105, 0.25);">
+              📦 Track Order on ${courierDetails.courierName} &rarr;
             </a>
             <p style="margin: 8px 0 0; color: #065f46; font-size: 11px; line-height: 1.4;">
               Click the button above to open the courier tracking portal with your tracking number.
@@ -607,11 +608,60 @@ app.post("/api/orders/send-status-update", async (req, res) => {
       `;
     }
 
+    // Generate plain-text fallback (crucial for passing spam heuristics)
+    const plainLines: string[] = [
+      `7Seasonsplants - ${emailHeading}`,
+      `Mannaratharayil Gardens LLP`,
+      `----------------------------------------------------`,
+      `Hello ${customerName || 'Customer'},`,
+      ``,
+      `Your order #${orderNumber} ${statusMessage}`,
+      ``,
+    ];
+
+    if (Array.isArray(items) && items.length > 0) {
+      plainLines.push(`Plants in Your Order:`);
+      items.forEach((it: any) => {
+        plainLines.push(`- ${it.quantity || 1}x ${it.name} (₹${(it.price || 0) * (it.quantity || 1)})`);
+      });
+      if (total) {
+        plainLines.push(`Total Amount Paid: ₹${total}`);
+      }
+      plainLines.push(``);
+    }
+
+    if (shippingAddress) {
+      const line1 = shippingAddress.addressLine1 || shippingAddress.street || "";
+      const cityDist = shippingAddress.district || shippingAddress.city || "";
+      const state = shippingAddress.state || "";
+      const pin = shippingAddress.pincode || "";
+      plainLines.push(`Shipping Destination:`);
+      plainLines.push(`${shippingAddress.fullName || customerName || ""}`);
+      plainLines.push(`${line1 ? `${line1}, ` : ""}${cityDist ? `${cityDist}, ` : ""}${state ? `${state} ` : ""}${pin ? `- ${pin}` : ""}`);
+      plainLines.push(``);
+    }
+
+    if (trackingNumber && courierDetails) {
+      plainLines.push(`Shipment & Tracking Information:`);
+      plainLines.push(`Courier Service: ${courierDetails.courierName}`);
+      plainLines.push(`Tracking / AWB Number: ${trackingNumber}`);
+      plainLines.push(`Track Link: ${courierDetails.trackingUrl}`);
+      plainLines.push(``);
+    }
+
+    plainLines.push(`Track Live Status: https://www.7seasonsplants.com/#track-order?${encodeURIComponent(orderNumber)}`);
+    plainLines.push(`WhatsApp Support: +91 88482 76403`);
+    plainLines.push(`Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India`);
+
+    const plainText = plainLines.join('\n');
+
     try {
       await transporter.sendMail({
         from: fromAddress,
+        replyTo: `"7Seasonsplants Support" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`,
         to: customerEmail,
         subject: emailSubject,
+        text: plainText,
         html: `
         <!DOCTYPE html>
         <html>
@@ -658,7 +708,14 @@ app.post("/api/orders/send-status-update", async (req, res) => {
           </table>
         </body>
         </html>
-      `
+      `,
+        headers: {
+          'X-Entity-Ref-ID': `order-${orderNumber}-${Date.now()}`,
+          'Auto-Submitted': 'auto-generated',
+          'X-Auto-Response-Suppress': 'OOF, AutoReply',
+          'Precedence': 'bulk',
+          'List-Unsubscribe': `<mailto:${process.env.SMTP_USER || "mannaratharayil@gmail.com"}?subject=Unsubscribe%20Order%20Notifications>`,
+        },
       });
 
       console.log(`[7Seasons Notifications] ✉️ Order #${orderNumber} notification (${status}) email sent to ${customerEmail}`);
@@ -935,11 +992,16 @@ app.post("/api/auth/send-registration-otp", async (req, res) => {
 
     if (transporter) {
       try {
-        const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants" <${process.env.SMTP_USER}>`;
+        const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
         await transporter.sendMail({
           from: fromAddress,
+          replyTo: `"7Seasonsplants Support" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`,
           to: cleanEmail,
-          subject: `🌿 ${otp} is your 7Seasonsplants account verification code`,
+          subject: `${otp} is your 7Seasonsplants verification code`,
+          headers: {
+            'Auto-Submitted': 'auto-generated',
+            'X-Auto-Response-Suppress': 'OOF, AutoReply',
+          },
           html: `
             <!DOCTYPE html>
             <html>

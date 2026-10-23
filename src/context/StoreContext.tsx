@@ -350,16 +350,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!parsed.email || parsed.email === '7seasonsplants@gmail.com') {
         parsed.email = 'mannaratharayil@gmail.com';
       }
-      const rates = { ...(parsed.courierRates || initialCourierRates) };
-      delete rates['st-courier'];
       return {
         ...initialStoreSettings,
         ...parsed,
-        courierRates: rates,
-        enabledCouriersByState: parsed.enabledCouriersByState || initialStoreSettings.enabledCouriersByState || initialEnabledCouriersByState,
-        couriersWithPer100gRate: parsed.couriersWithPer100gRate || initialStoreSettings.couriersWithPer100gRate,
-        freeDeliveryEnabled: parsed.freeDeliveryEnabled !== false,
-        email: parsed.email,
+        freeDeliveryEnabled: typeof parsed.freeDeliveryEnabled === 'boolean' ? parsed.freeDeliveryEnabled : false,
       };
     } catch {
       return initialStoreSettings;
@@ -793,15 +787,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setDoc(doc(db, 'storeSettings', 'global'), { email: 'mannaratharayil@gmail.com' }, { merge: true }).catch(() => {});
           }
           setStoreSettings((prev) => {
-            const rates = { ...(data.courierRates || prev.courierRates || initialCourierRates) };
-            delete rates['st-courier'];
             const merged: StoreSettings = {
               ...prev,
               ...data,
-              courierRates: rates,
-              enabledCouriersByState: data.enabledCouriersByState ?? prev.enabledCouriersByState ?? initialEnabledCouriersByState,
-              couriersWithPer100gRate: data.couriersWithPer100gRate ?? prev.couriersWithPer100gRate ?? initialStoreSettings.couriersWithPer100gRate,
-              freeDeliveryEnabled: typeof data.freeDeliveryEnabled === 'boolean' ? data.freeDeliveryEnabled : (prev.freeDeliveryEnabled !== false),
+              courierRates: data.courierRates || prev.courierRates,
+              enabledCouriersByState: data.enabledCouriersByState || prev.enabledCouriersByState,
+              couriersWithPer100gRate: data.couriersWithPer100gRate || prev.couriersWithPer100gRate,
+              freeDeliveryEnabled: typeof data.freeDeliveryEnabled === 'boolean' ? data.freeDeliveryEnabled : prev.freeDeliveryEnabled,
               email: data.email || prev.email || 'mannaratharayil@gmail.com',
             };
             safeSetItem(`${STORAGE_KEY}_settings`, JSON.stringify(merged));

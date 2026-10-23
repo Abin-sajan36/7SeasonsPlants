@@ -32,7 +32,18 @@ import { useStore } from '../../context/StoreContext';
 import { UserLoginLog, AuthEventType } from '../../types';
 
 export const UserLogsTab: React.FC = () => {
-  const { userLogs, isCurrentSuperAdmin, clearUserLogs, addToast, registeredUsers, orders, recordUserLog } = useStore();
+  const {
+    userLogs,
+    isCurrentSuperAdmin,
+    isAdminAuthenticated,
+    currentAdmin,
+    adminAccounts,
+    clearUserLogs,
+    addToast,
+    registeredUsers,
+    orders,
+    recordUserLog,
+  } = useStore();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isGeneratingAudit, setIsGeneratingAudit] = useState(false);
 
@@ -47,24 +58,73 @@ export const UserLogsTab: React.FC = () => {
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
 
-  // If not super admin, block access
-  if (!isCurrentSuperAdmin) {
+  // If not authenticated as any administrator, block access
+  if (!isCurrentSuperAdmin && !isAdminAuthenticated && !currentAdmin) {
     return (
       <div className="bg-white rounded-3xl p-12 text-center border border-red-100 shadow-sm space-y-4 max-w-2xl mx-auto my-12">
         <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto">
           <ShieldAlert className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900">Restricted to Super Administrators</h2>
+        <h2 className="text-xl font-bold text-gray-900">Restricted to Store Administrators</h2>
         <p className="text-sm text-gray-500">
-          User login and authentication audit logs contain sensitive operational tracking data and can only be accessed by the primary store super administrator.
+          User login and activity audit logs contain sensitive operational tracking data and can only be accessed by authorized store administrators.
         </p>
       </div>
     );
   }
 
+  // Set of emails associated with super administrator
+  const superAdminEmails = useMemo(() => {
+    const emails = new Set<string>(['annanvasu36@gmail.com', 'abinsajan36@gmail.com']);
+    adminAccounts.forEach((acc) => {
+      if (acc.role === 'super_admin' && acc.email) {
+        emails.add(acc.email.toLowerCase().trim());
+      }
+    });
+    return emails;
+  }, [adminAccounts]);
+
+  // Compute logs visible to current user:
+  // - Super Administrator sees all audit logs.
+  // - Standard Administrators see all customer and staff logs, but will NOT see the super admin or anything about the super admin.
+  const visibleLogs = useMemo(() => {
+    if (isCurrentSuperAdmin) {
+      return userLogs;
+    }
+
+    return userLogs.filter((log) => {
+      // 1. Omit super_admin role
+      if (log.role === 'super_admin') return false;
+
+      // 2. Omit by super admin email
+      const logEmail = (log.email || '').toLowerCase().trim();
+      if (logEmail && superAdminEmails.has(logEmail)) return false;
+
+      // 3. Omit if user name mentions Super Admin
+      const logName = (log.name || '').toLowerCase();
+      if (logName.includes('super admin')) return false;
+
+      // 4. Omit if failure reason or details reference super admin or super admin email
+      const details = (log.details || '').toLowerCase();
+      const failureReason = (log.failureReason || '').toLowerCase();
+
+      if (details.includes('super admin') || failureReason.includes('super admin')) {
+        return false;
+      }
+
+      for (const sEmail of superAdminEmails) {
+        if (details.includes(sEmail) || failureReason.includes(sEmail)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [userLogs, isCurrentSuperAdmin, superAdminEmails]);
+
   // Filtered logs
   const filteredLogs = useMemo(() => {
-    return userLogs.filter((log) => {
+    return visibleLogs.filter((log) => {
       // Search
       const q = searchQuery.toLowerCase().trim();
       if (q) {
@@ -77,7 +137,7 @@ export const UserLogsTab: React.FC = () => {
         }
       }
 
-      // Role filter
+      // Role filter (standard admin can never see or filter super_admin)
       if (roleFilter !== 'all' && log.role !== roleFilter) {
         return false;
       }
@@ -110,7 +170,7 @@ export const UserLogsTab: React.FC = () => {
 
       return true;
     });
-  }, [userLogs, searchQuery, roleFilter, eventFilter, statusFilter, dateRange]);
+  }, [visibleLogs, searchQuery, roleFilter, eventFilter, statusFilter, dateRange]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredLogs.length / itemsPerPage));
@@ -119,22 +179,22 @@ export const UserLogsTab: React.FC = () => {
     return filteredLogs.slice(start, start + itemsPerPage);
   }, [filteredLogs, currentPage, itemsPerPage]);
 
-  // KPI Calculations
+  // KPI Calculations based on visibleLogs
   const stats = useMemo(() => {
-    const total = userLogs.length;
+    const total = visibleLogs.length;
     const now = Date.now();
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
-    const todayLogins = userLogs.filter(
+    const todayLogins = visibleLogs.filter(
       (l) => new Date(l.timestamp).getTime() >= oneDayAgo && l.eventType === 'login_success'
     ).length;
 
-    const failedLogins = userLogs.filter((l) => l.status === 'failed').length;
-    const adminEvents = userLogs.filter((l) => l.role === 'admin' || l.role === 'super_admin').length;
-    const customerLogins = userLogs.filter((l) => l.role === 'customer' && l.eventType === 'login_success').length;
+    const failedLogins = visibleLogs.filter((l) => l.status === 'failed').length;
+    const adminEvents = visibleLogs.filter((l) => l.role === 'admin' || (isCurrentSuperAdmin && l.role === 'super_admin')).length;
+    const customerLogins = visibleLogs.filter((l) => l.role === 'customer' && l.eventType === 'login_success').length;
 
     return { total, todayLogins, failedLogins, adminEvents, customerLogins };
-  }, [userLogs]);
+  }, [visibleLogs, isCurrentSuperAdmin]);
 
   // Export to CSV
   const handleExportCSV = () => {
@@ -407,15 +467,24 @@ export const UserLogsTab: React.FC = () => {
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-purple-900 via-emerald-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 bg-purple-500/20 text-purple-200 border border-purple-400/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-            <Crown className="w-3.5 h-3.5 text-amber-300" />
-            Super Administrator Exclusive Audit
-          </div>
+          {isCurrentSuperAdmin ? (
+            <div className="inline-flex items-center gap-2 bg-purple-500/20 text-purple-200 border border-purple-400/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+              <Crown className="w-3.5 h-3.5 text-amber-300" />
+              Super Administrator Audit Trail
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
+              Store Operations Activity Audit
+            </div>
+          )}
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             User Authentication & Login Audit Trail
           </h1>
           <p className="text-sm text-purple-200/80 max-w-2xl leading-relaxed">
-            Real-time tracking of administrator sign-ins, customer account logins, authentication failures, and session events across all devices.
+            {isCurrentSuperAdmin
+              ? 'Real-time tracking of administrator sign-ins, customer account logins, authentication failures, and session events across all devices.'
+              : 'Real-time tracking of staff manager sign-ins, customer account logins, authentication failures, and store session events.'}
           </p>
         </div>
 
@@ -448,13 +517,15 @@ export const UserLogsTab: React.FC = () => {
             <span>Export CSV</span>
           </button>
 
-          <button
-            onClick={() => setIsClearModalOpen(true)}
-            className="inline-flex items-center gap-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border border-rose-500/30 cursor-pointer shadow-xs"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-            <span>Prune Logs</span>
-          </button>
+          {isCurrentSuperAdmin && (
+            <button
+              onClick={() => setIsClearModalOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border border-rose-500/30 cursor-pointer shadow-xs"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Prune Logs</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -495,13 +566,17 @@ export const UserLogsTab: React.FC = () => {
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Admin Logins</span>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+              {isCurrentSuperAdmin ? 'Admin Logins' : 'Staff Admin Logins'}
+            </span>
             <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Crown className="w-4 h-4" />
+              {isCurrentSuperAdmin ? <Crown className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
             </div>
           </div>
           <div className="text-2xl font-black text-purple-950 mt-2">{stats.adminEvents}</div>
-          <span className="text-[11px] text-purple-600 font-medium mt-1 block">Staff & Super Admin events</span>
+          <span className="text-[11px] text-purple-600 font-medium mt-1 block">
+            {isCurrentSuperAdmin ? 'Staff & Super Admin events' : 'Nursery staff & manager events'}
+          </span>
         </div>
       </div>
 
@@ -535,7 +610,7 @@ export const UserLogsTab: React.FC = () => {
               className="px-3 py-2 rounded-xl border border-gray-200 bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-600/20 cursor-pointer"
             >
               <option value="all">All Roles</option>
-              <option value="super_admin">Super Admins Only</option>
+              {isCurrentSuperAdmin && <option value="super_admin">Super Admins Only</option>}
               <option value="admin">Staff Admins</option>
               <option value="customer">Customers</option>
             </select>
@@ -591,7 +666,7 @@ export const UserLogsTab: React.FC = () => {
         <div className="flex items-center justify-between text-[11px] text-gray-500 pt-2 border-t border-gray-100">
           <div>
             Showing <strong className="text-gray-900">{filteredLogs.length}</strong> matching events
-            {filteredLogs.length !== userLogs.length && ` (filtered from ${userLogs.length} total)`}
+            {filteredLogs.length !== visibleLogs.length && ` (filtered from ${visibleLogs.length} total)`}
           </div>
           <div className="flex items-center gap-2">
             <span>Per page:</span>
@@ -752,7 +827,7 @@ export const UserLogsTab: React.FC = () => {
       </div>
 
       {/* Log Detail Modal */}
-      {selectedLog && (
+      {selectedLog && (isCurrentSuperAdmin || (selectedLog.role !== 'super_admin' && !superAdminEmails.has((selectedLog.email || '').toLowerCase().trim()))) && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 border border-gray-200 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">

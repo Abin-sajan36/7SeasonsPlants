@@ -1576,6 +1576,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
             { id: 'reels', label: `Instagram Reels (${instagramReels.length})`, icon: Video },
             { id: 'orders', label: `Online Orders (${onlineOrders.length})`, icon: Truck },
             { id: 'offline-orders', label: `Offline Orders (${offlineOrdersList.length})`, icon: Download },
+            { id: 'user-logs', label: 'User Activity Logs', icon: Activity },
             ...(isCurrentSuperAdmin
               ? [
                   {
@@ -1594,12 +1595,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                     id: 'users',
                     label: 'User Management',
                     icon: Users,
-                    isSuperAdminOnly: true,
-                  },
-                  {
-                    id: 'user-logs',
-                    label: 'User Logs',
-                    icon: Activity,
                     isSuperAdminOnly: true,
                   },
                   {
@@ -2987,8 +2982,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
           <UserManagementTab onNavigateToAccounts={() => setActiveTab('accounts')} />
         )}
 
-        {/* TAB: USER ACTIVITY & LOGIN LOGS (Restricted to Super Admin) */}
-        {activeTab === 'user-logs' && isCurrentSuperAdmin && (
+        {/* TAB: USER ACTIVITY & LOGIN LOGS (Accessible to All Administrators) */}
+        {activeTab === 'user-logs' && (isAdminAuthenticated || isCurrentSuperAdmin || currentAdmin) && (
           <UserLogsTab />
         )}
 
