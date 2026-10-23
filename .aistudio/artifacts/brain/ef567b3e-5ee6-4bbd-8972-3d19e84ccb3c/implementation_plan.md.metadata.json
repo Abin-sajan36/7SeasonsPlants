@@ -1,6 +1,6 @@
 {
-  "summary":  "Revised implementation plan for separate Speed Post and India Post XML parcel tariff table imports with dedicated state columns (Kerala, Tamil Nadu, Karnataka), matching the official tariff chart format, with toggle switch between tariff table and standard calculation modes.",
-  "updatedAt":  "2026-10-22T06:16:30.281081445Z",
+  "summary":  "Implementation plan to ensure stock decrements persistently in Cloud Firestore whenever any order is placed, and restores inventory automatically if an order is cancelled or deleted.",
+  "updatedAt":  "2026-10-23T05:19:56.440197628Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -248,6 +248,7 @@ export interface Order {
   notes?: string;
   createdAt: string;
   updatedAt?: string;
+  isInventoryRestocked?: boolean;
 }
 
 export interface CourierServiceOption {
@@ -610,7 +611,7 @@ export interface UserLoginLog {
   name?: string;
   role: AdminRole | 'customer' | string;
   eventType: AuthEventType;
-  authMethod: 'email_password' | 'google_oauth' | 'admin_gate' | 'phone_otp' | 'system';
+  authMethod: 'email_password' | 'google_oauth' | 'google' | 'admin_gate' | 'phone_otp' | 'checkout' | 'system' | string;
   status: 'success' | 'failed';
   device?: string;
   browser?: string;

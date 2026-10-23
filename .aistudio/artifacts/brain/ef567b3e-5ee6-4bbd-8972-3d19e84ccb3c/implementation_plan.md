@@ -1,103 +1,58 @@
-# Revised Implementation Plan: Speed Post & India Post Parcel Tariff Tables (XML)
+# Implementation Plan: Persistent Stock Decrement & Automatic Restock
 
-Support separate XML parcel tariff table imports for **Speed Post** and **India Post**, structured with dedicated columns for **Weight upto gm**, **Kerala**, **Tamil Nadu**, and **Karnataka** matching the official postal contractual chart format, complete with a calculation mode toggle switch.
+Ensure plant combo and product stock counts decrement persistently in **Cloud Firestore** whenever any online or offline order is placed, and automatically restock items if an order is cancelled or deleted.
 
 ---
 
-## Key Requirements & Design Decisions
-
-1. **Two Independent Tariff Tables & Imports**:
-   - **Speed Post Parcel Tariff Table**: Has its own dedicated XML import, template download, preview grid, and clear button.
-   - **India Post Parcel Tariff Table**: Has its own dedicated XML import, template download, preview grid, and clear button.
-
-2. **Column Structure Matching the User's Official Chart**:
-   - `Weight upto gm` (e.g., 500, 1000, 1500, 2000, 3000, 4000, 5000, ..., up to 35,000 gm)
-   - `Kerala (₹)`
-   - `Tamil Nadu (₹)`
-   - `Karnataka (₹)`
-
-3. **Calculation Mode Toggle**:
-   - A toggle switch in Nursery Settings: **"Parcel Tariff Table Calculation Mode"**.
-   - **OFF (Default)**: Shipping calculates using the standard existing per-kg/slab rates.
-   - **ON**: For Speed Post and India Post, the shipping fee looks up the cart's total billable weight in the imported table for the customer's destination state.
-
-4. **XML Format Specifications**:
-   Clean, easy-to-edit XML structure:
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <parcelTariffTable courier="speed-post">
-     <slab maxGrams="500" kerala="42" tamilNadu="48" karnataka="48" />
-     <slab maxGrams="1000" kerala="57" tamilNadu="77" karnataka="77" />
-     <slab maxGrams="1500" kerala="76" tamilNadu="130" karnataka="130" />
-     <slab maxGrams="2000" kerala="105" tamilNadu="166" karnataka="166" />
-     <!-- Up to 35,000 gm -->
-   </parcelTariffTable>
-   ```
-   - Parser also supports flexible tag aliases: `<row>`, `<tier>`, child elements `<kerala>...</kerala>`, etc.
-   - Separate sample XML templates provided for one-click download for both Speed Post and India Post.
+## Root Cause Summary
+- `createOrder` in `StoreContext.tsx` previously subtracted ordered quantities only from temporary React component state (`setCombos`, `setProducts`).
+- It never called `updateDoc` on the `combos` or `products` collections in Firestore.
+- Because real-time `onSnapshot` listeners are connected to Firestore, any page refresh or database event overwrote the browser's display with the old, unchanged stock count stored in the cloud.
+- Offline and imported orders also bypassed Cloud Firestore inventory adjustments.
 
 ---
 
 ## Proposed Changes
 
-### 1. Types & Models (`src/types/index.ts`)
-- Define `ParcelTariffRow`:
-  ```ts
-  export interface ParcelTariffRow {
-    maxGrams: number;
-    kerala: number;
-    tamilNadu: number;
-    karnataka: number;
-  }
-  ```
-- Add fields to `StoreSettings`:
-  - `speedPostTariffTable?: ParcelTariffRow[]`
-  - `indiaPostTariffTable?: ParcelTariffRow[]`
-  - `useParcelTariffTable?: boolean`
+### 1. Persistent Stock Decrement on Order Creation (`src/context/StoreContext.tsx`)
+- In `createOrder`:
+  - When an order is registered, iterate through `orderPayload.items`.
+  - For each item (`type === 'combo'` or `type === 'product'`):
+    - Compute `newStock = Math.max(0, currentStock - item.quantity)`.
+    - Atomically update Cloud Firestore:
+      - Combos: `updateDoc(doc(db, 'combos', item.id), { stock: newStock })`
+      - Products: `updateDoc(doc(db, 'products', item.id), { stock: newStock })`
+    - Update local state immediately for instant UI feedback.
+  - Apply the same persistent decrement to manual offline order creation and batch imports.
 
-### 2. XML Parser & Generator (`src/lib/parcelTariffXml.ts`)
-- `parseCourierTariffXml(xmlString: string, courier: 'speed-post' | 'india-post')`: Parses XML into sorted `ParcelTariffRow[]`.
-- `generateCourierTariffXml(courier: 'speed-post' | 'india-post', rows?: ParcelTariffRow[])`: Generates downloadable XML.
-- `calculateFeeFromTariffTable(weightGrams: number, state: string, table?: ParcelTariffRow[])`: Finds matching weight slab and extracts the state rate.
+### 2. Automatic Restocking on Cancellation & Deletion (`src/context/StoreContext.tsx`)
+- In `updateOrderStatus`:
+  - When an order's status changes to `'Cancelled'` or `'Refunded'`:
+    - Check if the order was already restocked (via an `isInventoryRestocked: true` flag on the order).
+    - If not, restore inventory for all items in `order.items` by adding back `item.quantity` in Firestore and local state.
+    - Set `isInventoryRestocked: true` on the order document to prevent duplicate restocking.
+  - If a cancelled order is reinstated to an active status, re-decrement the inventory.
+- In `deleteOrder`:
+  - If the order being deleted has not yet been marked as cancelled/restocked, restore item stocks in Firestore and local state before deleting the order document.
 
-### 3. Store Context Calculation Integration (`src/context/StoreContext.tsx`)
-- In `calculateDeliveryFee`:
-  - If `storeSettings.useParcelTariffTable` is `true` and selected courier is `speed-post` or `india-post`:
-    - Lookup fee in `storeSettings.speedPostTariffTable` or `storeSettings.indiaPostTariffTable`.
-    - If found for destination state, return the tariff rate.
-  - Otherwise, smoothly continue with standard existing rate calculation.
-- Ensure tariff tables persist to Cloud Firestore in `updateStoreSettings`.
-
-### 4. Admin Panel UI (`src/pages/AdminPage.tsx`)
-- Inside **Nursery Settings -> Courier Delivery Options**:
-  - Add **Calculation Mode Switch**: Toggle between "Standard Per-Kg Rate" and "Parcel Tariff Table".
-  - Add **Speed Post Parcel Tariff Card**:
-    - File upload (accepts `.xml`)
-    - "Download Speed Post XML Template" button
-    - Scrollable preview table showing `Weight upto gm`, `Kerala`, `Tamil Nadu`, `Karnataka`
-    - "Clear Table" button
-  - Add **India Post Parcel Tariff Card**:
-    - File upload (accepts `.xml`)
-    - "Download India Post XML Template" button
-    - Scrollable preview table showing `Weight upto gm`, `Kerala`, `Tamil Nadu`, `Karnataka`
-    - "Clear Table" button
-  - Add **Live Tariff Calculator**:
-    - Input a test weight (e.g., 750g, 2200g) and preview the exact calculated shipping price for all 3 states side-by-side.
+### 3. Inventory Reconciliation Tool (`src/pages/AdminPage.tsx`)
+- In the Admin Panel -> Plant Catalog / Nursery Settings:
+  - Add an **"Audit & Re-sync Inventory"** option that displays current stock alongside total units sold from all 126 recorded orders.
+  - Allow the admin to review and align current physical inventory with historical order volume.
 
 ---
 
 ## Verification Plan
 
 ### Automated Verification
-1. Run `compile_applet` to confirm zero TypeScript compilation errors.
-2. Run `lint_applet` to confirm clean typing and imports.
+1. Run `compile_applet` to confirm zero compilation errors.
+2. Run `lint_applet` to verify clean typing and imports.
 
 ### Manual Verification
-1. In Admin Panel -> Nursery Settings -> Courier Delivery Options:
-   - Check the calculation mode toggle.
-   - Click "Download Speed Post XML Template" and verify valid `.xml` downloads.
-   - Click "Download India Post XML Template" and verify valid `.xml` downloads.
-2. Upload the Speed Post XML and India Post XML.
-3. Confirm the table previews render with the 3 state columns matching the official chart.
-4. Save Settings and verify persistence in Cloud Firestore.
-5. Toggle ON "Parcel Tariff Table Mode" and test weight calculations in the live simulator and checkout.
+1. Note the current stock of a combo (e.g. `Hibiscus Dwarf (10)` with stock = 100).
+2. Place a test order for 2 units.
+3. Verify that:
+   - The UI immediately shows stock = 98.
+   - Cloud Firestore `combos` document reflects `stock: 98`.
+   - Hard refreshing the page keeps stock at 98 without resetting.
+4. Cancel the test order in the Admin Panel and verify stock increments back to 100 in both UI and Firestore.

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   User as UserIcon,
   Package,
@@ -250,22 +250,53 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
     return 1;
   };
 
-  const customerOrders = orders.filter((o) => {
-    if (!currentUser) return false;
-    const userEmail = (currentUser.email || '').toLowerCase();
-    const userPhone = currentUser.phone || '';
+  const normalizeDigits = (val?: string) => (val || '').replace(/\D/g, '').slice(-10);
+
+  const customerOrders = useMemo(() => {
+    if (!currentUser) return [];
+
+    const userEmail = (currentUser.email || '').trim().toLowerCase();
+    const userPhoneDigits = normalizeDigits(currentUser.phone);
     const userId = currentUser.id || '';
+    const userOrderIdsSet = new Set([
+      ...(currentUser.orderIds || []),
+    ]);
 
-    const orderEmail = (o.customer?.email || (o as any).customerEmail || '').toLowerCase();
-    const orderPhone = o.customer?.phone || (o as any).customerPhone || '';
-    const orderCustomerId = (o as any).customerId || '';
+    return orders.filter((o) => {
+      if (!o) return false;
 
-    return (
-      (orderEmail && orderEmail === userEmail) ||
-      (orderPhone && orderPhone === userPhone) ||
-      (orderCustomerId && orderCustomerId === userId)
-    );
-  });
+      // 1. Direct ID or orderNumber match against user's recorded orderIds
+      if (userOrderIdsSet.has(o.id) || (o.orderNumber && userOrderIdsSet.has(o.orderNumber))) {
+        return true;
+      }
+
+      // 2. Customer account ID match
+      if (userId && (o.customerId === userId || (o as any).customerId === userId)) {
+        return true;
+      }
+
+      // 3. Email match (case-insensitive & trimmed)
+      const orderEmail = (o.customer?.email || (o as any).customerEmail || (o as any).email || '').trim().toLowerCase();
+      if (userEmail && orderEmail && userEmail === orderEmail) {
+        return true;
+      }
+
+      // 4. Phone number match (10-digit normalized, handling +91, 0, spaces, dashes)
+      if (userPhoneDigits && userPhoneDigits.length >= 7) {
+        const orderPhone = normalizeDigits(o.customer?.phone || (o as any).customerPhone || (o as any).phone);
+        const orderShippingPhone = normalizeDigits(
+          o.customer?.shippingAddress?.phoneNumber ||
+          o.shippingAddress?.phoneNumber ||
+          (o.shippingAddress as any)?.phone
+        );
+        if ((orderPhone && orderPhone === userPhoneDigits) || (orderShippingPhone && orderShippingPhone === userPhoneDigits)) {
+          return true;
+        }
+      }
+
+      return false;
+    }).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [orders, currentUser]);
 
   // Get Wishlist Items
   const wishlistItems = [

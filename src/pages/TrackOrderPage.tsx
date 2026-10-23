@@ -10,8 +10,11 @@ import {
   AlertCircle,
   Sparkles,
   ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { Order } from '../types';
 
 interface TrackOrderPageProps {
@@ -24,42 +27,85 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ initialOrderId, 
   const [searchInput, setSearchInput] = useState(initialOrderId || '');
   const [searchedOrder, setSearchedOrder] = useState<Order | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const normalizePhone = (val?: string) => (val || '').replace(/\D/g, '').slice(-10);
+
+  const findOrderAsync = async (queryStr: string): Promise<Order | null> => {
+    const q = queryStr.trim();
+    if (!q) return null;
+    const qLower = q.toLowerCase();
+    const qPhone = normalizePhone(q);
+
+    // 1. Check local state first
+    const match = orders.find((o) => {
+      if (!o) return false;
+      if (o.id.toLowerCase() === qLower) return true;
+      if (o.orderNumber && o.orderNumber.toLowerCase() === qLower) return true;
+      if (o.trackingNumber && o.trackingNumber.toLowerCase() === qLower) return true;
+      if (qPhone && qPhone.length >= 7) {
+        const p1 = normalizePhone(o.customer?.phone || (o as any).phone);
+        const p2 = normalizePhone(o.customer?.shippingAddress?.phoneNumber || o.shippingAddress?.phoneNumber);
+        if (p1 === qPhone || p2 === qPhone) return true;
+      }
+      return false;
+    });
+
+    if (match) return match;
+
+    // 2. Query Firestore directly by Document ID
+    try {
+      const docRef = doc(db, 'orders', q);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { ...(docSnap.data() as Order), id: docSnap.id };
+      }
+    } catch (_) {}
+
+    // 3. Query Firestore by orderNumber
+    try {
+      const qSnap = await getDocs(query(collection(db, 'orders'), where('orderNumber', '==', q)));
+      if (!qSnap.empty) {
+        return { ...(qSnap.docs[0].data() as Order), id: qSnap.docs[0].id };
+      }
+    } catch (_) {}
+
+    // 4. Query Firestore case-insensitive or tracking number
+    try {
+      const trackSnap = await getDocs(query(collection(db, 'orders'), where('trackingNumber', '==', q)));
+      if (!trackSnap.empty) {
+        return { ...(trackSnap.docs[0].data() as Order), id: trackSnap.docs[0].id };
+      }
+    } catch (_) {}
+
+    return null;
+  };
 
   useEffect(() => {
     if (initialOrderId) {
-      const q = initialOrderId.trim().toLowerCase();
-      const match = orders.find(
-        (o) =>
-          o.id.toLowerCase() === q ||
-          (o.orderNumber && o.orderNumber.toLowerCase() === q) ||
-          (o.customer?.phone && o.customer.phone.includes(q)) ||
-          (o.customer?.shippingAddress?.phoneNumber && o.customer.shippingAddress.phoneNumber.includes(q))
-      );
-      if (match) {
-        setSearchedOrder(match);
-        setHasSearched(true);
-      }
+      setIsSearching(true);
+      findOrderAsync(initialOrderId).then((found) => {
+        if (found) {
+          setSearchedOrder(found);
+          setHasSearched(true);
+        }
+        setIsSearching(false);
+      });
     }
   }, [initialOrderId, orders]);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchInput.trim()) return;
 
+    setIsSearching(true);
     setHasSearched(true);
-    const q = searchInput.trim().toLowerCase();
-    const match = orders.find(
-      (o) =>
-        o.id.toLowerCase() === q ||
-        (o.orderNumber && o.orderNumber.toLowerCase().includes(q)) ||
-        (o.customer?.phone && o.customer.phone.includes(q)) ||
-        (o.customer?.shippingAddress?.phoneNumber && o.customer.shippingAddress.phoneNumber.includes(q)) ||
-        (o.customer?.name && o.customer.name.toLowerCase().includes(q)) ||
-        (o.customer?.shippingAddress?.fullName && o.customer.shippingAddress.fullName.toLowerCase().includes(q)) ||
-        (o.trackingNumber && o.trackingNumber.toLowerCase().includes(q))
-    );
-
-    setSearchedOrder(match || null);
+    try {
+      const found = await findOrderAsync(searchInput);
+      setSearchedOrder(found);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const steps = [

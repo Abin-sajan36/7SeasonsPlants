@@ -127,7 +127,8 @@ const AppContent: React.FC = () => {
   };
 
   const renderCurrentView = () => {
-    const protectedViews = ['checkout', 'order-success', 'track-order', 'account'];
+    // Only customer account dashboard and private history require authentication
+    const protectedViews = ['account'];
 
     if (!isAuthenticated && protectedViews.includes(currentView)) {
       return <AccountPage initialParam={viewParam === 'register' ? 'register' : 'login'} onNavigate={handleNavigate} />;

@@ -22,6 +22,7 @@ import {
   StoreSettings,
   Review,
   Order,
+  OrderItem,
   User,
   AdminAccount,
   AdminRole,
@@ -842,9 +843,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             console.warn('LocalStorage error:', err);
           }
         } else {
-          setCombos([]);
+          setCombos(initialPlantCombos);
           try {
-            safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify([]));
+            safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(initialPlantCombos));
           } catch (err) {
             console.warn('LocalStorage error:', err);
           }
@@ -1055,34 +1056,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => unsubscribe();
   }, []);
 
-  // Real-time synchronization of User Activity & Login Logs from Firestore (Super Admin audit)
-  useEffect(() => {
-    try {
-      const q = query(collection(db, 'user_logs'), limit(300));
-      const unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: UserLoginLog[] = [];
-            snapshot.forEach((docSnap) => {
-              list.push({ ...(docSnap.data() as UserLoginLog), id: docSnap.id });
-            });
-            list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
-            setUserLogs(list);
-            try {
-              safeSetItem(`${STORAGE_KEY}_user_logs`, JSON.stringify(list));
-            } catch (e) {}
-          }
-        },
-        (error) => {
-          console.warn('Firestore user_logs sync note:', error.message || error);
-        }
-      );
-      return () => unsubscribe();
-    } catch (err) {
-      console.warn('User logs listener error:', err);
-    }
-  }, []);
 
   // Real-time synchronization of Plant Care Guides from Firestore
   useEffect(() => {
@@ -1315,6 +1288,37 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
     return isSuperByAdmin || isSuperByUser;
   }, [currentAdmin, currentUser]);
+
+  // Real-time synchronization of User Activity & Login Logs from Firestore (Super Admin audit)
+  useEffect(() => {
+    // Only subscribe if user has Super Admin or Admin access
+    if (!isAdminAuthenticated && !currentAdmin && !isCurrentSuperAdmin) return;
+    try {
+      const q = query(collection(db, 'user_logs'), limit(300));
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          if (!snapshot.empty) {
+            const list: UserLoginLog[] = [];
+            snapshot.forEach((docSnap) => {
+              list.push({ ...(docSnap.data() as UserLoginLog), id: docSnap.id });
+            });
+            list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+            setUserLogs(list);
+            try {
+              safeSetItem(`${STORAGE_KEY}_user_logs`, JSON.stringify(list));
+            } catch (e) {}
+          }
+        },
+        (error) => {
+          console.warn('Firestore user_logs sync note:', error.message || error);
+        }
+      );
+      return () => unsubscribe();
+    } catch (err) {
+      console.warn('User logs listener error:', err);
+    }
+  }, [isAdminAuthenticated, currentAdmin, isCurrentSuperAdmin]);
 
   // Realtime synchronization of all users from Firestore
   useEffect(() => {
@@ -1867,9 +1871,83 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setQuickViewItem(null);
   };
 
+  // Helper to adjust inventory in both React state and Cloud Firestore persistently
+  const adjustInventoryForItems = async (
+    items: OrderItem[] | undefined,
+    multiplier: number // -1 for order placement, +1 for order cancellation/restock
+  ) => {
+    if (!items || !Array.isArray(items) || items.length === 0) return;
+
+    for (const item of items) {
+      if (!item || !item.id) continue;
+      const quantityChange = (item.quantity || 1) * multiplier;
+
+      if (item.type === 'combo') {
+        // 1. Update React state immediately
+        setCombos((prev) =>
+          prev.map((c) => {
+            if (c.id === item.id) {
+              const updatedStock = Math.max(0, (c.stock ?? 0) + quantityChange);
+              return { ...c, stock: updatedStock };
+            }
+            return c;
+          })
+        );
+
+        // 2. Persist to Cloud Firestore combos collection
+        try {
+          const comboRef = doc(db, 'combos', item.id);
+          const comboSnap = await getDoc(comboRef);
+          if (comboSnap.exists()) {
+            const currentDbStock = comboSnap.data()?.stock ?? 0;
+            const updatedStock = Math.max(0, currentDbStock + quantityChange);
+            await updateDoc(comboRef, { stock: updatedStock });
+          }
+        } catch (err) {
+          console.warn(`[Inventory] Error persisting combo stock for ${item.id}:`, err);
+        }
+      } else {
+        // Product
+        // 1. Update React state immediately
+        setProducts((prev) =>
+          prev.map((p) => {
+            if (p.id === item.id) {
+              const updatedStock = Math.max(0, (p.stock ?? 0) + quantityChange);
+              return { ...p, stock: updatedStock };
+            }
+            return p;
+          })
+        );
+
+        // 2. Persist to Cloud Firestore products collection
+        try {
+          const prodRef = doc(db, 'products', item.id);
+          const prodSnap = await getDoc(prodRef);
+          if (prodSnap.exists()) {
+            const currentDbStock = prodSnap.data()?.stock ?? 0;
+            const updatedStock = Math.max(0, currentDbStock + quantityChange);
+            await updateDoc(prodRef, { stock: updatedStock });
+          }
+        } catch (err) {
+          console.warn(`[Inventory] Error persisting product stock for ${item.id}:`, err);
+        }
+      }
+    }
+  };
+
   // Order Actions & Inventory Sync
-  const importOrders = (newOrders: Order[]) => {
-    setOrders(prev => [...newOrders, ...prev]);
+  const importOrders = async (newOrders: Order[]) => {
+    setOrders((prev) => [...newOrders, ...prev]);
+    for (const ord of newOrders) {
+      try {
+        await setDoc(doc(db, 'orders', ord.id), removeUndefined(ord));
+        if (ord.orderStatus !== 'Cancelled' && ord.orderStatus !== 'Payment Failed') {
+          await adjustInventoryForItems(ord.items, -1);
+        }
+      } catch (err) {
+        console.warn('Could not save imported order or adjust stock:', err);
+      }
+    }
   };
 
   const upsertOrdersFromCsv = async (
@@ -1929,6 +2007,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     for (const newOrd of ordersToCreate) {
       try {
         await setDoc(doc(db, 'orders', newOrd.id), removeUndefined(newOrd));
+        if (newOrd.orderStatus !== 'Cancelled' && newOrd.orderStatus !== 'Payment Failed') {
+          await adjustInventoryForItems(newOrd.items, -1);
+        }
         createdCount++;
       } catch (err) {
         console.warn('Failed to create order in Firestore:', newOrd.id, err);
@@ -1964,28 +2045,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ],
     };
 
-    // Update inventory automatically
-    setProducts((prevProducts) =>
-      prevProducts.map((p) => {
-        const itemInOrder = orderPayload.items.find((item) => item.id === p.id && item.type === 'product');
-        if (itemInOrder) {
-          const newStock = Math.max(0, p.stock - itemInOrder.quantity);
-          return { ...p, stock: newStock };
-        }
-        return p;
-      })
-    );
-
-    setCombos((prevCombos) =>
-      prevCombos.map((c) => {
-        const comboInOrder = orderPayload.items.find((item) => item.id === c.id && item.type === 'combo');
-        if (comboInOrder) {
-          const newStock = Math.max(0, c.stock - comboInOrder.quantity);
-          return { ...c, stock: newStock };
-        }
-        return c;
-      })
-    );
+    // Update inventory persistently across local state and Cloud Firestore
+    await adjustInventoryForItems(orderPayload.items, -1);
 
     // Save order locally
     setOrders((prev) => [newOrder, ...prev]);
@@ -2002,7 +2063,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (currentUser) {
       try {
         const prevOrderIds = currentUser.orderIds || [];
-        const nextOrderIds = prevOrderIds.includes(newOrder.id) ? prevOrderIds : [newOrder.id, ...prevOrderIds];
+        const nextOrderIds = Array.from(new Set([newOrder.id, newOrder.orderNumber, ...prevOrderIds]));
         let nextAddresses = currentUser.addresses || [];
         if (orderPayload.customer?.shippingAddress) {
           const newAddr = orderPayload.customer.shippingAddress;
@@ -2039,7 +2100,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           addresses: orderPayload.customer.shippingAddress ? [orderPayload.customer.shippingAddress] : [],
           wishlist: [],
           cart: [],
-          orderIds: [newOrder.id],
+          orderIds: [newOrder.id, newOrder.orderNumber],
           createdAt: timestamp,
           updatedAt: timestamp,
           lastLogin: timestamp,
@@ -2051,7 +2112,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         setDoc(doc(db, 'users', newCustUser.id), removeUndefined(newCustUser), { merge: true }).catch(console.warn);
       } else {
-        const updatedIds = existingUser.orderIds ? [newOrder.id, ...existingUser.orderIds] : [newOrder.id];
+        const updatedIds = Array.from(new Set([newOrder.id, newOrder.orderNumber, ...(existingUser.orderIds || [])]));
         setDoc(doc(db, 'users', existingUser.id), {
           orderIds: updatedIds,
           cart: [],
@@ -2100,7 +2161,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   
   const deleteOrder = async (orderId: string) => {
-    setOrders(prev => prev.filter(o => o.id !== orderId));
+    const orderToDelete = orders.find((o) => o.id === orderId);
+    if (
+      orderToDelete &&
+      !orderToDelete.isInventoryRestocked &&
+      orderToDelete.orderStatus !== 'Cancelled' &&
+      orderToDelete.orderStatus !== 'Payment Failed'
+    ) {
+      if (orderToDelete.items && orderToDelete.items.length > 0) {
+        await adjustInventoryForItems(orderToDelete.items, 1);
+      }
+    }
+
+    setOrders((prev) => prev.filter((o) => o.id !== orderId));
     try {
       await deleteDoc(doc(db, 'orders', orderId));
     } catch (e) {
@@ -2132,6 +2205,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     ];
 
+    let isInventoryRestocked = orderToUpdate?.isInventoryRestocked ?? false;
+
+    // Handle restocking if cancelled/failed
+    if ((status === 'Cancelled' || status === 'Payment Failed') && !isInventoryRestocked) {
+      if (orderToUpdate?.items && orderToUpdate.items.length > 0) {
+        await adjustInventoryForItems(orderToUpdate.items, 1);
+        isInventoryRestocked = true;
+      }
+    } else if (
+      (orderToUpdate?.orderStatus === 'Cancelled' || orderToUpdate?.orderStatus === 'Payment Failed') &&
+      isInventoryRestocked &&
+      status !== 'Cancelled' &&
+      status !== 'Payment Failed'
+    ) {
+      // Re-activating a previously cancelled order
+      if (orderToUpdate?.items && orderToUpdate.items.length > 0) {
+        await adjustInventoryForItems(orderToUpdate.items, -1);
+        isInventoryRestocked = false;
+      }
+    }
+
     // 2. Update local state
     setOrders((prev) =>
       prev.map((ord) => {
@@ -2139,6 +2233,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return {
             ...ord,
             orderStatus: status,
+            isInventoryRestocked,
             trackingNumber: trackingNumber || ord.trackingNumber,
             courierPartner: courierPartner || ord.courierPartner,
             statusHistory: updatedHistory,
@@ -2152,6 +2247,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       await updateDoc(doc(db, 'orders', orderId), removeUndefined({
         orderStatus: status,
+        isInventoryRestocked,
         statusHistory: updatedHistory,
         trackingNumber: trackingNumber || orderToUpdate?.trackingNumber,
         courierPartner: courierPartner || orderToUpdate?.courierPartner,
@@ -2288,6 +2384,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         safeSetItem(`${STORAGE_KEY}_registered_users`, JSON.stringify(sanitizeUsersListForStorage(merged)));
         return merged;
       });
+
+      // Record successful Google sign-in in user activity log
+      recordUserLog({
+        userId: fullUser.id,
+        email: fullUser.email,
+        name: fullUser.name,
+        role: fullUser.role || 'customer',
+        eventType: 'login_success',
+        authMethod: 'google',
+        status: 'success',
+        details: `User signed in via Google OAuth (${fullUser.role === 'super_admin' ? 'Super Admin' : fullUser.role === 'admin' ? 'Admin' : 'Customer'})`,
+      });
       
       addToast({
         type: 'success',
@@ -2309,6 +2417,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         return false;
       }
+
+      // Record failed Google sign-in
+      recordUserLog({
+        email: 'Unknown Google User',
+        role: 'customer',
+        eventType: 'login_failed',
+        authMethod: 'google',
+        status: 'failed',
+        failureReason: errMsg || errCode || 'Google OAuth failed',
+      });
 
       const isDomainUnauthorized =
         errCode === 'auth/unauthorized-domain' ||
@@ -2375,6 +2493,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         cleanPass === 'mannaratharayil2026';
 
       if (!isPasswordValid) {
+        recordUserLog({
+          email: cleanEmail,
+          role: 'super_admin',
+          eventType: 'login_failed',
+          authMethod: 'email_password',
+          status: 'failed',
+          failureReason: 'Incorrect password for administrator account',
+        });
         addToast({
           type: 'error',
           title: 'Admin Authentication Failed',
@@ -2398,6 +2524,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
       setCurrentUser(adminUser);
       safeSetItem(`${STORAGE_KEY}_user`, JSON.stringify(sanitizeUserForStorage(adminUser)));
+
+      recordUserLog({
+        userId: adminUser.id,
+        email: adminUser.email,
+        name: adminUser.name,
+        role: adminUser.role,
+        eventType: 'login_success',
+        authMethod: 'email_password',
+        status: 'success',
+        details: 'Administrator signed in via customer login portal',
+      });
+
       addToast({
         type: 'success',
         title: 'Welcome Back! 🌿',
@@ -2410,6 +2548,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const matched = registeredUsers.find((u) => u.email.toLowerCase() === cleanEmail);
     if (matched) {
       if (matched.password !== cleanPass) {
+        recordUserLog({
+          email: cleanEmail,
+          role: matched.role || 'customer',
+          eventType: 'login_failed',
+          authMethod: 'email_password',
+          status: 'failed',
+          failureReason: 'Incorrect password entered',
+        });
         addToast({
           type: 'error',
           title: 'Authentication Failed',
@@ -2766,6 +2912,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.warn('Could not sync new user to Firestore users collection:', fsErr);
     }
 
+    // Record registration audit log
+    recordUserLog({
+      userId: createdOrUpdatedUser.id,
+      email: createdOrUpdatedUser.email,
+      name: createdOrUpdatedUser.name,
+      role: 'customer',
+      eventType: 'signup',
+      authMethod: 'email_password',
+      status: 'success',
+      details: 'Customer account registered and verified',
+    });
+
     addToast({
       type: 'success',
       title: 'Account Created 🎉',
@@ -2775,6 +2933,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const logoutCustomer = async () => {
+    if (currentUser) {
+      recordUserLog({
+        userId: currentUser.id,
+        email: currentUser.email,
+        name: currentUser.name,
+        role: currentUser.role || 'customer',
+        eventType: 'logout',
+        authMethod: 'email_password',
+        status: 'success',
+        details: `${currentUser.role === 'super_admin' ? 'Super Admin' : 'User'} signed out from storefront`,
+      });
+    }
+
     try {
       await signOut(auth);
     } catch (e) {

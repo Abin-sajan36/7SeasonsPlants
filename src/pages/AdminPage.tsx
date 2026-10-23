@@ -2757,8 +2757,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                               },
                               items: [
                                 {
-                                  id: 'offline-item',
-                                  type: 'product',
+                                  id: (() => {
+                                    const rawName = getItem().trim().toLowerCase();
+                                    const matchC = combos.find((c) => c.name.trim().toLowerCase() === rawName || c.slug.toLowerCase() === rawName);
+                                    if (matchC) return matchC.id;
+                                    const matchP = products.find((p) => p.name.trim().toLowerCase() === rawName || p.slug.toLowerCase() === rawName);
+                                    if (matchP) return matchP.id;
+                                    return 'offline-item';
+                                  })(),
+                                  type: (() => {
+                                    const rawName = getItem().trim().toLowerCase();
+                                    const matchC = combos.find((c) => c.name.trim().toLowerCase() === rawName || c.slug.toLowerCase() === rawName);
+                                    return matchC ? 'combo' : 'product';
+                                  })(),
                                   name: getItem(),
                                   slug: 'offline-product',
                                   price: Number(values[headers.indexOf('price')]) || 0,
