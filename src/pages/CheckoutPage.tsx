@@ -23,6 +23,8 @@ import {
   validateDeliveryAddress,
 } from '../lib/stateValidation';
 import { startRazorpayCheckout } from '../lib/razorpay';
+import { db } from '../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 // --- PAYMENT MODAL COMPONENT ---
 const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; total: number; onConfirm: (method: string) => void; }> = ({ isOpen, onClose, total, onConfirm }) => {
@@ -238,6 +240,25 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     return undeliverableCombos.map((u) => u.item);
   }, [undeliverableCombos]);
 
+  // Real-time detection of combos that are sold out or exceed live stock
+  const soldOutCartItems = React.useMemo(() => {
+    return cart
+      .map((item) => {
+        if (item.type === 'combo') {
+          const combo = combos.find((c) => c.id === item.id || c.slug === item.slug);
+          const liveStock = combo ? combo.stock : item.stock;
+          if (liveStock <= 0) {
+            return { item, liveStock: 0, reason: 'sold_out' as const };
+          }
+          if (item.quantity > liveStock) {
+            return { item, liveStock, reason: 'exceeds_stock' as const };
+          }
+        }
+        return null;
+      })
+      .filter(Boolean) as { item: CartItem; liveStock: number; reason: 'sold_out' | 'exceeds_stock' }[];
+  }, [cart, combos]);
+
   // Real-time PIN code state match feedback
   const pinValidationFeedback = React.useMemo(() => {
     const clean = formData.pincode.replace(/\D/g, '');
@@ -441,6 +462,16 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
       return;
     }
 
+    if (soldOutCartItems.length > 0) {
+      setFormError(
+        `The following items in your cart are sold out or exceed available stock: ${soldOutCartItems
+          .map((s) => s.item.name)
+          .join(', ')}. Please remove them or adjust quantity before payment.`
+      );
+      scrollToError();
+      return;
+    }
+
     // 1. Prepare Shipping Address
     const shippingAddress: CustomerAddress = {
       id: `addr_${Date.now()}`,
@@ -468,6 +499,33 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     }));
 
     setIsProcessing(true);
+
+    // Live Authoritative Firestore check to prevent race-condition overselling
+    for (const item of cart) {
+      if (item.type === 'combo') {
+        try {
+          const comboSnap = await getDoc(doc(db, 'combos', item.id));
+          if (comboSnap.exists()) {
+            const data = comboSnap.data();
+            const liveStock = typeof data?.stock === 'number' ? data.stock : 0;
+            if (liveStock <= 0) {
+              setIsProcessing(false);
+              setFormError(`"${item.name}" has just sold out. Please remove it from your cart to proceed.`);
+              scrollToError();
+              return;
+            }
+            if (item.quantity > liveStock) {
+              setIsProcessing(false);
+              setFormError(`Only ${liveStock} units available for "${item.name}". Please adjust quantity.`);
+              scrollToError();
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not verify live stock for combo:', item.id, e);
+        }
+      }
+    }
 
     // Launch official Razorpay Standard Web Checkout Modal
     await startRazorpayCheckout({
@@ -581,6 +639,40 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         );
         setIsProcessing(false);
         return;
+      }
+
+      if (soldOutCartItems.length > 0) {
+        setFormError(
+          `The following items in your cart are sold out or exceed available stock: ${soldOutCartItems
+            .map((s) => s.item.name)
+            .join(', ')}. Please update your cart before continuing.`
+        );
+        setIsProcessing(false);
+        return;
+      }
+
+      for (const item of cart) {
+        if (item.type === 'combo') {
+          try {
+            const comboSnap = await getDoc(doc(db, 'combos', item.id));
+            if (comboSnap.exists()) {
+              const data = comboSnap.data();
+              const liveStock = typeof data?.stock === 'number' ? data.stock : 0;
+              if (liveStock <= 0) {
+                setFormError(`"${item.name}" has sold out.`);
+                setIsProcessing(false);
+                return;
+              }
+              if (item.quantity > liveStock) {
+                setFormError(`Only ${liveStock} units available for "${item.name}".`);
+                setIsProcessing(false);
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('Stock check error:', e);
+          }
+        }
       }
 
       const shippingAddress: CustomerAddress = {
@@ -738,6 +830,61 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                             });
                           }}
                           className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full text-[11px] font-bold shrink-0 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Remove Item</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sold Out / Exceeds Stock Alert */}
+              {soldOutCartItems.length > 0 && (
+                <div className="mb-6 p-4 rounded-3xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-xs shadow-xs space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="font-black text-amber-950 text-sm">
+                        Stock Availability Notice
+                      </h4>
+                      <p className="text-xs text-amber-900 mt-0.5 leading-relaxed">
+                        One or more combos in your cart are currently out of stock or exceed nursery inventory. Please remove them to proceed with your order.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-amber-200/60 bg-white/90 rounded-2xl p-3 border border-amber-200 shadow-2xs">
+                    {soldOutCartItems.map(({ item, liveStock, reason }) => (
+                      <div key={item.id} className="py-2.5 first:pt-1 last:pb-1 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="w-11 h-11 rounded-xl object-cover bg-amber-50 border border-amber-200 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-bold text-amber-950 truncate text-xs">{item.name}</p>
+                            <p className="text-[10px] text-amber-800 font-semibold mt-0.5">
+                              {reason === 'sold_out'
+                                ? 'Status: Currently Sold Out'
+                                : `Available: ${liveStock} units (in cart: ${item.quantity})`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            removeFromCart(item.id);
+                            addToast({
+                              title: 'Item Removed',
+                              message: `Removed ${item.name} from your cart.`,
+                              type: 'info',
+                            });
+                          }}
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-full text-[11px] font-bold shrink-0 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                         >
                           <Trash2 className="w-3 h-3" />
                           <span>Remove Item</span>
@@ -1197,18 +1344,28 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                 {cart.map((item) => {
                   const isUndeliverable = undeliverableCombos.some((u) => u.item.id === item.id);
+                  const soldOutInfo = soldOutCartItems.find((s) => s.item.id === item.id);
+                  const hasIssue = isUndeliverable || Boolean(soldOutInfo);
                   return (
                     <div
                       key={item.id}
                       className={`flex items-center gap-3 text-xs p-2 rounded-2xl transition-all ${
-                        isUndeliverable ? 'bg-rose-50/90 border border-rose-300 ring-1 ring-rose-200' : ''
+                        isUndeliverable
+                          ? 'bg-rose-50/90 border border-rose-300 ring-1 ring-rose-200'
+                          : soldOutInfo
+                          ? 'bg-amber-50/90 border border-amber-300 ring-1 ring-amber-200'
+                          : ''
                       }`}
                     >
                       <img
                         src={item.image}
                         alt={item.name}
                         className={`w-12 h-12 rounded-xl object-cover shrink-0 ${
-                          isUndeliverable ? 'bg-rose-50 border border-rose-300' : 'bg-emerald-50'
+                          isUndeliverable
+                            ? 'bg-rose-50 border border-rose-300'
+                            : soldOutInfo
+                            ? 'bg-amber-50 border border-amber-300'
+                            : 'bg-emerald-50'
                         }`}
                       />
                       <div className="flex-1 min-w-0">
@@ -1216,6 +1373,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                         {isUndeliverable && (
                           <span className="inline-block text-[9px] font-extrabold uppercase text-rose-700 bg-rose-100/90 px-2 py-0.5 rounded-full mt-0.5 border border-rose-200">
                             ✕ Unavailable in {formData.state}
+                          </span>
+                        )}
+                        {soldOutInfo && (
+                          <span className="inline-block text-[9px] font-extrabold uppercase text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full mt-0.5 border border-amber-300">
+                            {soldOutInfo.reason === 'sold_out' ? '✕ Sold Out' : `✕ Only ${soldOutInfo.liveStock} In Stock`}
                           </span>
                         )}
                         <p className="text-[11px] text-gray-500 mt-0.5">
@@ -1226,7 +1388,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                         <span className="font-bold text-emerald-950 block">
                           ₹{item.price * item.quantity}
                         </span>
-                        {isUndeliverable && (
+                        {hasIssue && (
                           <button
                             type="button"
                             onClick={() => {
@@ -1237,7 +1399,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                                 type: 'info',
                               });
                             }}
-                            className="text-[10px] text-rose-600 hover:text-rose-800 hover:underline font-bold cursor-pointer mt-1 block"
+                            className={`text-[10px] font-bold cursor-pointer mt-1 block hover:underline ${
+                              isUndeliverable ? 'text-rose-600 hover:text-rose-800' : 'text-amber-700 hover:text-amber-900'
+                            }`}
                           >
                             Remove
                           </button>
@@ -1349,9 +1513,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               <button
                 type="submit"
                 form="checkout-form"
-                disabled={isProcessing || undeliverableCombos.length > 0}
+                disabled={isProcessing || undeliverableCombos.length > 0 || soldOutCartItems.length > 0}
                 className={`w-full py-4 text-white rounded-full font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
-                  undeliverableCombos.length > 0
+                  undeliverableCombos.length > 0 || soldOutCartItems.length > 0
                     ? 'bg-rose-600 hover:bg-rose-700 cursor-not-allowed opacity-90 shadow-none'
                     : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 hover:shadow-xl cursor-pointer disabled:opacity-50'
                 }`}
@@ -1360,6 +1524,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                   <>
                     <AlertCircle className="w-4 h-4 text-white shrink-0" />
                     <span>Remove Combos Unavailable in {formData.state}</span>
+                  </>
+                ) : soldOutCartItems.length > 0 ? (
+                  <>
+                    <AlertCircle className="w-4 h-4 text-white shrink-0" />
+                    <span>Remove Sold Out Combos to Proceed</span>
                   </>
                 ) : (
                   <>

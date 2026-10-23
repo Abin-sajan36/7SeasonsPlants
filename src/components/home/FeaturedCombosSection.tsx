@@ -15,7 +15,13 @@ export const FeaturedCombosSection: React.FC<FeaturedCombosSectionProps> = ({ on
       if (c.status !== 'published') return false;
       return isItemDeliverable(c);
     })
-    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    .sort((a, b) => {
+      const aInStock = (a.stock ?? 0) > 0;
+      const bInStock = (b.stock ?? 0) > 0;
+      if (aInStock && !bInStock) return -1;
+      if (!aInStock && bInStock) return 1;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
 
   const featuredCombos = deliverableCombos.slice(0, 3);
 
@@ -84,7 +90,7 @@ export const FeaturedCombosSection: React.FC<FeaturedCombosSectionProps> = ({ on
               key={combo.id}
               combo={combo}
               onNavigate={onNavigate}
-              featured={idx === 0}
+              featured={idx === 0 && (combo.stock ?? 0) > 0}
             />
           ))}
         </div>

@@ -10,10 +10,11 @@ interface ComboCardProps {
 }
 
 export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, featured = false }) => {
-  const { addToCart, toggleWishlist, isInWishlist, openQuickView, selectedDeliveryState } = useStore();
+  const { addToCart, toggleWishlist, isInWishlist, openQuickView, selectedDeliveryState, combos } = useStore();
 
+  const liveCombo = combos.find((c) => c.id === combo.id) || combo;
   const isSaved = isInWishlist(combo.id);
-  const isOutOfStock = combo.stock <= 0;
+  const isOutOfStock = liveCombo.stock <= 0;
 
   return (
     <div
@@ -186,7 +187,7 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                addToCart(combo, 'combo', 1);
+                addToCart(liveCombo, 'combo', 1);
               }}
               disabled={isOutOfStock}
               className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${

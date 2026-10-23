@@ -386,9 +386,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const saved = localStorage.getItem(`${STORAGE_KEY}_combos`);
     const list = saved ? JSON.parse(saved) : initialPlantCombos;
     const array = Array.isArray(list) ? list : initialPlantCombos;
-    return [...array].sort(
-      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-    );
+    return [...array].sort((a, b) => {
+      const aInStock = (a.stock ?? 0) > 0;
+      const bInStock = (b.stock ?? 0) > 0;
+      if (aInStock && !bInStock) return -1;
+      if (!aInStock && bInStock) return 1;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
   });
 
   const [dailyDeals, setDailyDeals] = useState<DailyDeal[]>(() => {
@@ -827,8 +831,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               list.push(c);
             }
           });
-          list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          list.sort((a, b) => {
+            const aInStock = (a.stock ?? 0) > 0;
+            const bInStock = (b.stock ?? 0) > 0;
+            if (aInStock && !bInStock) return -1;
+            if (!aInStock && bInStock) return 1;
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+          });
           setCombos(list);
+          // Real-time synchronization of active cart stock with live combos
+          setCart((prevCart) => {
+            let changed = false;
+            const updated = prevCart.map((ci) => {
+              if (ci.type === 'combo') {
+                const found = list.find((c) => c.id === ci.id);
+                if (found && found.stock !== ci.stock) {
+                  changed = true;
+                  return { ...ci, stock: found.stock };
+                }
+              }
+              return ci;
+            });
+            return changed ? updated : prevCart;
+          });
           try {
             safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(list));
           } catch (err) {
@@ -1682,10 +1707,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    if (item.stock <= 0) {
+    const liveStock =
+      type === 'combo'
+        ? (combos.find((c) => c.id === item.id)?.stock ?? item.stock)
+        : (products.find((p) => p.id === item.id)?.stock ?? item.stock);
+
+    if (liveStock <= 0) {
       addToast({
         type: 'warning',
-        title: 'Out of Stock',
+        title: 'Sold Out',
         message: `${item.name} is currently out of stock.`,
       });
       return;
@@ -1695,9 +1725,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const existingIndex = prev.findIndex((ci) => ci.id === item.id);
       if (existingIndex > -1) {
         const existing = prev[existingIndex];
-        const newQty = Math.min(existing.quantity + quantity, item.stock);
+        const newQty = Math.min(existing.quantity + quantity, liveStock);
         const updated = [...prev];
-        updated[existingIndex] = { ...existing, quantity: newQty };
+        updated[existingIndex] = { ...existing, quantity: newQty, stock: liveStock };
         return updated;
       } else {
         const newItem: CartItem = {
@@ -1708,8 +1738,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           price: item.price,
           originalPrice: item.originalPrice,
           image: item.images?.[0] || '',
-          quantity: Math.min(quantity, item.stock),
-          stock: item.stock,
+          quantity: Math.min(quantity, liveStock),
+          stock: liveStock,
           weight: item.weight,
           comboItems: type === 'combo' ? (item as PlantCombo).items : undefined,
           selectedPotColor: options?.potColor,
@@ -1742,8 +1772,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          const validQty = Math.min(quantity, item.stock);
-          return { ...item, quantity: validQty };
+          const liveStock =
+            item.type === 'combo'
+              ? (combos.find((c) => c.id === item.id)?.stock ?? item.stock)
+              : (products.find((p) => p.id === item.id)?.stock ?? item.stock);
+          const validQty = Math.min(quantity, Math.max(1, liveStock));
+          return { ...item, stock: liveStock, quantity: validQty };
         }
         return item;
       })
@@ -1875,16 +1909,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const quantityChange = (item.quantity || 1) * multiplier;
 
       if (item.type === 'combo') {
-        // 1. Update React state immediately
-        setCombos((prev) =>
-          prev.map((c) => {
+        setCombos((prev) => {
+          const next = prev.map((c) => {
             if (c.id === item.id) {
               const updatedStock = Math.max(0, (c.stock ?? 0) + quantityChange);
               return { ...c, stock: updatedStock };
             }
             return c;
-          })
-        );
+          });
+          return [...next].sort((a, b) => {
+            const aInStock = (a.stock ?? 0) > 0;
+            const bInStock = (b.stock ?? 0) > 0;
+            if (aInStock && !bInStock) return -1;
+            if (!aInStock && bInStock) return 1;
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+          });
+        });
 
         // 2. Persist to Cloud Firestore combos collection
         try {
@@ -2036,6 +2076,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         },
       ],
     };
+
+    // Authoritative stock verification before creating order to prevent overselling sold-out combos
+    for (const item of orderPayload.items || []) {
+      if (item.type === 'combo') {
+        const comboDoc = await getDoc(doc(db, 'combos', item.id));
+        if (comboDoc.exists()) {
+          const currentStock = comboDoc.data()?.stock ?? 0;
+          if (currentStock <= 0) {
+            throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
+          }
+        }
+      }
+    }
 
     // Update inventory persistently across local state and Cloud Firestore
     await adjustInventoryForItems(orderPayload.items, -1);

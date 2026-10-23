@@ -59,13 +59,29 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
   const [previewItemPhoto, setPreviewItemPhoto] = useState<{ name: string; image: string; type: string; notes?: string } | null>(null);
 
   const isSaved = isInWishlist(combo.id);
-  const isOutOfStock = combo.stock <= 0;
+  const isOutOfStock = !combo || combo.stock <= 0;
 
   const handleAddToCart = () => {
+    if (isOutOfStock) {
+      addToast({
+        title: 'Sold Out',
+        message: 'This combo is currently out of stock.',
+        type: 'warning',
+      });
+      return;
+    }
     addToCart(combo, 'combo', quantity);
   };
 
   const handleBuyNow = () => {
+    if (isOutOfStock) {
+      addToast({
+        title: 'Sold Out',
+        message: 'This combo is currently out of stock.',
+        type: 'warning',
+      });
+      return;
+    }
     if (!currentUser) {
       openAuthModal('Please sign in or create an account to purchase this combo.');
       return;
@@ -122,7 +138,16 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
     }
   };
 
-  const otherCombos = combos.filter((c) => c.id !== combo.id).slice(0, 3);
+  const otherCombos = combos
+    .filter((c) => c.id !== combo.id && c.status === 'published')
+    .sort((a, b) => {
+      const aInStock = (a.stock ?? 0) > 0;
+      const bInStock = (b.stock ?? 0) > 0;
+      if (aInStock && !bInStock) return -1;
+      if (!aInStock && bInStock) return 1;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    })
+    .slice(0, 3);
 
   return (
     <div className="bg-[#F4FAF5] min-h-screen py-8">

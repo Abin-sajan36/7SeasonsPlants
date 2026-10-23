@@ -42,14 +42,22 @@ export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCateg
     return ['All', ...Array.from(combinedSet)];
   }, [categories, combos]);
 
-  const filteredCombos = combos
-    .filter((combo) => {
-      if (combo.status !== 'published') return false;
-      if (!isItemDeliverable(combo)) return false;
-      if (selectedCategory === 'All') return true;
-      return combo.category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase();
-    })
-    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  const filteredCombos = useMemo(() => {
+    return combos
+      .filter((combo) => {
+        if (combo.status !== 'published') return false;
+        if (!isItemDeliverable(combo)) return false;
+        if (selectedCategory === 'All') return true;
+        return combo.category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase();
+      })
+      .sort((a, b) => {
+        const aInStock = (a.stock ?? 0) > 0;
+        const bInStock = (b.stock ?? 0) > 0;
+        if (aInStock && !bInStock) return -1;
+        if (!aInStock && bInStock) return 1;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+  }, [combos, isItemDeliverable, selectedCategory]);
 
   return (
     <div className="bg-[#F4FAF5] min-h-screen py-10">
@@ -106,7 +114,7 @@ export const CombosPage: React.FC<CombosPageProps> = ({ onNavigate, initialCateg
                 key={combo.id}
                 combo={combo}
                 onNavigate={onNavigate}
-                featured={idx === 0}
+                featured={idx === 0 && (combo.stock ?? 0) > 0}
               />
             ))}
           </div>
