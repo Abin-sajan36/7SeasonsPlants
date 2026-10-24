@@ -23,6 +23,7 @@ import { Helmet } from 'react-helmet-async';
 import { ReviewSection } from '../components/product/ReviewSection';
 import { useStore } from '../context/StoreContext';
 import { ComboCard } from '../components/common/ComboCard';
+import { calculateComboDispatchAndDelivery } from '../utils/dispatchCalculator';
 
 interface ComboDetailPageProps {
   slug: string;
@@ -42,6 +43,7 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
     openStateModal,
     currentUser,
     openAuthModal,
+    storeSettings,
   } = useStore();
 
   const combo = combos.find((c) => c.slug === slug) || combos[0];
@@ -51,6 +53,15 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
     if (!combo.sellableStates || combo.sellableStates.length === 0) return true;
     return combo.sellableStates.includes(selectedDeliveryState);
   }, [combo, selectedDeliveryState]);
+
+  const dispatchEstimate = React.useMemo(() => {
+    return calculateComboDispatchAndDelivery({
+      combo,
+      storeSettings,
+      deliveryState: selectedDeliveryState || 'Kerala',
+    });
+  }, [combo, storeSettings, selectedDeliveryState]);
+
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [pincodeInput, setPincodeInput] = useState('');
@@ -346,6 +357,65 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
 
             {/* Actions: Quantity, Add to Bag, Buy Now */}
             <div className="space-y-4 pt-4 border-t border-emerald-900/10">
+              {/* Live Plant Dispatch & Delivery Schedule Card */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/90 via-emerald-50/40 to-teal-50/70 border border-emerald-200/90 shadow-xs space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-black tracking-wider text-emerald-800 block">
+                        Weekly Dispatch Schedule
+                      </span>
+                      <span className="text-xs sm:text-sm font-black text-emerald-950">
+                        {dispatchEstimate.dispatchScheduleText}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {dispatchEstimate.transitDaysText} Transit
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="p-3 rounded-xl bg-white/95 border border-emerald-100 shadow-2xs">
+                    <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-semibold">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Next Dispatch Date:</span>
+                    </div>
+                    <p className="font-black text-emerald-950 text-sm mt-0.5">
+                      {dispatchEstimate.nextDispatchFormatted}
+                    </p>
+                    <p className="text-[10px] text-emerald-700 font-semibold mt-0.5">
+                      {dispatchEstimate.isSameDayDispatch
+                        ? '🔥 Order placed now dispatches in today’s batch'
+                        : `Fresh packing in ${dispatchEstimate.daysUntilDispatch} day${dispatchEstimate.daysUntilDispatch === 1 ? '' : 's'}`}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-white/95 border border-emerald-100 shadow-2xs">
+                    <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-semibold">
+                      <PackageCheck className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Estimated Doorstep Arrival:</span>
+                    </div>
+                    <p className="font-black text-emerald-950 text-sm mt-0.5">
+                      {dispatchEstimate.estimatedDeliveryShort}
+                    </p>
+                    <p className="text-[10px] text-emerald-700 font-semibold mt-0.5">
+                      Calculated for {selectedDeliveryState || 'Kerala'}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-emerald-900/85 leading-relaxed flex items-start gap-1.5 pt-0.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Zero-Hub Transit Guarantee:</strong> Live plants are packed and dispatched on {dispatchEstimate.dispatchDaysShort || 'scheduled days'} to avoid weekend storage in transit hubs.
+                  </span>
+                </p>
+              </div>
+
               {/* Delivery State Info Row */}
               <div className="flex items-center justify-between p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100 text-xs">
                 <div className="flex items-center gap-2 text-emerald-950 font-medium">

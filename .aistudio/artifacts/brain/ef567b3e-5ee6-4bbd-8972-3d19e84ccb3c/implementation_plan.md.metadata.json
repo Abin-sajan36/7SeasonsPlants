@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan to ensure stock decrements persistently in Cloud Firestore whenever any order is placed, and restores inventory automatically if an order is cancelled or deleted.",
-  "updatedAt":  "2026-10-23T05:19:56.440197628Z",
+  "summary":  "Implementation plan for Weekly Combo Order Dispatch Days and Dynamic Delivery Date Calculation. Includes an admin dispatch days scheduler inside the Combo Bundles tab, per-combo overrides, and real-time customer dispatch and estimated delivery calculation on Combo Cards, Detail Pages, Cart, Checkout, and Order Confirmation.",
+  "updatedAt":  "2026-10-24T06:24:27.520994873Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

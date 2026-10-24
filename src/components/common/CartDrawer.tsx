@@ -11,8 +11,10 @@ import {
   Tag,
   ShieldCheck,
   AlertCircle,
+  Calendar,
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
+import { calculateComboDispatchAndDelivery } from '../../utils/dispatchCalculator';
 
 interface CartDrawerProps {
   onNavigate: (view: string, param?: string) => void;
@@ -55,6 +57,18 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigate }) => {
   }, [cart, combos]);
 
   const hasSoldOutItems = soldOutCartItems.length > 0;
+
+  // Active dispatch schedule for any combo bundles currently in the cart
+  const cartComboEstimate = useMemo(() => {
+    const comboItem = cart.find((item) => item.type === 'combo');
+    if (!comboItem) return null;
+    const matchingCombo = combos.find((c) => c.id === comboItem.id || c.slug === comboItem.slug);
+    return calculateComboDispatchAndDelivery({
+      combo: matchingCombo,
+      storeSettings,
+      deliveryState: 'Kerala',
+    });
+  }, [cart, combos, storeSettings]);
 
   if (!isCartOpen) return null;
 
@@ -141,6 +155,21 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigate }) => {
           </div>
         )}
 
+        {/* Live plant dispatch notice for combos in cart */}
+        {cartComboEstimate && cart.length > 0 && (
+          <div className="bg-emerald-50 dark:bg-emerald-950/40 border-b border-emerald-100 dark:border-emerald-900/40 px-5 py-2.5 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse shrink-0" />
+              <span className="text-emerald-950 dark:text-emerald-50 font-medium">
+                Plant combos dispatch: <strong className="text-emerald-800 dark:text-emerald-300 font-bold">{cartComboEstimate.nextDispatchFormatted}</strong>
+              </span>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 shrink-0">
+              {cartComboEstimate.dispatchDaysShort} batch
+            </span>
+          </div>
+        )}
+
         {/* 3. Items List or Empty State */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-[#F4FAF5]/40">
           {cart.length === 0 ? (
@@ -223,6 +252,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigate }) => {
                     {item.comboItems && (
                       <div className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
                         Contains {item.comboItems.length} plants & pots
+                      </div>
+                    )}
+
+                    {item.type === 'combo' && cartComboEstimate && (
+                      <div className="flex items-center gap-1 text-[10px] text-emerald-800 dark:text-emerald-300 font-semibold mt-1">
+                        <Truck className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>Dispatches {cartComboEstimate.nextDispatchWeekday} batch</span>
                       </div>
                     )}
 

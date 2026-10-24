@@ -1,7 +1,8 @@
 import React from 'react';
-import { Heart, ShoppingBag, Star, PackageCheck, Eye, MapPin } from 'lucide-react';
+import { Heart, ShoppingBag, Star, PackageCheck, Eye, MapPin, Truck } from 'lucide-react';
 import { PlantCombo } from '../../types';
 import { useStore } from '../../context/StoreContext';
+import { calculateComboDispatchAndDelivery } from '../../utils/dispatchCalculator';
 
 interface ComboCardProps {
   combo: PlantCombo;
@@ -10,11 +11,17 @@ interface ComboCardProps {
 }
 
 export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, featured = false }) => {
-  const { addToCart, toggleWishlist, isInWishlist, openQuickView, selectedDeliveryState, combos } = useStore();
+  const { addToCart, toggleWishlist, isInWishlist, openQuickView, selectedDeliveryState, combos, storeSettings } = useStore();
 
   const liveCombo = combos.find((c) => c.id === combo.id) || combo;
   const isSaved = isInWishlist(combo.id);
   const isOutOfStock = liveCombo.stock <= 0;
+
+  const dispatchEstimate = calculateComboDispatchAndDelivery({
+    combo: liveCombo,
+    storeSettings,
+    deliveryState: selectedDeliveryState,
+  });
 
   return (
     <div
@@ -112,6 +119,14 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
               <span>Deliverable to {selectedDeliveryState}</span>
             </div>
           )}
+
+          {/* Weekly Dispatch & Transit Schedule Badge */}
+          <div className="flex items-center gap-1.5 text-[11px] text-emerald-950 font-bold bg-[#F4FAF5] px-2.5 py-1 rounded-xl mt-1.5 border border-emerald-900/10">
+            <Truck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+            <span className="truncate">
+              Dispatches {dispatchEstimate.dispatchDaysShort} · {dispatchEstimate.transitDaysText} arrival
+            </span>
+          </div>
 
           <p className="text-xs text-gray-600 mt-1 line-clamp-2 leading-relaxed font-medium">
             {combo.shortDescription}

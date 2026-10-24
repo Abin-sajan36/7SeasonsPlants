@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Truck, ArrowRight, Phone, Printer, Package, Sparkles, AlertCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, Truck, ArrowRight, Phone, Printer, Package, Sparkles, AlertCircle, Loader2, Calendar, ShieldCheck } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -133,16 +133,35 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderId, onN
           </div>
 
           {/* Delivery Timeline Card */}
-          <div className="p-5 bg-[#F4FAF5] rounded-2xl border border-emerald-900/10 text-left space-y-3">
-            <div className="flex items-center justify-between text-xs pb-2 border-b border-emerald-900/10">
+          <div className="p-5 bg-[#F4FAF5] rounded-2xl border border-emerald-900/10 text-left space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs pb-3 border-b border-emerald-900/10 gap-2">
               <span className="font-bold text-emerald-950 flex items-center gap-1.5">
                 <Truck className="w-4 h-4 text-emerald-700" />
-                <span>Estimated Delivery Time</span>
+                <span>Estimated Delivery Window</span>
               </span>
-              <span className="font-bold text-emerald-700">
+              <span className="font-extrabold text-emerald-800 bg-emerald-100/80 px-2.5 py-1 rounded-full border border-emerald-200 w-fit">
                 {order?.estimatedDelivery || '2 – 4 Business Days'} ({state})
               </span>
             </div>
+
+            {order?.estimatedDispatchDate && (
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200/80 flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 block">
+                      Scheduled Botanical Dispatch
+                    </span>
+                    <strong className="text-emerald-950 text-sm">
+                      {order.estimatedDispatchDate}
+                    </strong>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                  Direct from Nursery
+                </span>
+              </div>
+            )}
 
             <div className="text-xs text-gray-600 space-y-1.5">
               {order?.courierPartner && (

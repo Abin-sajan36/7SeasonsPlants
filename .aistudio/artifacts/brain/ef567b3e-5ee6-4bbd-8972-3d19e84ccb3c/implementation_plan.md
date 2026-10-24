@@ -1,58 +1,106 @@
-# Implementation Plan: Persistent Stock Decrement & Automatic Restock
+# Weekly Combo Dispatch Schedule & Dynamic Estimated Delivery Calculation
 
-Ensure plant combo and product stock counts decrement persistently in **Cloud Firestore** whenever any online or offline order is placed, and automatically restock items if an order is cancelled or deleted.
+A comprehensive dispatch scheduling and dynamic delivery estimation system. Nursery administrators can configure weekly dispatch days (e.g. Monday, Thursday) directly within the "Combo Bundles" tab in the Admin Panel, with optional per-combo overrides. Customers see clear weekly dispatch schedules, the exact next dispatch weekday, and real-time delivery dates calculated from their order date and destination state.
 
----
+## User Review & Critical Decisions
 
-## Root Cause Summary
-- `createOrder` in `StoreContext.tsx` previously subtracted ordered quantities only from temporary React component state (`setCombos`, `setProducts`).
-- It never called `updateDoc` on the `combos` or `products` collections in Firestore.
-- Because real-time `onSnapshot` listeners are connected to Firestore, any page refresh or database event overwrote the browser's display with the old, unchanged stock count stored in the cloud.
-- Offline and imported orders also bypassed Cloud Firestore inventory adjustments.
-
----
-
-## Proposed Changes
-
-### 1. Persistent Stock Decrement on Order Creation (`src/context/StoreContext.tsx`)
-- In `createOrder`:
-  - When an order is registered, iterate through `orderPayload.items`.
-  - For each item (`type === 'combo'` or `type === 'product'`):
-    - Compute `newStock = Math.max(0, currentStock - item.quantity)`.
-    - Atomically update Cloud Firestore:
-      - Combos: `updateDoc(doc(db, 'combos', item.id), { stock: newStock })`
-      - Products: `updateDoc(doc(db, 'products', item.id), { stock: newStock })`
-    - Update local state immediately for instant UI feedback.
-  - Apply the same persistent decrement to manual offline order creation and batch imports.
-
-### 2. Automatic Restocking on Cancellation & Deletion (`src/context/StoreContext.tsx`)
-- In `updateOrderStatus`:
-  - When an order's status changes to `'Cancelled'` or `'Refunded'`:
-    - Check if the order was already restocked (via an `isInventoryRestocked: true` flag on the order).
-    - If not, restore inventory for all items in `order.items` by adding back `item.quantity` in Firestore and local state.
-    - Set `isInventoryRestocked: true` on the order document to prevent duplicate restocking.
-  - If a cancelled order is reinstated to an active status, re-decrement the inventory.
-- In `deleteOrder`:
-  - If the order being deleted has not yet been marked as cancelled/restocked, restore item stocks in Firestore and local state before deleting the order document.
-
-### 3. Inventory Reconciliation Tool (`src/pages/AdminPage.tsx`)
-- In the Admin Panel -> Plant Catalog / Nursery Settings:
-  - Add an **"Audit & Re-sync Inventory"** option that displays current stock alongside total units sold from all 126 recorded orders.
-  - Allow the admin to review and align current physical inventory with historical order volume.
+> [!IMPORTANT]
+> The following product decisions were confirmed during the interactive clarification phase:
+> - **Schedule Scope**: A storewide weekly dispatch schedule set in the Admin Panel's "Combo Bundles" tab, with an optional per-combo override inside the combo edit modal.
+> - **Customer Display Format**: Weekly dispatch days (e.g., *"Dispatches every Monday & Thursday"*) paired with real-time dynamic delivery calculations (e.g., *"Order today for dispatch this Thursday • Delivered by Friday – Saturday"*).
+> - **State Transit Timing**:
+>   - **Kerala**: 1–2 transit days after dispatch.
+>   - **Tamil Nadu**: 2–3 transit days after dispatch.
+>   - **Karnataka**: 2–3 transit days after dispatch.
 
 ---
 
-## Verification Plan
+## 1. Overview & Core Concept
 
-### Automated Verification
-1. Run `compile_applet` to confirm zero compilation errors.
-2. Run `lint_applet` to verify clean typing and imports.
+- **What It Does**: 
+  - Allows nursery managers to set which days of the week live plant combo bundles are packaged and dispatched from the greenhouse (e.g. Mondays and Thursdays to protect plant freshness and avoid weekend courier warehouse delays).
+  - Automatically calculates the next upcoming dispatch weekday based on when the customer places their order.
+  - Adds destination state transit time to present accurate estimated arrival days.
+  - Automatically saves the calculated dispatch date and estimated arrival into the customer's order record in Cloud Firestore.
+- **Target Audience & Roles**:
+  - **Store Admins / Dispatch Staff**: Fast day-of-week selection toggles (Monday through Sunday) in the Combo Bundles admin tab, with instant Cloud Firestore sync.
+  - **Customers**: High-confidence live plant ordering with full transparency on when plants leave the nursery and arrive at their door.
 
-### Manual Verification
-1. Note the current stock of a combo (e.g. `Hibiscus Dwarf (10)` with stock = 100).
-2. Place a test order for 2 units.
-3. Verify that:
-   - The UI immediately shows stock = 98.
-   - Cloud Firestore `combos` document reflects `stock: 98`.
-   - Hard refreshing the page keeps stock at 98 without resetting.
-4. Cancel the test order in the Admin Panel and verify stock increments back to 100 in both UI and Firestore.
+---
+
+## 2. User Experience & Visual Design
+
+### A. Admin Panel — Combo Bundles Tab (`AdminPage.tsx`)
+- **Weekly Dispatch Control Card**:
+  - Located at the top of the "Combo Bundles" tab.
+  - Interactive multi-select day toggles: `Mon`, `Tue`, `Wed`, `Thu`, `Fri`, `Sat`, `Sun`.
+  - Same-day order cutoff time input (e.g. orders placed before 1:00 PM on a dispatch day dispatch same-day, otherwise roll to next dispatch day).
+  - Summary badge: *"Active Nursery Dispatch Days: Monday & Thursday"*.
+  - 1-click *"Save Schedule"* persisting to `storeSettings.comboDispatchDays` in Firestore.
+- **Combo Customizer / Edit Modal**:
+  - Optional toggle: *"Use custom dispatch days for this bundle"*.
+  - Allows setting unique dispatch days for specialty or high-maintenance bundles if needed.
+
+### B. Customer Storefront Touchpoints
+1. **Combo Card (`ComboCard.tsx`)**:
+   - Clean, unboxed delivery kicker: `🚚 Dispatches Mon & Thu · Delivers in 1–3 days`.
+2. **Combo Detail Page (`ComboDetailPage.tsx`)**:
+   - Prominent Dispatch & Delivery Timeline box:
+     - Step 1: **Ordered Today**
+     - Step 2: **Greenhouse Dispatch**: *"Next dispatch: Thursday, Oct 29"*
+     - Step 3: **Expected Delivery**: *"Friday, Oct 30 – Saturday, Oct 31 (Kerala)"*
+   - Dynamic updates when the customer switches their destination state between Kerala, Tamil Nadu, and Karnataka.
+3. **Cart Drawer & Checkout Page (`CartDrawer.tsx` & `CheckoutPage.tsx`)**:
+   - Displays earliest combo dispatch weekday and estimated arrival date under Order Summary.
+4. **Order Confirmation & Tracking (`OrderSuccessPage.tsx` & `TrackOrderPage.tsx`)**:
+   - Confirmed dispatch date and estimated delivery date printed directly on order invoice and live tracking card.
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+| Decision | Chosen Approach | Rationale & Alternatives Considered |
+| :--- | :--- | :--- |
+| **Storage Location** | `storeSettings.comboDispatchDays` (array of weekday names) in Firestore | Clean, centralized persistence in existing `storeSettings` document; avoids database migrations or breaking schema changes. |
+| **Calculation Engine** | Pure client/shared utility function `calculateComboDispatchAndDelivery()` | Instant reactivity on the client without network lag when customers change delivery states or view combos in different timezones. |
+| **Weekend Courier Handling** | Excludes Sunday from active transit calculations where speed post / couriers do not deliver | Prevents misleading delivery dates that promise Sunday delivery when couriers are closed. |
+| **Same-Day Cutoff** | Configurable daily cutoff hour (default 12:00 PM IST) | Orders placed on Thursday morning can dispatch Thursday; orders placed Thursday afternoon automatically show dispatch on Monday. |
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│             Admin Panel: Combo Bundles Tab (AdminPage.tsx)             │
+│   ┌──────────────────────────────────────────────────────────────────┐ │
+│   │ 🚚 Weekly Combo Dispatch Schedule (Active: Mon, Thu)             │ │
+│   │ [Mon] [Tue] [Wed] [Thu] [Fri] [Sat] [Sun] | Cutoff: 12:00 PM     │ │
+│   │ [Save Dispatch Settings] ──► updateStoreSettings()               │ │
+│   └──────────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ Persists to Firestore 'storeSettings'
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│            calculateComboDispatchAndDelivery Utility Function          │
+│   Inputs: orderDate, comboDispatchDays, deliveryState, courierTransit  │
+│   Outputs: nextDispatchDate, dispatchWeekday, estimatedDeliveryRange   │
+└───────────────────┬───────────────────────────────┬────────────────────┘
+                    │                               │
+                    ▼                               ▼
+┌───────────────────────────────────────┐ ┌──────────────────────────────┐
+│        Storefront Customer UI         │ │     Checkout & Firestore     │
+│ • ComboCard: Dispatch pill            │ │ • CheckoutPage: Auto-calcul- │
+│ • ComboDetailPage: Timeline schedule  │ │   ates & stores in Order doc │
+│ • CartDrawer: Next dispatch alert     │ │ • OrderSuccessPage: Confirms │
+│                                       │ │   exact dispatch & delivery  │
+└───────────────────────────────────────┘ └──────────────────────────────┘
+```
+
+### Files & Components Involved:
+1. `src/utils/dispatchCalculator.ts`: Core algorithm calculating next dispatch date and delivery window based on order timestamp, weekly dispatch days, cutoff hour, and delivery state.
+2. `src/types/index.ts`: Update `StoreSettings` with `comboDispatchDays?: string[]` and `comboDispatchCutoffHour?: number`, and `PlantCombo` with optional `customDispatchDays?: string[]`.
+3. `src/pages/AdminPage.tsx`: Add the interactive Weekly Dispatch Days schedule card in the Combo Bundles tab.
+4. `src/pages/ComboDetailPage.tsx` & `src/components/common/ComboCard.tsx`: Display the dispatch schedule and dynamic estimated arrival.
+5. `src/pages/CheckoutPage.tsx`: Calculate and embed the estimated dispatch date into the created order payload.
+6. `src/pages/OrderSuccessPage.tsx`: Show the calculated dispatch date and estimated arrival window.

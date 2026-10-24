@@ -125,6 +125,8 @@ export const initialStoreSettings: StoreSettings = {
   useParcelTariffTable: false,
   freeDeliveryEnabled: false,
   freeShippingThreshold: 899,
+  comboDispatchDays: ['Monday', 'Thursday'],
+  comboDispatchCutoffHour: 12,
   announcementBarText: 'For home delivery choose Speed Post or India Post.',
   announcementText: 'For home delivery choose Speed Post or India Post.',
   announcementBarActive: true,

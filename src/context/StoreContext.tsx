@@ -249,6 +249,9 @@ interface StoreContextType {
   deleteCombo: (id: string) => Promise<void> | void;
   deleteCombos: (ids: string[]) => Promise<void> | void;
   duplicateCombo: (id: string) => Promise<void> | void;
+  updateProductStock: (productId: string, stock: number) => Promise<void>;
+  updateComboStock: (comboId: string, stock: number) => Promise<void>;
+  batchUpdateStock: (items: { id: string; type: 'plant' | 'combo'; stock: number }[]) => Promise<void>;
 
   addDailyDeal: (deal: Omit<DailyDeal, 'id'>) => Promise<void> | void;
   updateDailyDeal: (deal: DailyDeal) => Promise<void> | void;
@@ -4256,6 +4259,94 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  // Dedicated Inventory Management Stock Adjusters
+  const updateProductStock = async (productId: string, newStock: number) => {
+    const validStock = Math.max(0, Math.round(newStock));
+    setProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, stock: validStock } : p))
+    );
+    try {
+      await updateDoc(doc(db, 'products', productId), { stock: validStock });
+    } catch (e) {
+      console.warn('Could not update product stock in Firestore:', e);
+    }
+  };
+
+  const updateComboStock = async (comboId: string, newStock: number) => {
+    const validStock = Math.max(0, Math.round(newStock));
+    setCombos((prev) => {
+      const next = prev.map((c) => (c.id === comboId ? { ...c, stock: validStock } : c));
+      return [...next].sort((a, b) => {
+        const aInStock = (a.stock ?? 0) > 0;
+        const bInStock = (b.stock ?? 0) > 0;
+        if (aInStock && !bInStock) return -1;
+        if (!aInStock && bInStock) return 1;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+    });
+    try {
+      await updateDoc(doc(db, 'combos', comboId), { stock: validStock });
+    } catch (e) {
+      console.warn('Could not update combo stock in Firestore:', e);
+    }
+  };
+
+  const batchUpdateStock = async (items: { id: string; type: 'plant' | 'combo'; stock: number }[]) => {
+    if (!items || !items.length) return;
+    const batch = writeBatch(db);
+
+    const productUpdates = new Map<string, number>();
+    const comboUpdates = new Map<string, number>();
+
+    items.forEach((item) => {
+      const valid = Math.max(0, Math.round(item.stock));
+      if (item.type === 'plant') {
+        productUpdates.set(item.id, valid);
+        batch.update(doc(db, 'products', item.id), { stock: valid });
+      } else {
+        comboUpdates.set(item.id, valid);
+        batch.update(doc(db, 'combos', item.id), { stock: valid });
+      }
+    });
+
+    if (productUpdates.size > 0) {
+      setProducts((prev) =>
+        prev.map((p) => (productUpdates.has(p.id) ? { ...p, stock: productUpdates.get(p.id)! } : p))
+      );
+    }
+
+    if (comboUpdates.size > 0) {
+      setCombos((prev) => {
+        const next = prev.map((c) =>
+          comboUpdates.has(c.id) ? { ...c, stock: comboUpdates.get(c.id)! } : c
+        );
+        return [...next].sort((a, b) => {
+          const aInStock = (a.stock ?? 0) > 0;
+          const bInStock = (b.stock ?? 0) > 0;
+          if (aInStock && !bInStock) return -1;
+          if (!aInStock && bInStock) return 1;
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        });
+      });
+    }
+
+    try {
+      await batch.commit();
+      addToast({
+        type: 'success',
+        title: 'Inventory Updated',
+        message: `Successfully updated stock for ${items.length} items.`,
+      });
+    } catch (e) {
+      console.warn('Batch stock update Firestore issue:', e);
+      addToast({
+        type: 'info',
+        title: 'Inventory Updated Locally',
+        message: `Stock updated for ${items.length} items locally.`,
+      });
+    }
+  };
+
   // Daily Deals
   const addDailyDeal = async (deal: Omit<DailyDeal, 'id'>) => {
     const newDeal: DailyDeal = {
@@ -5086,6 +5177,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteCombo,
         deleteCombos,
         duplicateCombo,
+        updateProductStock,
+        updateComboStock,
+        batchUpdateStock,
 
         addDailyDeal,
         updateDailyDeal,

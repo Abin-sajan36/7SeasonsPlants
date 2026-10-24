@@ -58,8 +58,10 @@ import {
   BookOpen,
   Image as ImageIcon,
   Activity,
+  Boxes,
 } from 'lucide-react';
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
+import { InventoryManagement } from '../components/admin/InventoryManagement';
 import { useStore } from '../context/StoreContext';
 import { auth, db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -82,6 +84,7 @@ import { OnlineOrderImportModal } from '../components/admin/OnlineOrderImportMod
 import { SelectiveSiteResetModal } from '../components/admin/SelectiveSiteResetModal';
 import { ParcelTariffSection } from '../components/admin/ParcelTariffSection';
 import { uploadImage } from '../lib/imageUploader';
+import { calculateComboDispatchAndDelivery, WEEKDAYS } from '../utils/dispatchCalculator';
 
 interface AdminPageProps {
   initialTab?: string;
@@ -130,6 +133,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
 
   const [activeTab, setActiveTab] = useState<
     | 'analytics'
+    | 'inventory'
     | 'products'
     | 'combos'
     | 'categories'
@@ -150,7 +154,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     | 'secrets'
   >(() => {
     const validTabs = [
-      'analytics', 'products', 'combos', 'categories', 'banners',
+      'analytics', 'inventory', 'products', 'combos', 'categories', 'banners',
       'coupons', 'reviews', 'blogs', 'reels', 'orders', 'offline-orders',
       'accounts', 'users', 'user-logs', 'complaints', 'settings', 'ai-tools', 'backup-restore', 'secrets'
     ];
@@ -521,6 +525,73 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [selectedComboIds, setSelectedComboIds] = useState<string[]>([]);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+
+  // Combo Dispatch Days Scheduling State
+  const [selectedDispatchDays, setSelectedDispatchDays] = useState<string[]>(
+    storeSettings?.comboDispatchDays && storeSettings.comboDispatchDays.length > 0
+      ? storeSettings.comboDispatchDays
+      : ['Monday', 'Thursday']
+  );
+  const [dispatchCutoffHour, setDispatchCutoffHour] = useState<number>(
+    storeSettings?.comboDispatchCutoffHour ?? 12
+  );
+  const [isSavingDispatchSchedule, setIsSavingDispatchSchedule] = useState(false);
+
+  useEffect(() => {
+    if (storeSettings?.comboDispatchDays && storeSettings.comboDispatchDays.length > 0) {
+      setSelectedDispatchDays(storeSettings.comboDispatchDays);
+    }
+    if (typeof storeSettings?.comboDispatchCutoffHour === 'number') {
+      setDispatchCutoffHour(storeSettings.comboDispatchCutoffHour);
+    }
+  }, [storeSettings?.comboDispatchDays, storeSettings?.comboDispatchCutoffHour]);
+
+  const toggleDispatchDay = (day: string) => {
+    setSelectedDispatchDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  };
+
+  const handleSaveDispatchSchedule = async () => {
+    if (selectedDispatchDays.length === 0) {
+      addToast({
+        type: 'warning',
+        title: 'Choose at least 1 day',
+        message: 'Please select at least one weekly dispatch day for live plant combos.',
+      });
+      return;
+    }
+    setIsSavingDispatchSchedule(true);
+    try {
+      await updateStoreSettings({
+        comboDispatchDays: selectedDispatchDays,
+        comboDispatchCutoffHour: dispatchCutoffHour,
+      });
+      addToast({
+        type: 'success',
+        title: 'Dispatch Schedule Saved 🌿',
+        message: `Combos will dispatch weekly on ${selectedDispatchDays.join(', ')}.`,
+      });
+    } catch (e: any) {
+      addToast({
+        type: 'error',
+        title: 'Save Failed',
+        message: e?.message || 'Could not update dispatch schedule.',
+      });
+    } finally {
+      setIsSavingDispatchSchedule(false);
+    }
+  };
+
+  // Live preview calculation for the Admin UI
+  const liveDispatchPreview = calculateComboDispatchAndDelivery({
+    storeSettings: {
+      ...storeSettings,
+      comboDispatchDays: selectedDispatchDays,
+      comboDispatchCutoffHour: dispatchCutoffHour,
+    } as any,
+    deliveryState: 'Kerala',
+  });
 
   // Admin Account & Password Management State
   const [isAddAdminModalOpen, setIsAddAdminModalOpen] = useState(false);
@@ -1566,6 +1637,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
         <div className="flex gap-2 border-b border-emerald-900/10 pb-2 overflow-x-auto">
           {[
             { id: 'analytics', label: 'Analytics Dashboard', icon: BarChart3 },
+            { id: 'inventory', label: `Inventory Hub (${products.length + combos.length})`, icon: Boxes },
             { id: 'products', label: `Plant Catalog (${products.length})`, icon: Package },
             { id: 'combos', label: `Combo Bundles (${combos.length})`, icon: Layers },
             { id: 'categories', label: `Categories (${categories.length})`, icon: Tag },
@@ -1645,6 +1717,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
 
         {/* TAB 0: ANALYTICS */}
         {activeTab === 'analytics' && <AnalyticsDashboard />}
+
+        {/* TAB: DEDICATED INVENTORY MANAGEMENT HUB */}
+        {activeTab === 'inventory' && <InventoryManagement />}
 
         {/* TAB 1: PRODUCTS INVENTORY */}
         {activeTab === 'products' && (
@@ -1810,6 +1885,112 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
         {/* TAB 2: COMBOS MANAGEMENT */}
         {activeTab === 'combos' && (
           <div className="space-y-6">
+            {/* Weekly Combo Dispatch Scheduling Card */}
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-emerald-900/10 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-800 shrink-0">
+                    <Truck className="w-5 h-5 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-emerald-950">
+                      Weekly Combo Dispatch Schedule
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Select which days of the week live plant bundles leave the nursery. Customers will see real-time dispatch dates and arrival estimates calculated from their order date.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveDispatchSchedule}
+                    disabled={isSavingDispatchSchedule}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{isSavingDispatchSchedule ? 'Saving...' : 'Save Dispatch Schedule'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Day Selection Toggles */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
+                  <span>
+                    Weekly Dispatch Days (Active:{' '}
+                    <span className="text-emerald-700 font-extrabold">
+                      {selectedDispatchDays.length > 0 ? selectedDispatchDays.join(', ') : 'None'}
+                    </span>
+                    )
+                  </span>
+                  <span className="text-[11px] text-gray-500 font-normal">
+                    Click days to toggle active dispatch schedule
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                    const isSelected = selectedDispatchDays.includes(day);
+                    return (
+                      <button
+                        type="button"
+                        key={day}
+                        onClick={() => toggleDispatchDay(day)}
+                        className={`py-2.5 px-3 rounded-2xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs ring-2 ring-emerald-500/20'
+                            : 'bg-[#F4FAF5] text-gray-700 hover:bg-emerald-50 border-emerald-900/10'
+                        }`}
+                      >
+                        <span className="text-xs uppercase tracking-wider">{day.slice(0, 3)}</span>
+                        <span className={`text-[10px] font-medium ${isSelected ? 'text-emerald-200' : 'text-gray-400'}`}>
+                          {isSelected ? '✓ Dispatches' : 'No dispatch'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Timing & Cutoff & Live Customer Preview */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="flex items-center gap-3 p-3 bg-[#F4FAF5] rounded-2xl border border-emerald-900/10 text-xs">
+                  <Clock className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <div className="flex-1">
+                    <label className="font-bold text-emerald-950 block text-xs">Same-Day Cutoff Time</label>
+                    <p className="text-[11px] text-gray-500">
+                      Orders placed after this hour on a dispatch day roll to the next dispatch day
+                    </p>
+                  </div>
+                  <select
+                    value={dispatchCutoffHour}
+                    onChange={(e) => setDispatchCutoffHour(Number(e.target.value))}
+                    className="px-2.5 py-1.5 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-emerald-950 outline-hidden cursor-pointer"
+                  >
+                    <option value={10}>10:00 AM</option>
+                    <option value={11}>11:00 AM</option>
+                    <option value={12}>12:00 PM (Noon)</option>
+                    <option value={13}>1:00 PM</option>
+                    <option value={14}>2:00 PM</option>
+                    <option value={15}>3:00 PM</option>
+                    <option value={16}>4:00 PM</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-emerald-50/80 rounded-2xl border border-emerald-200 text-xs text-emerald-950">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-bold block">Live Customer Preview:</span>
+                    <span className="text-[11px] text-emerald-900 leading-snug">
+                      {liveDispatchPreview.timelineDescription}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Header / Search & Create Actions */}
             <div className="bg-white p-4 sm:p-6 rounded-3xl border border-gray-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="relative flex-1 max-w-md">

@@ -101,6 +101,7 @@ export interface PlantCombo {
   careSummary: string;
   benefits: string[];
   deliveryInfo?: string;
+  customDispatchDays?: string[];
   maxQuantityPerOrder?: number;
   status: 'published' | 'draft' | 'scheduled';
   scheduledStartDate?: string;
@@ -244,6 +245,7 @@ export interface Order {
   statusHistory: OrderStatusHistoryItem[];
   trackingNumber?: string;
   courierPartner?: string;
+  estimatedDispatchDate?: string;
   estimatedDelivery?: string;
   notes?: string;
   createdAt: string;
@@ -575,6 +577,11 @@ export interface StoreSettings {
   trustBenefits?: TrustBenefitItem[];
   isConfiguredByAdmin?: boolean;
   updatedAt?: string;
+
+  // Live Plant Combo Weekly Dispatch Scheduling
+  comboDispatchDays?: string[]; // e.g. ['Monday', 'Thursday']
+  comboDispatchCutoffHour?: number; // e.g. 12 (12 PM)
+  comboDispatchNote?: string;
 
   // Parcel Tariff Table Configuration (Speed Post & India Post)
   useParcelTariffTable?: boolean;

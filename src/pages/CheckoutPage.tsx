@@ -10,6 +10,8 @@ import {
   MapPin,
   CheckCircle2,
   Trash2,
+  Calendar,
+  PackageCheck,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { CustomerAddress, OrderItem, CartItem, PlantCombo, COURIER_SERVICES, CourierServiceOption, isCourierEnabledForState } from '../types';
@@ -25,6 +27,7 @@ import {
 import { startRazorpayCheckout } from '../lib/razorpay';
 import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { calculateComboDispatchAndDelivery } from '../utils/dispatchCalculator';
 
 // --- PAYMENT MODAL COMPONENT ---
 const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; total: number; onConfirm: (method: string) => void; }> = ({ isOpen, onClose, total, onConfirm }) => {
@@ -194,6 +197,19 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const checkoutTotal = React.useMemo(() => {
     return Math.max(0, cartSubtotal - cartDiscount + checkoutDeliveryFee);
   }, [cartSubtotal, cartDiscount, checkoutDeliveryFee]);
+
+  // Live plant combo dispatch and arrival estimation
+  const hasCombosInCart = cart.some((i) => i.type === 'combo');
+  const comboDispatchEstimate = React.useMemo(() => {
+    if (!hasCombosInCart) return null;
+    const comboItem = cart.find((i) => i.type === 'combo');
+    const matchingCombo = comboItem ? combos.find((c) => c.id === comboItem.id || c.slug === comboItem.slug) : undefined;
+    return calculateComboDispatchAndDelivery({
+      combo: matchingCombo,
+      storeSettings,
+      deliveryState: formData.state,
+    });
+  }, [hasCombosInCart, cart, combos, storeSettings, formData.state]);
 
   // Keep state synchronized if selectedDeliveryState updates from header
   useEffect(() => {
@@ -567,7 +583,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
             razorpayPaymentId: paymentPayload.razorpay_payment_id,
             orderStatus: 'Order Placed',
             courierPartner: selectedCourier.displayName,
-            estimatedDelivery: selectedCourier.deliveryTime,
+            estimatedDelivery: comboDispatchEstimate
+              ? `${comboDispatchEstimate.estimatedDeliveryFormatted} (${selectedCourier.displayName})`
+              : selectedCourier.deliveryTime,
+            estimatedDispatchDate: comboDispatchEstimate
+              ? comboDispatchEstimate.nextDispatchFormatted
+              : undefined,
             notes: formData.notes
               ? `${formData.notes} | Preferred Courier: ${selectedCourier.displayName} (₹${getDeliveryChargePerKg(selectedCourier.id, formData.state)}/kg) | Razorpay Verified`
               : `Preferred Courier: ${selectedCourier.displayName} (₹${getDeliveryChargePerKg(selectedCourier.id, formData.state)}/kg) | Razorpay Verified`,
@@ -719,7 +740,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         razorpayPaymentId: paymentId,
         orderStatus: 'Order Placed',
         courierPartner: selectedCourier.displayName,
-        estimatedDelivery: selectedCourier.deliveryTime,
+        estimatedDelivery: comboDispatchEstimate
+          ? `${comboDispatchEstimate.estimatedDeliveryFormatted} (${selectedCourier.displayName})`
+          : selectedCourier.deliveryTime,
+        estimatedDispatchDate: comboDispatchEstimate
+          ? comboDispatchEstimate.nextDispatchFormatted
+          : undefined,
         notes: formData.notes
           ? `${formData.notes} | Preferred Courier: ${selectedCourier.displayName} (₹${getDeliveryChargePerKg(selectedCourier.id, formData.state)}/kg)`
           : `Preferred Courier: ${selectedCourier.displayName} (₹${getDeliveryChargePerKg(selectedCourier.id, formData.state)}/kg)`,
@@ -1276,6 +1302,67 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                 </div>
               </div>
             </div>
+
+            {/* Live Plant Combo Dispatch & Delivery Schedule Confirmation */}
+            {comboDispatchEstimate && (
+              <div className="bg-gradient-to-br from-emerald-50/90 via-emerald-50/40 to-teal-50/70 border border-emerald-200/90 rounded-3xl p-5 sm:p-6 shadow-xs space-y-3.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-black tracking-wider text-emerald-800 block">
+                        Live Plant Combo Dispatch Schedule
+                      </span>
+                      <h3 className="text-xs sm:text-sm font-black text-emerald-950">
+                        {comboDispatchEstimate.dispatchScheduleText}
+                      </h3>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {comboDispatchEstimate.transitDaysText} Doorstep Transit
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-3 bg-white/95 rounded-2xl border border-emerald-100 shadow-2xs">
+                    <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-semibold">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Scheduled Dispatch Date:</span>
+                    </div>
+                    <strong className="text-emerald-950 text-sm block mt-0.5">
+                      {comboDispatchEstimate.nextDispatchFormatted}
+                    </strong>
+                    <span className="text-emerald-700 font-semibold text-[10px] block mt-0.5">
+                      {comboDispatchEstimate.isSameDayDispatch
+                        ? '⚡ Packing in today’s dispatch batch'
+                        : `Fresh nursery packing in ${comboDispatchEstimate.daysUntilDispatch} day${comboDispatchEstimate.daysUntilDispatch === 1 ? '' : 's'}`}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-white/95 rounded-2xl border border-emerald-100 shadow-2xs">
+                    <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-semibold">
+                      <PackageCheck className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Estimated Doorstep Arrival:</span>
+                    </div>
+                    <strong className="text-emerald-950 text-sm block mt-0.5">
+                      {comboDispatchEstimate.estimatedDeliveryFormatted}
+                    </strong>
+                    <span className="text-emerald-700 font-semibold text-[10px] block mt-0.5">
+                      To {formData.state} via {selectedCourier.displayName}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-emerald-900/80 leading-relaxed flex items-start gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
+                  <span>
+                    To maintain pristine plant vitality, live combos are dispatched on scheduled days to prevent packages from lingering in logistics hubs over the weekend.
+                  </span>
+                </p>
+              </div>
+            )}
 
             {/* 3. Payment Method Notice Box */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-emerald-900/10 shadow-xs space-y-4">
