@@ -130,6 +130,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     instagramReels,
     blogs,
     banners,
+    refreshOrders,
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<
@@ -685,6 +686,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
   const [editingTrackingOrderId, setEditingTrackingOrderId] = useState<string | null>(null);
   const [trackingNumberInput, setTrackingNumberInput] = useState('');
   const [courierPartnerInput, setCourierPartnerInput] = useState('Speed Post (India Post)');
+  const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
+
+  const handleRefreshOrders = async () => {
+    setIsRefreshingOrders(true);
+    try {
+      const fetched = await refreshOrders();
+      addToast({
+        type: 'success',
+        title: 'Orders Synchronized 🌿',
+        message: `Synchronized ${fetched.length} orders from cloud database.`,
+      });
+    } catch (e: any) {
+      addToast({
+        type: 'error',
+        title: 'Sync Failed',
+        message: e?.message || 'Could not fetch orders.',
+      });
+    } finally {
+      setIsRefreshingOrders(false);
+    }
+  };
 
   // Export & Import Modal States
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -2644,6 +2666,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                       </button>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleRefreshOrders}
+                    disabled={isRefreshingOrders}
+                    className="px-4 py-2.5 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer shrink-0 disabled:opacity-60"
+                    title="Synchronize fresh orders directly from database"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingOrders ? 'animate-spin' : ''}`} />
+                    <span>{isRefreshingOrders ? 'Syncing...' : 'Sync Orders'}</span>
+                  </button>
                   <button
                     onClick={() => setIsExportModalOpen(true)}
                     className="px-5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer shrink-0"

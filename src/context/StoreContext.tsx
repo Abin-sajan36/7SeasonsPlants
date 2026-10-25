@@ -186,6 +186,7 @@ interface StoreContextType {
   deleteOrder: (orderId: string) => void;
   getOrderById: (id: string) => Order | undefined;
   getOrderByNumber: (orderNumber: string) => Order | undefined;
+  refreshOrders: () => Promise<Order[]>;
 
   // User & Auth
   authDomainNotice: OAuthDomainNotice | null;
@@ -1483,8 +1484,52 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!isAdminAuthenticated && !currentAdmin && !isCurrentSuperAdmin) return;
     if (isFirestoreQuotaExceeded()) return;
 
+    let isSubscribed = true;
+
+    // Immediately fetch orders so state is populated without waiting for realtime event
+    getDocs(query(collection(db, 'orders'), limit(300)))
+      .then((snapshot) => {
+        if (!isSubscribed || snapshot.empty) return;
+        const fetchedOrders: Order[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data() as Order;
+          fetchedOrders.push({
+            ...data,
+            id: d.id,
+            orderNumber: data.orderNumber || d.id,
+            items: Array.isArray(data?.items) ? data.items : [],
+            statusHistory: Array.isArray(data?.statusHistory) ? data.statusHistory : [],
+            customer: data?.customer || {
+              name: 'Customer',
+              email: '',
+              phone: '',
+              shippingAddress: {} as any,
+            },
+          });
+        });
+        setOrders((prev) => {
+          const map = new Map<string, Order>();
+          prev.forEach((o) => {
+            if (o && (o.id || o.orderNumber)) map.set(o.id || o.orderNumber, o);
+          });
+          fetchedOrders.forEach((fo) => {
+            if (fo && (fo.id || fo.orderNumber)) {
+              map.set(fo.id || fo.orderNumber, fo);
+            }
+          });
+          const merged = Array.from(map.values()).sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          safeSetItem(`${STORAGE_KEY}_orders`, JSON.stringify(merged));
+          return merged;
+        });
+      })
+      .catch((err) => {
+        handleFirestoreQuotaError(err, 'ordersInitFetch');
+      });
+
     const unsubscribe = onSnapshot(
-      query(collection(db, 'orders'), limit(150)),
+      query(collection(db, 'orders'), limit(300)),
       (snapshot) => {
         if (!snapshot.empty) {
           const fetchedOrders: Order[] = [];
@@ -1530,7 +1575,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.warn('Firestore orders realtime sync notice:', err.message || err);
       }
     );
-    return () => unsubscribe();
+    return () => {
+      isSubscribed = false;
+      unsubscribe();
+    };
   }, [isAdminAuthenticated, currentAdmin, isCurrentSuperAdmin]);
 
   useEffect(() => {
@@ -3813,6 +3861,57 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const refreshOrders = async (): Promise<Order[]> => {
+    if (isFirestoreQuotaExceeded()) return orders;
+    try {
+      const snap = await getDocs(query(collection(db, 'orders'), limit(300)));
+      if (!snap.empty) {
+        const fetchedOrders: Order[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as Order;
+          fetchedOrders.push({
+            ...data,
+            id: d.id,
+            orderNumber: data.orderNumber || d.id,
+            items: Array.isArray(data?.items) ? data.items : [],
+            statusHistory: Array.isArray(data?.statusHistory) ? data.statusHistory : [],
+            customer: data?.customer || {
+              name: 'Customer',
+              email: '',
+              phone: '',
+              shippingAddress: {} as any,
+            },
+          });
+        });
+
+        let updatedOrders: Order[] = [];
+        setOrders((prev) => {
+          const map = new Map<string, Order>();
+          prev.forEach((o) => {
+            if (o && (o.id || o.orderNumber)) map.set(o.id || o.orderNumber, o);
+          });
+          fetchedOrders.forEach((fo) => {
+            if (fo && (fo.id || fo.orderNumber)) {
+              map.set(fo.id || fo.orderNumber, fo);
+            }
+          });
+          const merged = Array.from(map.values()).sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          safeSetItem(`${STORAGE_KEY}_orders`, JSON.stringify(merged));
+          updatedOrders = merged;
+          return merged;
+        });
+
+        return updatedOrders.length > 0 ? updatedOrders : fetchedOrders;
+      }
+      return orders;
+    } catch (err: any) {
+      handleFirestoreQuotaError(err, 'refreshOrders');
+      return orders;
+    }
+  };
+
   const grantAdminRoleToUser = async (
     userIdOrEmail: string,
     adminRole: AdminRole = 'admin'
@@ -5426,6 +5525,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteOrder,
         getOrderById,
         getOrderByNumber,
+        refreshOrders,
 
         loginCustomer,
         loginWithGoogle,

@@ -54,6 +54,7 @@ export const UserLogsTab: React.FC = () => {
     orders,
     recordUserLog,
     refreshRegisteredUsers,
+    refreshOrders,
   } = useStore();
 
   const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'audit-logs'>('accounts');
@@ -328,11 +329,11 @@ export const UserLogsTab: React.FC = () => {
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refreshRegisteredUsers();
+      await Promise.all([refreshRegisteredUsers(), refreshOrders()]);
       addToast({
         type: 'success',
         title: 'User Records Synchronized',
-        message: `Accounts and logs refreshed successfully.`,
+        message: `Accounts and order logs refreshed successfully.`,
       });
     } catch (err: any) {
       console.warn('Refresh note:', err);

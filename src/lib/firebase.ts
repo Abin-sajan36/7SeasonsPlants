@@ -77,19 +77,16 @@ if (typeof window !== 'undefined') {
 
 // Quota Circuit Breaker: When daily Firestore quota is exhausted on the free tier,
 // persist state to localStorage and immediately halt network retries to stop backend backoff loops.
-const QUOTA_STORAGE_KEY = '7seasons_firestore_quota_exhausted_v1';
+const QUOTA_STORAGE_KEY = '7seasons_firestore_quota_exhausted_v2';
 const QUOTA_CACHE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 function checkPersistedQuotaState(): boolean {
   if (typeof window === 'undefined') return false;
   try {
+    // Purge legacy poisoned quota flag if present
+    localStorage.removeItem('7seasons_firestore_quota_exhausted_v1');
     const raw = localStorage.getItem(QUOTA_STORAGE_KEY);
-    if (raw === null) {
-      // Default to true because the current Firestore project (season-445ff) has saturated its free daily quota on Google Cloud.
-      // This immediately protects fresh tabs and reloads from firing failing network requests.
-      localStorage.setItem(QUOTA_STORAGE_KEY, Date.now().toString());
-      return true;
-    }
+    if (!raw) return false;
     const timestamp = parseInt(raw, 10);
     if (isNaN(timestamp)) return false;
     if (Date.now() - timestamp < QUOTA_CACHE_DURATION_MS) {
@@ -110,6 +107,7 @@ function persistQuotaState(exceeded: boolean) {
       localStorage.setItem(QUOTA_STORAGE_KEY, Date.now().toString());
     } else {
       localStorage.removeItem(QUOTA_STORAGE_KEY);
+      localStorage.removeItem('7seasons_firestore_quota_exhausted_v1');
     }
   } catch {}
 }
