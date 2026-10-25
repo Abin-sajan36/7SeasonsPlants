@@ -20,7 +20,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
-import { db } from '../../lib/firebase';
+import { db, isFirestoreQuotaExceeded, handleFirestoreQuotaError } from '../../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface SecretsVaultTabProps {
@@ -124,14 +124,14 @@ export const SecretsVaultTab: React.FC<SecretsVaultTabProps> = () => {
       }
 
       // 2. If serverless returned 404 or empty, seamlessly fallback to Firestore secrets document
-      if (!s) {
+      if (!s && !isFirestoreQuotaExceeded()) {
         try {
           const secDoc = await getDoc(doc(db, 'storeSettings', 'secrets'));
           if (secDoc.exists()) {
             s = secDoc.data();
           }
         } catch (fsErr) {
-          console.warn('Firestore secrets fallback note:', fsErr);
+          handleFirestoreQuotaError(fsErr, 'secretsFallback');
         }
       }
 
@@ -246,10 +246,12 @@ export const SecretsVaultTab: React.FC<SecretsVaultTabProps> = () => {
       };
 
       // 1. Direct cloud persistence to Firestore storeSettings/secrets for resilient cloud hosting
-      try {
-        await setDoc(doc(db, 'storeSettings', 'secrets'), payload, { merge: true });
-      } catch (fsErr) {
-        console.warn('Firestore direct secrets backup note:', fsErr);
+      if (!isFirestoreQuotaExceeded()) {
+        try {
+          await setDoc(doc(db, 'storeSettings', 'secrets'), payload, { merge: true });
+        } catch (fsErr) {
+          handleFirestoreQuotaError(fsErr, 'secretsBackup');
+        }
       }
 
       // 2. Also sync razorpayKeyId to storeSettings in Firestore

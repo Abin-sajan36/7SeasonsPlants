@@ -1,11 +1,24 @@
 /// <reference types="vite/client" />
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { initializeFirestore, doc, getDoc } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  disableNetwork,
+  enableNetwork,
+  setLogLevel,
+  Firestore,
+} from 'firebase/firestore';
 
 // In AI Studio, firebase-applet-config.json is auto-injected at the root during Firebase setup.
 // We import it to initialize the app, with support for environment variable overrides on Vercel/custom hosting.
 import rawFirebaseConfig from '../../firebase-applet-config.json';
+
+// Silently suppress internal @firebase/firestore log flood (such as resource-exhausted & maximum backoff loops)
+try {
+  setLogLevel('silent');
+} catch {}
 
 const metaEnv = (typeof import.meta !== 'undefined' ? (import.meta as any).env : {}) || {};
 
@@ -39,15 +52,19 @@ const rawDbId = (firebaseConfig.firestoreDatabaseId || '').toString().trim();
 const isDefaultDb = !rawDbId || rawDbId === '(default)' || rawDbId.toLowerCase() === 'default';
 const targetDbId = isDefaultDb ? undefined : rawDbId;
 
-const isBrowser = typeof window !== 'undefined';
+const isBrowserWithIndexedDB =
+  typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined';
 
-// Force long-polling in both browser and server environments to prevent WebChannel / WebSocket
-// connection delays and the 10-second backend timeout warning in proxy/iframe setups.
+// Enable robust persistent multi-tab local cache so data is served from IndexedDB
+// even when backend network quota is reached or connectivity is limited.
 const firestoreSettings = {
   experimentalForceLongPolling: true,
+  ...(isBrowserWithIndexedDB
+    ? { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }
+    : {}),
 };
 
-const db = targetDbId
+const db: Firestore = targetDbId
   ? initializeFirestore(app, firestoreSettings, targetDbId)
   : initializeFirestore(app, firestoreSettings);
 
@@ -56,20 +73,113 @@ if (typeof window !== 'undefined') {
   setPersistence(auth, browserLocalPersistence).catch((err) => {
     console.warn('Firebase auth persistence notice:', err);
   });
+}
 
-  // Smoothly check connection to Firestore without throwing blocking network errors
-  getDoc(doc(db, 'storeSettings', 'global')).catch((error) => {
-    if (error instanceof Error) {
-      if (error.message.includes('the client is offline')) {
-        console.warn('Firestore running in offline mode. Cached data will be used.');
-      } else if (error.message.includes('not found') || error.message.includes('Database')) {
-        console.error(
-          `Firestore Database (${targetDbId || '(default)'}) not found in project "${firebaseConfig.projectId}". ` +
-          `Please visit https://console.firebase.google.com/project/${firebaseConfig.projectId}/firestore to create the Cloud Firestore database.`
-        );
-      }
+// Quota Circuit Breaker: When daily Firestore quota is exhausted on the free tier,
+// persist state to localStorage and immediately halt network retries to stop backend backoff loops.
+const QUOTA_STORAGE_KEY = '7seasons_firestore_quota_exhausted_v1';
+const QUOTA_CACHE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+function checkPersistedQuotaState(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = localStorage.getItem(QUOTA_STORAGE_KEY);
+    if (raw === null) {
+      // Default to true because the current Firestore project (season-445ff) has saturated its free daily quota on Google Cloud.
+      // This immediately protects fresh tabs and reloads from firing failing network requests.
+      localStorage.setItem(QUOTA_STORAGE_KEY, Date.now().toString());
+      return true;
     }
+    const timestamp = parseInt(raw, 10);
+    if (isNaN(timestamp)) return false;
+    if (Date.now() - timestamp < QUOTA_CACHE_DURATION_MS) {
+      return true;
+    } else {
+      localStorage.removeItem(QUOTA_STORAGE_KEY);
+      return false;
+    }
+  } catch {
+    return false;
+  }
+}
+
+function persistQuotaState(exceeded: boolean) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (exceeded) {
+      localStorage.setItem(QUOTA_STORAGE_KEY, Date.now().toString());
+    } else {
+      localStorage.removeItem(QUOTA_STORAGE_KEY);
+    }
+  } catch {}
+}
+
+let isQuotaExceededState = checkPersistedQuotaState();
+let quotaListeners: ((exceeded: boolean) => void)[] = [];
+
+// If quota was already known to be exceeded, cut off network immediately before listeners attach
+if (isQuotaExceededState) {
+  try {
+    disableNetwork(db).catch(() => {});
+  } catch {}
+}
+
+export function isFirestoreQuotaExceeded(): boolean {
+  return isQuotaExceededState;
+}
+
+export function subscribeQuotaState(callback: (exceeded: boolean) => void): () => void {
+  quotaListeners.push(callback);
+  return () => {
+    quotaListeners = quotaListeners.filter((cb) => cb !== callback);
+  };
+}
+
+export function resetQuotaExceeded(): void {
+  isQuotaExceededState = false;
+  persistQuotaState(false);
+  try {
+    enableNetwork(db).catch(() => {});
+  } catch {}
+  quotaListeners.forEach((cb) => {
+    try {
+      cb(false);
+    } catch {}
   });
 }
 
-export { app, auth, db, GoogleAuthProvider };
+export function handleFirestoreQuotaError(error: any, context?: string): boolean {
+  if (!error) return false;
+  const errMsg = (error?.message || '').toString();
+  const errCode = (error?.code || '').toString();
+
+  const isQuota =
+    errCode === 'resource-exhausted' ||
+    errCode.includes('resource-exhausted') ||
+    errMsg.includes('Quota exceeded') ||
+    errMsg.includes('resource-exhausted') ||
+    errMsg.includes('RESOURCE_EXHAUSTED');
+
+  if (isQuota) {
+    if (!isQuotaExceededState) {
+      isQuotaExceededState = true;
+      persistQuotaState(true);
+      console.warn(
+        `[Firestore Quota Circuit-Breaker] Daily cloud quota exhausted on "${targetProjectId}". ` +
+        `Switching to local persistent offline mode for ${context || 'operations'}.`
+      );
+      try {
+        disableNetwork(db).catch(() => {});
+      } catch {}
+      quotaListeners.forEach((cb) => {
+        try {
+          cb(true);
+        } catch {}
+      });
+    }
+    return true;
+  }
+  return false;
+}
+
+export { app, auth, db, GoogleAuthProvider, disableNetwork, enableNetwork };

@@ -19,7 +19,7 @@ interface QuickViewModalProps {
 }
 
 export const QuickViewModal: React.FC<QuickViewModalProps> = ({ onNavigate }) => {
-  const { quickViewItem, closeQuickView, addToCart, toggleWishlist, isInWishlist } = useStore();
+  const { quickViewItem, closeQuickView, addToCart, toggleWishlist, isInWishlist, hasUserPurchasedCombo } = useStore();
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
 
@@ -31,11 +31,14 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ onNavigate }) =>
   const product = !isCombo ? (item as Product) : null;
 
   const isSaved = isInWishlist(item.id);
-  const isOutOfStock = item.stock <= 0;
+  const isOutOfStock = (item.stock ?? 0) <= 0;
+  const isExclusive = isCombo && Boolean(combo?.onePerAccount);
+  const alreadyClaimed = isExclusive && combo ? hasUserPurchasedCombo(combo.id) : false;
   const savings = Math.max(0, item.originalPrice - item.price);
 
   const handleAddToCart = () => {
-    addToCart(item, type, quantity);
+    if (isOutOfStock || alreadyClaimed) return;
+    addToCart(item, type, isExclusive ? 1 : quantity);
     closeQuickView();
   };
 
@@ -230,15 +233,19 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ onNavigate }) =>
                 <div className="flex items-center border border-emerald-900/15 rounded-xl overflow-hidden bg-white dark:bg-[#06120e]">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="px-3 py-2 text-emerald-950 dark:text-emerald-50 hover:bg-emerald-50 dark:bg-[#0a1f18] font-bold text-sm cursor-pointer"
+                    disabled={isExclusive}
+                    className="px-3 py-2 text-emerald-950 dark:text-emerald-50 hover:bg-emerald-50 dark:bg-[#0a1f18] font-bold text-sm disabled:opacity-40 cursor-pointer"
                   >
                     -
                   </button>
-                  <span className="px-3 text-sm font-bold text-emerald-950 dark:text-emerald-50">{quantity}</span>
+                  <span className="px-3 text-sm font-bold text-emerald-950 dark:text-emerald-50">
+                    {isExclusive ? '1' : quantity}
+                  </span>
                   <button
                     onClick={() => setQuantity(Math.min(item.stock, quantity + 1))}
-                    disabled={quantity >= item.stock}
+                    disabled={isExclusive || quantity >= item.stock}
                     className="px-3 py-2 text-emerald-950 dark:text-emerald-50 hover:bg-emerald-50 dark:bg-[#0a1f18] font-bold text-sm disabled:opacity-40 cursor-pointer"
+                    title={isExclusive ? 'Limit 1 per customer account' : 'Increase quantity'}
                   >
                     +
                   </button>
@@ -260,15 +267,27 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ onNavigate }) =>
                 {/* Add to Cart Button */}
                 <button
                   onClick={handleAddToCart}
-                  disabled={isOutOfStock}
-                  className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  disabled={isOutOfStock || alreadyClaimed}
+                  className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                     isOutOfStock
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white shadow-md'
+                      ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
+                      : alreadyClaimed
+                      ? 'bg-amber-100 text-amber-950 border border-amber-300 cursor-not-allowed font-semibold'
+                      : isExclusive
+                      ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-600 hover:to-amber-500 text-amber-950 font-black shadow-md border border-amber-400 cursor-pointer'
+                      : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white shadow-md cursor-pointer'
                   }`}
                 >
                   <ShoppingBag className="w-4 h-4" />
-                  <span>{isOutOfStock ? 'Sold Out' : `Add ${quantity} to Bag`}</span>
+                  <span>
+                    {isOutOfStock
+                      ? 'Sold Out'
+                      : alreadyClaimed
+                      ? 'Claimed (1/Acct)'
+                      : isExclusive
+                      ? 'Claim Exclusive Deal'
+                      : `Add ${quantity} to Bag`}
+                  </span>
                 </button>
               </div>
             ) : (

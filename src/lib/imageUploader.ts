@@ -288,31 +288,40 @@ export const uploadImageWithStats = async (
       base64Data = await compressDataUrl(fileOrDataUrl, 1200, 1200, 0.82);
     }
 
-    // Call server upload endpoint to store compressed file on disk and Firestore
-    const response = await fetch('/api/upload-image', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        image: base64Data,
-        name: nameHint,
-      }),
-    });
+    // Call server upload endpoint to store compressed file on disk and Firestore with a strict 3.5s timeout
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success && data.url) {
-        return { url: data.url, stats: compressionStats };
+    try {
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: base64Data,
+          name: nameHint,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.url) {
+          return { url: data.url, stats: compressionStats };
+        }
       }
+    } catch (fetchErr) {
+      clearTimeout(timer);
+      console.warn('[7Seasons Upload] Upload fetch timed out or interrupted, using fast local fallback.');
     }
 
-    // High-fidelity fallback preserving 960px clarity (<90 KB) if server endpoint is busy
-    console.warn('[7Seasons Upload] Server returned non-ok status, using high-definition local fallback.');
+    // High-fidelity fallback preserving 960px clarity (<90 KB) if server endpoint is busy or aborted
     const fallbackUrl = await createHighFidelityFallback(base64Data);
     return { url: fallbackUrl, stats: compressionStats };
   } catch (err) {
-    console.warn('[7Seasons Upload] Upload endpoint error, using high-definition local fallback:', err);
+    console.warn('[7Seasons Upload] Upload error, using high-definition local fallback:', err);
     if (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:image/')) {
       const fallbackUrl = await createHighFidelityFallback(fileOrDataUrl);
       return { url: fallbackUrl };
@@ -366,7 +375,12 @@ export const safeOptimizeImageForFirestore = async (
     return image;
   }
 
-  // Attempt backend upload first to convert large Base64 string into a 30-byte URL
+  // If already a compact data URL (under 75 KB), it is already 100% safe for Firestore
+  if (image.startsWith('data:image/') && image.length < 100000) {
+    return image;
+  }
+
+  // Attempt backend upload first with timeout protection to convert large Base64 string into a 30-byte URL
   try {
     const res = await uploadImage(image, nameHint);
     if (res && !res.startsWith('data:image/')) {

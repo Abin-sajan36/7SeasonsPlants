@@ -25,7 +25,7 @@ import {
   validateDeliveryAddress,
 } from '../lib/stateValidation';
 import { startRazorpayCheckout } from '../lib/razorpay';
-import { db } from '../lib/firebase';
+import { db, isFirestoreQuotaExceeded, handleFirestoreQuotaError } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { calculateComboDispatchAndDelivery } from '../utils/dispatchCalculator';
 
@@ -516,29 +516,32 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
 
     setIsProcessing(true);
 
-    // Live Authoritative Firestore check to prevent race-condition overselling
-    for (const item of cart) {
-      if (item.type === 'combo') {
-        try {
-          const comboSnap = await getDoc(doc(db, 'combos', item.id));
-          if (comboSnap.exists()) {
-            const data = comboSnap.data();
-            const liveStock = typeof data?.stock === 'number' ? data.stock : 0;
-            if (liveStock <= 0) {
-              setIsProcessing(false);
-              setFormError(`"${item.name}" has just sold out. Please remove it from your cart to proceed.`);
-              scrollToError();
-              return;
+    // Live Authoritative Firestore check to prevent race-condition overselling (when quota permits)
+    if (!isFirestoreQuotaExceeded()) {
+      for (const item of cart) {
+        if (item.type === 'combo') {
+          try {
+            const comboSnap = await getDoc(doc(db, 'combos', item.id));
+            if (comboSnap.exists()) {
+              const data = comboSnap.data();
+              const liveStock = typeof data?.stock === 'number' ? data.stock : 0;
+              if (liveStock <= 0) {
+                setIsProcessing(false);
+                setFormError(`"${item.name}" has just sold out. Please remove it from your cart to proceed.`);
+                scrollToError();
+                return;
+              }
+              if (item.quantity > liveStock) {
+                setIsProcessing(false);
+                setFormError(`Only ${liveStock} units available for "${item.name}". Please adjust quantity.`);
+                scrollToError();
+                return;
+              }
             }
-            if (item.quantity > liveStock) {
-              setIsProcessing(false);
-              setFormError(`Only ${liveStock} units available for "${item.name}". Please adjust quantity.`);
-              scrollToError();
-              return;
-            }
+          } catch (e) {
+            handleFirestoreQuotaError(e, 'checkoutStockCheckRazorpay');
+            console.warn('Could not verify live stock for combo:', item.id, e);
           }
-        } catch (e) {
-          console.warn('Could not verify live stock for combo:', item.id, e);
         }
       }
     }
@@ -672,26 +675,29 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         return;
       }
 
-      for (const item of cart) {
-        if (item.type === 'combo') {
-          try {
-            const comboSnap = await getDoc(doc(db, 'combos', item.id));
-            if (comboSnap.exists()) {
-              const data = comboSnap.data();
-              const liveStock = typeof data?.stock === 'number' ? data.stock : 0;
-              if (liveStock <= 0) {
-                setFormError(`"${item.name}" has sold out.`);
-                setIsProcessing(false);
-                return;
+      if (!isFirestoreQuotaExceeded()) {
+        for (const item of cart) {
+          if (item.type === 'combo') {
+            try {
+              const comboSnap = await getDoc(doc(db, 'combos', item.id));
+              if (comboSnap.exists()) {
+                const data = comboSnap.data();
+                const liveStock = typeof data?.stock === 'number' ? data.stock : 0;
+                if (liveStock <= 0) {
+                  setFormError(`"${item.name}" has sold out.`);
+                  setIsProcessing(false);
+                  return;
+                }
+                if (item.quantity > liveStock) {
+                  setFormError(`Only ${liveStock} units available for "${item.name}".`);
+                  setIsProcessing(false);
+                  return;
+                }
               }
-              if (item.quantity > liveStock) {
-                setFormError(`Only ${liveStock} units available for "${item.name}".`);
-                setIsProcessing(false);
-                return;
-              }
+            } catch (e) {
+              handleFirestoreQuotaError(e, 'checkoutStockCheckManual');
+              console.warn('Stock check error:', e);
             }
-          } catch (e) {
-            console.warn('Stock check error:', e);
           }
         }
       }

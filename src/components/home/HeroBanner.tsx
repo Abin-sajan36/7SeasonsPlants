@@ -50,40 +50,20 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
     setTouchEndX(null);
   };
 
-  // Helper to resolve button text and links so customers cannot access individual plants
+  // Helper to resolve button text and links with sensible defaults if empty
   const resolveCta = (rawText: string | undefined, rawLink: string | undefined, isSecondary = false) => {
-    let text = (rawText || '').trim();
-    let link = (rawLink || '').replace(/^\//, '').trim();
+    const text = (rawText || '').trim();
+    const link = (rawLink || '').replace(/^\//, '').trim();
 
-    // Prevent any access to individual plant listings (redirect to curated combos or care guides)
-    if (!link || link === 'plants' || link.startsWith('plants?') || link.startsWith('product-detail')) {
-      link = isSecondary ? 'plant-care' : 'combos';
-    }
-
-    if (!text || /shop\s*plants/i.test(text) || /buy\s*plants/i.test(text)) {
-      text = isSecondary ? 'Explore Combos' : 'Explore Plant Combos';
-      link = 'combos';
-    } else if (/best\s*sellers?/i.test(text)) {
-      text = isSecondary ? 'Top Combos' : 'Best Selling Combos';
-      link = 'combos';
-    } else if (/all\s*plants/i.test(text)) {
-      text = 'View All Combos';
-      link = 'combos';
-    }
-
-    return { text, link };
+    return {
+      text: text || (isSecondary ? 'Today’s Flash Deals' : 'Explore Plant Combos'),
+      link: link || (isSecondary ? '#deals' : 'combos'),
+    };
   };
 
   const primaryCta = resolveCta(currentBanner.ctaText, currentBanner.ctaLink, false);
   const secondaryCta = resolveCta(currentBanner.secondaryCtaText, currentBanner.secondaryCtaLink, true);
-
-  // Sanitize subtitle if it references shopping individual plants or missing Karnataka
-  const displaySubtitle = currentBanner.subtitle
-    ? currentBanner.subtitle
-        .replace(/beautiful plants and /i, 'Curated plant collections and ')
-        .replace(/Kerala & Tamil Nadu/gi, 'Kerala, Tamil Nadu & Karnataka')
-        .replace(/Kerala and Tamil Nadu/gi, 'Kerala, Tamil Nadu, and Karnataka')
-    : currentBanner.subtitle;
+  const displaySubtitle = currentBanner.subtitle || '';
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % activeBanners.length);

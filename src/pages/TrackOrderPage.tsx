@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, isFirestoreQuotaExceeded, handleFirestoreQuotaError } from '../lib/firebase';
 import { Order } from '../types';
 
 interface TrackOrderPageProps {
@@ -53,6 +53,9 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ initialOrderId, 
 
     if (match) return match;
 
+    // If quota is exceeded, do not hit backend
+    if (isFirestoreQuotaExceeded()) return null;
+
     // 2. Query Firestore directly by Document ID
     try {
       const docRef = doc(db, 'orders', q);
@@ -60,7 +63,9 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ initialOrderId, 
       if (docSnap.exists()) {
         return { ...(docSnap.data() as Order), id: docSnap.id };
       }
-    } catch (_) {}
+    } catch (err) {
+      handleFirestoreQuotaError(err, 'findOrderDoc');
+    }
 
     // 3. Query Firestore by orderNumber
     try {

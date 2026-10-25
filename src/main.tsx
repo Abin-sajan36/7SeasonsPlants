@@ -15,6 +15,15 @@ if (typeof window !== 'undefined') {
   });
 
   window.addEventListener('unhandledrejection', (event) => {
+    const reasonMsg = (event.reason?.message || event.reason || '').toString();
+    if (
+      reasonMsg.includes('resource-exhausted') ||
+      reasonMsg.includes('Quota exceeded') ||
+      reasonMsg.includes('RESOURCE_EXHAUSTED')
+    ) {
+      event.preventDefault();
+      return false;
+    }
     if (!event.reason) {
       event.preventDefault();
       return false;

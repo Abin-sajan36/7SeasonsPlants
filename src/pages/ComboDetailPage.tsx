@@ -18,6 +18,7 @@ import {
   Calendar,
   Eye,
   X,
+  Crown,
 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { ReviewSection } from '../components/product/ReviewSection';
@@ -44,6 +45,7 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
     currentUser,
     openAuthModal,
     storeSettings,
+    hasUserPurchasedCombo,
   } = useStore();
 
   const combo = combos.find((c) => c.slug === slug) || combos[0];
@@ -70,25 +72,35 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
   const [previewItemPhoto, setPreviewItemPhoto] = useState<{ name: string; image: string; type: string; notes?: string } | null>(null);
 
   const isSaved = isInWishlist(combo.id);
-  const isOutOfStock = !combo || combo.stock <= 0;
+  const isOutOfStock = !combo || (combo.stock ?? 0) <= 0;
+  const isExclusive = Boolean(combo?.onePerAccount);
+  const alreadyClaimed = isExclusive ? hasUserPurchasedCombo(combo.id) : false;
 
   const handleAddToCart = () => {
     if (isOutOfStock) {
       addToast({
         title: 'Sold Out',
-        message: 'This combo is currently out of stock.',
+        message: 'This combo is currently out of stock and cannot be purchased.',
         type: 'warning',
       });
       return;
     }
-    addToCart(combo, 'combo', quantity);
+    if (isExclusive && alreadyClaimed) {
+      addToast({
+        title: 'Limit Reached (1 per Account)',
+        message: 'This exclusive deal is strictly limited to 1 purchase per customer account and has already been claimed.',
+        type: 'warning',
+      });
+      return;
+    }
+    addToCart(combo, 'combo', isExclusive ? 1 : quantity);
   };
 
   const handleBuyNow = () => {
     if (isOutOfStock) {
       addToast({
         title: 'Sold Out',
-        message: 'This combo is currently out of stock.',
+        message: 'This combo is currently out of stock and cannot be purchased.',
         type: 'warning',
       });
       return;
@@ -97,7 +109,15 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
       openAuthModal('Please sign in or create an account to purchase this combo.');
       return;
     }
-    addToCart(combo, 'combo', quantity);
+    if (isExclusive && alreadyClaimed) {
+      addToast({
+        title: 'Limit Reached (1 per Account)',
+        message: 'This exclusive deal is strictly limited to 1 purchase per customer account and has already been claimed.',
+        type: 'warning',
+      });
+      return;
+    }
+    addToCart(combo, 'combo', isExclusive ? 1 : quantity);
     setIsCartOpen(false);
     onNavigate('checkout');
   };
@@ -303,6 +323,42 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
                 </div>
               </div>
 
+              {/* Exclusive Deal Notice Banner */}
+              {isExclusive && (
+                <div className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-amber-500/15 border-2 border-amber-400 shadow-sm flex items-start gap-3">
+                  <div className="p-2 bg-amber-400 text-amber-950 rounded-xl shrink-0 shadow-xs">
+                    <Crown className="w-5 h-5 fill-amber-950" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black uppercase tracking-wider text-amber-950">
+                        Exclusive Deal • 1 Purchase Per Account
+                      </span>
+                      <span className="text-[10px] font-bold bg-amber-400/30 text-amber-950 px-2 py-0.5 rounded-full border border-amber-400/50">
+                        Limited Bundle
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-950/85 mt-1 leading-relaxed">
+                      This special promotional combo is strictly limited to <strong>one purchase per registered customer account</strong>.
+                      {alreadyClaimed ? (
+                        <span className="block mt-1 font-bold text-emerald-800 flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                          You have already ordered this exclusive combo on your account.
+                        </span>
+                      ) : isOutOfStock ? (
+                        <span className="block mt-1 text-rose-700 font-bold">
+                          Currently sold out.
+                        </span>
+                      ) : (
+                        <span className="block mt-1 text-amber-900 font-medium">
+                          Claim yours now before stock runs out!
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Title */}
               <h1 className="text-2xl sm:text-3xl font-black text-emerald-950 leading-tight">
                 {combo.name}
@@ -436,15 +492,19 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
                 <div className="flex items-center border border-emerald-900/10 rounded-full overflow-hidden bg-[#F4FAF5] p-1 w-full sm:w-auto justify-between sm:justify-start">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="px-3.5 py-2 text-emerald-950 hover:bg-white font-bold text-sm rounded-full transition-colors cursor-pointer"
+                    disabled={isExclusive}
+                    className="px-3.5 py-2 text-emerald-950 hover:bg-white font-bold text-sm rounded-full transition-colors disabled:opacity-40 cursor-pointer"
                   >
                     -
                   </button>
-                  <span className="px-4 text-sm font-bold text-emerald-950">{quantity}</span>
+                  <span className="px-4 text-sm font-bold text-emerald-950">
+                    {isExclusive ? '1' : quantity}
+                  </span>
                   <button
                     onClick={() => setQuantity(Math.min(combo.stock, quantity + 1))}
-                    disabled={quantity >= combo.stock}
+                    disabled={isExclusive || quantity >= combo.stock}
                     className="px-3.5 py-2 text-emerald-950 hover:bg-white font-bold text-sm rounded-full transition-colors disabled:opacity-40 cursor-pointer"
+                    title={isExclusive ? 'Limited to 1 per customer account' : 'Increase quantity'}
                   >
                     +
                   </button>
@@ -461,33 +521,41 @@ export const ComboDetailPage: React.FC<ComboDetailPageProps> = ({ slug, onNaviga
                       Change State
                     </button>
                   </div>
+                ) : isOutOfStock ? (
+                  <div className="w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-bold flex items-center justify-center gap-2 bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed">
+                    <ShoppingBag className="w-4 h-4 text-gray-400" />
+                    <span>Combo Sold Out</span>
+                  </div>
+                ) : isExclusive && alreadyClaimed ? (
+                  <div className="w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-bold flex items-center justify-center gap-2 bg-amber-100 text-amber-950 border border-amber-300 cursor-not-allowed">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                    <span>Claimed Once (Limit 1 per Account)</span>
+                  </div>
                 ) : (
                   <>
                     {/* Add to Bag */}
                     <button
                       onClick={handleAddToCart}
-                      disabled={isOutOfStock}
                       className={`w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                        isOutOfStock
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        isExclusive
+                          ? 'bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 shadow-xs'
                           : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 shadow-xs'
                       }`}
                     >
                       <ShoppingBag className="w-4 h-4 text-emerald-700" />
-                      <span>{isOutOfStock ? 'Combo Sold Out' : 'Add Bundle to Bag'}</span>
+                      <span>{isExclusive ? 'Add Exclusive Deal' : 'Add Bundle to Bag'}</span>
                     </button>
 
                     {/* Buy Now */}
                     <button
                       onClick={handleBuyNow}
-                      disabled={isOutOfStock}
                       className={`w-full sm:flex-1 py-3.5 px-6 rounded-full text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                        isOutOfStock
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        isExclusive
+                          ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-600 hover:to-amber-500 text-amber-950 shadow-md hover:shadow-lg border border-amber-400'
                           : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white shadow-md hover:shadow-lg'
                       }`}
                     >
-                      <span>Buy Bundle Now</span>
+                      <span>{isExclusive ? 'Buy Exclusive Deal Now' : 'Buy Bundle Now'}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </>

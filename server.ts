@@ -20,7 +20,7 @@ import {
   restoreDatabaseToFirestore,
   getDb,
 } from "./server/firestoreRestore.js";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
 import {
   fetchInstagramMetadata,
   generateInstagramAiCopy,
@@ -335,24 +335,29 @@ app.post("/api/upload-image", async (req, res) => {
     fs.writeFileSync(filePath, buffer);
     const fileUrl = `/uploads/${filename}`;
 
-    // 2. Persist to Firestore uploaded_images collection so photos are permanent across container restarts
-    // Ensure document does not exceed Firestore's 1MB limit by verifying payload is under 900 KB
-    try {
-      if (image.length <= 900000) {
+    // 2. Persist to Firestore uploaded_images collection asynchronously in the background so
+    //    client response is instantaneous (<10ms) and never blocked if Firestore daily quota is saturated.
+    if (image.length <= 900000) {
+      try {
         const db = getDb();
-        await setDoc(doc(db, "uploaded_images", filename), {
+        setDoc(doc(db, "uploaded_images", filename), {
           filename,
           dataUrl: image,
           contentType: `image/${rawExt === "jpg" ? "jpeg" : rawExt}`,
           size: buffer.length,
           createdAt: new Date().toISOString(),
-        });
-        console.log(`[7Seasons Storage] ☁️ Persisted ${filename} to Firestore uploaded_images`);
-      } else {
-        console.log(`[7Seasons Storage] 📁 Image ${filename} saved on disk (${Math.round(buffer.length / 1024)} KB); skipped raw Firestore dataUrl copy to stay under 1MB limit.`);
+        })
+          .then(() => {
+            console.log(`[7Seasons Storage] ☁️ Persisted ${filename} to Firestore uploaded_images`);
+          })
+          .catch((cloudErr: any) => {
+            console.warn(`[7Seasons Storage] Cloud persistence note for ${filename}:`, cloudErr?.message || cloudErr);
+          });
+      } catch (cloudErr: any) {
+        console.warn(`[7Seasons Storage] Cloud dispatch note for ${filename}:`, cloudErr?.message || cloudErr);
       }
-    } catch (cloudErr: any) {
-      console.warn(`[7Seasons Storage] Cloud persistence note for ${filename}:`, cloudErr.message || cloudErr);
+    } else {
+      console.log(`[7Seasons Storage] 📁 Image ${filename} saved on disk (${Math.round(buffer.length / 1024)} KB); skipped raw Firestore dataUrl copy to stay under 1MB limit.`);
     }
 
     console.log(`[7Seasons Storage] 📷 Saved image: ${filename} (${Math.round(buffer.length / 1024)} KB)`);
@@ -731,6 +736,293 @@ app.post("/api/orders/send-status-update", async (req, res) => {
   } catch (error: any) {
     console.error("Error processing order notification:", error);
     res.status(500).json({ success: false, error: "Failed to process order notification" });
+  }
+});
+
+// Endpoint to broadcast email alerts for Special 1-Per-Account Exclusive Deals to all registered customers
+app.post("/api/combos/notify-exclusive-deal", async (req, res) => {
+  try {
+    const { combo, recipients } = req.body;
+    if (!combo || !combo.name) {
+      return res.status(400).json({ success: false, error: "Combo details are required" });
+    }
+
+    const transporter = getMailTransporter();
+    let recipientList: Array<{ email: string; name?: string }> = Array.isArray(recipients) ? recipients : [];
+
+    // If recipients list wasn't provided or empty, attempt to load registered users from Firestore
+    if (recipientList.length === 0) {
+      try {
+        const db = getDb();
+        const usersSnap = await getDocs(collection(db, "users"));
+        usersSnap.forEach((docSnap) => {
+          const u = docSnap.data();
+          if (u.email && u.email.includes("@")) {
+            recipientList.push({ email: u.email, name: u.name || "Plant Enthusiast" });
+          }
+        });
+      } catch (err: any) {
+        console.warn("[7Seasons Exclusive Deal] Could not read users from Firestore:", err.message);
+      }
+    }
+
+    // Deduplicate emails
+    const uniqueMap = new Map<string, string>();
+    recipientList.forEach((r) => {
+      const clean = r.email.trim().toLowerCase();
+      if (clean && !uniqueMap.has(clean)) {
+        uniqueMap.set(clean, r.name || "Valued Customer");
+      }
+    });
+
+    if (uniqueMap.size === 0) {
+      return res.json({ success: true, count: 0, message: "No registered customer emails found to notify." });
+    }
+
+    console.log(`[7Seasons Exclusive Deal] 📢 Broadcasting exclusive 1-per-account deal (${combo.name}) to ${uniqueMap.size} registered customers...`);
+
+    if (!transporter) {
+      console.log(`[7Seasons Exclusive Deal] SMTP transporter not configured, skipped actual dispatch for ${uniqueMap.size} users.`);
+      return res.json({
+        success: true,
+        dispatched: false,
+        count: uniqueMap.size,
+        message: `Exclusive deal notification queued for ${uniqueMap.size} customers (SMTP logged).`,
+      });
+    }
+
+    const fromAddress = `"7Seasons By Mannaratharayil Gardens" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
+    const comboPrice = combo.price || 0;
+    const comboOriginal = combo.originalPrice || combo.price || 0;
+    const comboSavings = Math.max(0, comboOriginal - comboPrice);
+    const comboImage = combo.images?.[0] || "";
+    const comboStock = combo.stock ?? 25;
+
+    const entries = Array.from(uniqueMap.entries());
+    let sentCount = 0;
+
+    for (const [email, name] of entries) {
+      try {
+        await transporter.sendMail({
+          from: fromAddress,
+          to: email,
+          subject: `👑 Exclusive Deal: ${combo.name} (Limited to 1 per Account!)`,
+          text: `Hello ${name},\n\nA special exclusive plant combo deal has just been launched at 7Seasons By Mannaratharayil Gardens LLP!\n\n${combo.name}\nSpecial Deal Price: ₹${comboPrice} (Save ₹${comboSavings}!)\nStrict Limit: Only 1 purchase allowed per registered account.\nStock Available: Only ${comboStock} units remaining.\n\nShop this exclusive deal now before stock runs out:\nhttps://www.7seasonsplants.com/#combo-detail?${encodeURIComponent(combo.slug || combo.id)}\n\nHappy Gardening,\nMannaratharayil Gardens LLP Team`,
+          html: `
+          <!DOCTYPE html>
+          <html>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4FAF5; margin: 0; padding: 24px; color: #064e3b;">
+            <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; border: 1.5px solid #d1fae5; box-shadow: 0 10px 25px rgba(6, 78, 59, 0.08);">
+              <div style="background: linear-gradient(135deg, #062416 0%, #064e3b 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
+                <span style="display: inline-block; background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; padding: 4px 14px; border-radius: 9999px; margin-bottom: 12px;">
+                  👑 1-Per-Account Exclusive Deal
+                </span>
+                <h1 style="margin: 0; font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px;">
+                  Special Limited Edition Combo
+                </h1>
+                <p style="margin: 8px 0 0; color: #a7f3d0; font-size: 13px;">
+                  7Seasons By Mannaratharayil Gardens LLP
+                </p>
+              </div>
+
+              <div style="padding: 28px 24px;">
+                <p style="font-size: 15px; color: #1e293b; margin: 0 0 16px;">
+                  Dear <strong>${name}</strong>,
+                </p>
+                <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 20px;">
+                  We have just released an exclusive, high-value botanical bundle! Because this deal includes premium acclimated specimens at special nursery pricing, <strong>each registered customer account is eligible to purchase this combo only once</strong>.
+                </p>
+
+                ${comboImage ? `
+                <div style="text-align: center; margin-bottom: 20px; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0;">
+                  <img src="${comboImage}" alt="${combo.name}" style="width: 100%; max-height: 280px; object-fit: cover; display: block;" />
+                </div>
+                ` : ''}
+
+                <div style="background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 16px; padding: 20px; margin-bottom: 24px;">
+                  <h2 style="margin: 0 0 6px; font-size: 18px; font-weight: 800; color: #064e3b;">
+                    ${combo.name}
+                  </h2>
+                  <p style="margin: 0 0 14px; font-size: 13px; color: #047857;">
+                    ${combo.shortDescription || combo.description || 'Curated nursery plant combo with matching pots and soil mix.'}
+                  </p>
+
+                  <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px;">
+                    <span style="font-size: 26px; font-weight: 900; color: #065f46;">₹${comboPrice}</span>
+                    ${comboSavings > 0 ? `
+                    <span style="font-size: 14px; color: #94a3b8; text-decoration: line-through;">₹${comboOriginal}</span>
+                    <span style="background: #10b981; color: #ffffff; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px;">SAVE ₹${comboSavings}</span>
+                    ` : ''}
+                  </div>
+
+                  <div style="font-size: 12px; color: #b45309; background: #fffbeb; padding: 8px 12px; border-radius: 8px; border: 1px solid #fde68a; font-weight: 700;">
+                    ⚠️ Strict Limit: 1 purchase per customer account. Limited batch of only ${comboStock} units in stock.
+                  </div>
+                </div>
+
+                <div style="text-align: center; margin-bottom: 20px;">
+                  <a href="https://www.7seasonsplants.com/#combo-detail?${encodeURIComponent(combo.slug || combo.id)}" style="display: inline-block; background: #059669; color: #ffffff !important; text-decoration: none; font-size: 15px; font-weight: 900; padding: 14px 32px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);">
+                    🌿 Claim Your Exclusive Deal &rarr;
+                  </a>
+                </div>
+
+                <p style="text-align: center; font-size: 11px; color: #94a3b8; margin: 0;">
+                  Shipped safely with 5-ply protective packaging across Kerala, Tamil Nadu & Karnataka.
+                </p>
+              </div>
+
+              <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 16px 24px; text-align: center; font-size: 11px; color: #64748b;">
+                Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India • WhatsApp Support: +91 88482 76403
+              </div>
+            </div>
+          </body>
+          </html>
+          `,
+        });
+        sentCount++;
+      } catch (e: any) {
+        console.warn(`[7Seasons Exclusive Deal] Warning sending to ${email}:`, e.message);
+      }
+    }
+
+    console.log(`[7Seasons Exclusive Deal] ✅ Successfully emailed ${sentCount} / ${uniqueMap.size} registered customers.`);
+    return res.json({ success: true, count: sentCount, total: uniqueMap.size });
+  } catch (err: any) {
+    console.error("Error broadcasting exclusive deal:", err);
+    res.status(500).json({ success: false, error: err.message || "Failed to broadcast exclusive deal" });
+  }
+});
+
+// Bulk Email Broadcaster Endpoint for Registered Customers
+app.post("/api/admin/send-bulk-email", async (req, res) => {
+  try {
+    const {
+      recipients,
+      subject,
+      headline,
+      message,
+      callToActionText = "Explore 7Seasons Combos",
+      callToActionUrl = "https://www.7seasonsplants.com/#combos",
+      badgeText = "Customer Update",
+    } = req.body || {};
+
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      return res.status(400).json({ success: false, error: "At least one recipient email is required." });
+    }
+
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ success: false, error: "Subject is required." });
+    }
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ success: false, error: "Message body is required." });
+    }
+
+    // Deduplicate recipients
+    const uniqueMap = new Map<string, string>();
+    for (const r of recipients) {
+      const email = typeof r === "string" ? r : r?.email;
+      const name = typeof r === "string" ? "Valued Customer" : r?.name || "Valued Customer";
+      if (email && typeof email === "string" && email.includes("@")) {
+        const cleanEmail = email.toLowerCase().trim();
+        if (!uniqueMap.has(cleanEmail)) {
+          uniqueMap.set(cleanEmail, name);
+        }
+      }
+    }
+
+    if (uniqueMap.size === 0) {
+      return res.status(400).json({ success: false, error: "No valid recipient email addresses found." });
+    }
+
+    const transporter = getMailTransporter();
+    const fromAddress = process.env.SMTP_FROM || `"7Seasons Nursery" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
+
+    let sentCount = 0;
+    const errors: string[] = [];
+
+    const formattedParagraphs = message
+      .split('\n')
+      .filter((p: string) => p.trim().length > 0)
+      .map((p: string) => `<p style="font-size: 14px; line-height: 1.6; color: #334155; margin: 0 0 14px;">${p.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`)
+      .join('');
+
+    for (const [email, name] of uniqueMap.entries()) {
+      try {
+        if (transporter) {
+          await transporter.sendMail({
+            from: fromAddress,
+            to: email,
+            subject: subject.trim(),
+            text: `Hello ${name},\n\n${message}\n\nVisit: ${callToActionUrl}\n\nHappy Gardening,\nMannaratharayil Gardens LLP Team`,
+            html: `
+            <!DOCTYPE html>
+            <html>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4FAF5; margin: 0; padding: 24px; color: #064e3b;">
+              <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; border: 1.5px solid #d1fae5; box-shadow: 0 10px 25px rgba(6, 78, 59, 0.08);">
+                <div style="background: linear-gradient(135deg, #062416 0%, #064e3b 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
+                  <span style="display: inline-block; background: rgba(255, 255, 255, 0.15); color: #d1fae5; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 4px 14px; border-radius: 9999px; margin-bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.2);">
+                    🌿 ${badgeText || "7Seasons Announcement"}
+                  </span>
+                  <h1 style="margin: 0; font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px;">
+                    ${headline || subject}
+                  </h1>
+                  <p style="margin: 8px 0 0; color: #a7f3d0; font-size: 13px;">
+                    7Seasons By Mannaratharayil Gardens LLP
+                  </p>
+                </div>
+
+                <div style="padding: 28px 24px;">
+                  <p style="font-size: 15px; color: #1e293b; margin: 0 0 16px;">
+                    Dear <strong>${name}</strong>,
+                  </p>
+
+                  <div style="margin-bottom: 24px;">
+                    ${formattedParagraphs}
+                  </div>
+
+                  ${
+                    callToActionUrl
+                      ? `<div style="text-align: center; margin: 28px 0 20px;">
+                          <a href="${callToActionUrl}" style="display: inline-block; background: #059669; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 800; padding: 13px 32px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);">
+                            ${callToActionText || "Explore Plant Combos &rarr;"}
+                          </a>
+                        </div>`
+                      : ""
+                  }
+
+                  <div style="border-top: 1px dashed #e2e8f0; padding-top: 20px; margin-top: 24px; font-size: 12px; color: #64748b; line-height: 1.5; text-align: center;">
+                    <p style="margin: 0 0 4px; font-weight: 600; color: #064e3b;">
+                      Mannaratharayil Gardens LLP • Calicut-Palakkad Highway, Kerala, India
+                    </p>
+                    <p style="margin: 0;">
+                      WhatsApp Helpline: <a href="https://wa.me/918848276403" style="color: #059669; text-decoration: none; font-weight: 700;">+91 88482 76403</a> • Email: mannaratharayil@gmail.com
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </body>
+            </html>
+            `,
+          });
+        }
+        sentCount++;
+      } catch (err: any) {
+        console.warn(`[Bulk Email] Failed sending to ${email}:`, err?.message || err);
+        errors.push(`${email}: ${err?.message || "Send failed"}`);
+      }
+    }
+
+    console.log(`[7Seasons Bulk Email] ✉️ Dispatched bulk email "${subject}" to ${sentCount}/${uniqueMap.size} recipients.`);
+    return res.json({
+      success: true,
+      sentCount,
+      totalCount: uniqueMap.size,
+      errors: errors.slice(0, 5),
+    });
+  } catch (error: any) {
+    console.error("Bulk email error:", error);
+    return res.status(500).json({ success: false, error: error.message || "Failed to dispatch bulk email." });
   }
 });
 

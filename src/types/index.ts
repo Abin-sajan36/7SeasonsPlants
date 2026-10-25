@@ -103,6 +103,7 @@ export interface PlantCombo {
   deliveryInfo?: string;
   customDispatchDays?: string[];
   maxQuantityPerOrder?: number;
+  onePerAccount?: boolean;
   status: 'published' | 'draft' | 'scheduled';
   scheduledStartDate?: string;
   scheduledEndDate?: string;

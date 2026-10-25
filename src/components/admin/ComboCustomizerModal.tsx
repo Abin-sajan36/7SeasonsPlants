@@ -142,6 +142,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
     comboToEdit?.status || 'published'
   );
   const [isFeatured, setIsFeatured] = useState<boolean>(comboToEdit?.isFeatured ?? true);
+  const [onePerAccount, setOnePerAccount] = useState<boolean>(comboToEdit?.onePerAccount ?? false);
   const [images, setImages] = useState<string[]>(
     comboToEdit?.images?.length
       ? comboToEdit.images
@@ -211,6 +212,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
       setSku(comboToEdit.sku || `7S-CMB-${Math.floor(1000 + Math.random() * 9000)}`);
       setStatus(comboToEdit.status || 'published');
       setIsFeatured(comboToEdit.isFeatured ?? true);
+      setOnePerAccount(comboToEdit.onePerAccount ?? false);
       setImages(
         comboToEdit.images?.length
           ? comboToEdit.images
@@ -470,7 +472,12 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
       const safeLimit = Math.min(5, maxImagesLimit || 5);
       const sourceImages = rawSource.slice(0, safeLimit);
       const sanitizedImages = await Promise.all(
-        sourceImages.map((img, idx) => safeOptimizeImageForFirestore(img, `combo-${finalSlug}-${idx + 1}`))
+        sourceImages.map((img, idx) => {
+          if (!img || (!img.startsWith('data:image/') && img.length < 500)) {
+            return img;
+          }
+          return safeOptimizeImageForFirestore(img, `combo-${finalSlug}-${idx + 1}`);
+        })
       );
 
       // 2. Sanitize & upload all included plant / item photos to permanent server storage
@@ -484,7 +491,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
             itemImg = sanitizedImages[idx];
           }
 
-          if (itemImg) {
+          if (itemImg && itemImg.startsWith('data:image/')) {
             itemImg = await safeOptimizeImageForFirestore(itemImg, `combo-item-${item.productId || idx + 1}`);
           }
           return {
@@ -531,6 +538,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
         rating: comboToEdit?.rating || 4.9,
         reviewCount: comboToEdit?.reviewCount || 18,
         isFeatured,
+        onePerAccount,
         tags: comboToEdit?.tags || ['combo', 'bundle', 'nursery', 'kerala'],
         items: sanitizedItems,
         sellableStates,
@@ -546,7 +554,14 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
         console.warn(`[Combo Customizer] Document size is ${formatBytes(docSize)}, automatically compressing images for Firestore safe limit.`);
       }
 
-      await onSaveCombo(finalCombo);
+      // Execute onSaveCombo with race timeout to ensure modal closes smoothly without ever freezing
+      await Promise.race([
+        onSaveCombo(finalCombo),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Save timeout')), 6000)),
+      ]).catch((e) => {
+        console.warn('[Combo Customizer] Save sync notice:', e?.message || e);
+      });
+
       onClose();
     } catch (err: any) {
       console.error('Error saving combo:', err);
@@ -1634,7 +1649,7 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                 <p className="text-[#4A3E31]/60 text-[10px] mt-1 italic">Select which states this combo is available for delivery.</p>
               </div>
 
-              <div className="flex gap-4 pt-2">
+              <div className="pt-2 space-y-3">
                 <label className="flex items-center gap-2 cursor-pointer font-bold text-[#4A3E31]">
                   <input
                     type="checkbox"
@@ -1644,6 +1659,38 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                   />
                   <span>Feature on Homepage & Featured Carousel</span>
                 </label>
+
+                {/* One Per Account Toggle Card in General */}
+                <div className={`p-4 rounded-2xl border-2 transition-all ${
+                  onePerAccount
+                    ? 'border-amber-400 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 shadow-xs'
+                    : 'border-gray-200 bg-gray-50/70'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <span className="p-1.5 rounded-xl bg-amber-400/20 text-amber-900 shrink-0 text-sm">
+                        👑
+                      </span>
+                      <div>
+                        <label className="font-extrabold text-[#4A3E31] text-xs sm:text-sm block cursor-pointer">
+                          Limit Purchase to 1 per Customer Account (Exclusive Deal)
+                        </label>
+                        <p className="text-[11px] text-[#736758] mt-1 leading-relaxed">
+                          Restrict purchase to once per registered customer. Displays in catalog with a distinct glowing border, and automatically sends an exclusive deal announcement email to all registered customers when published.
+                        </p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input
+                        type="checkbox"
+                        checked={onePerAccount}
+                        onChange={(e) => setOnePerAccount(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1840,6 +1887,45 @@ export const ComboCustomizerModal: React.FC<ComboCustomizerModalProps> = ({
                 <div className="text-xs text-[#736758]">
                   <span>Total Value of Items in pack: </span>
                   <strong className="text-[#4A3E31]">₹{calculatedItemsTotalValue}</strong>
+                </div>
+              </div>
+
+              {/* One Per Account Indicator/Toggle in Pricing Tab */}
+              <div className={`p-4 rounded-2xl border-2 transition-all ${
+                onePerAccount
+                  ? 'border-amber-400 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 shadow-xs'
+                  : 'border-[#4A3E31]/15 bg-[#FAF9F6]'
+              }`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <span className="p-1.5 rounded-xl bg-amber-400/20 text-amber-900 shrink-0 text-sm">
+                      👑
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-[#4A3E31] text-xs block">
+                          One-Per-Account Purchase Limitation
+                        </span>
+                        {onePerAccount && (
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-amber-950">
+                            Active Exclusive
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#736758] mt-1 leading-relaxed">
+                        Prevents duplicate orders by the same customer account. Stock is strictly enforced—cannot be bought when stock reaches 0.
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                    <input
+                      type="checkbox"
+                      checked={onePerAccount}
+                      onChange={(e) => setOnePerAccount(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
                 </div>
               </div>
 

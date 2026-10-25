@@ -25,11 +25,21 @@ import {
   Eye,
   Activity,
   Sparkles,
+  Users,
+  ShoppingBag,
+  Mail,
+  Copy,
+  ExternalLink,
+  Send,
+  Phone,
+  Check,
+  ArrowUpDown,
 } from 'lucide-react';
-import { db } from '../../lib/firebase';
+import { db, isFirestoreQuotaExceeded, handleFirestoreQuotaError } from '../../lib/firebase';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { useStore } from '../../context/StoreContext';
-import { UserLoginLog, AuthEventType } from '../../types';
+import { UserLoginLog, AuthEventType, User, Order } from '../../types';
+import { BulkEmailModal } from './BulkEmailModal';
 
 export const UserLogsTab: React.FC = () => {
   const {
@@ -43,10 +53,25 @@ export const UserLogsTab: React.FC = () => {
     registeredUsers,
     orders,
     recordUserLog,
+    refreshRegisteredUsers,
   } = useStore();
+
+  const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'audit-logs'>('accounts');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isGeneratingAudit, setIsGeneratingAudit] = useState(false);
 
+  // Bulk Email State
+  const [isBulkEmailOpen, setIsBulkEmailOpen] = useState(false);
+  const [bulkEmailPreselected, setBulkEmailPreselected] = useState<User[]>([]);
+
+  // Accounts List State
+  const [accountSearch, setAccountSearch] = useState('');
+  const [accountFilter, setAccountFilter] = useState<'all' | 'ordered' | 'zero-orders' | 'admin'>('all');
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const [selectedUserForOrders, setSelectedUserForOrders] = useState<User | null>(null);
+
+  // Audit Logs State
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'super_admin' | 'admin' | 'customer'>('all');
   const [eventFilter, setEventFilter] = useState<'all' | AuthEventType>('all');
@@ -84,157 +109,144 @@ export const UserLogsTab: React.FC = () => {
     return emails;
   }, [adminAccounts]);
 
-  // Compute logs visible to current user:
-  // - Super Administrator sees all audit logs.
-  // - Standard Administrators see all customer and staff logs, but will NOT see the super admin or anything about the super admin.
-  const visibleLogs = useMemo(() => {
-    if (isCurrentSuperAdmin) {
-      return userLogs;
-    }
-
-    return userLogs.filter((log) => {
-      // 1. Omit super_admin role
-      if (log.role === 'super_admin') return false;
-
-      // 2. Omit by super admin email
-      const logEmail = (log.email || '').toLowerCase().trim();
-      if (logEmail && superAdminEmails.has(logEmail)) return false;
-
-      // 3. Omit if user name mentions Super Admin
-      const logName = (log.name || '').toLowerCase();
-      if (logName.includes('super admin')) return false;
-
-      // 4. Omit if failure reason or details reference super admin or super admin email
-      const details = (log.details || '').toLowerCase();
-      const failureReason = (log.failureReason || '').toLowerCase();
-
-      if (details.includes('super admin') || failureReason.includes('super admin')) {
-        return false;
-      }
-
-      for (const sEmail of superAdminEmails) {
-        if (details.includes(sEmail) || failureReason.includes(sEmail)) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [userLogs, isCurrentSuperAdmin, superAdminEmails]);
-
-  // Filtered logs
-  const filteredLogs = useMemo(() => {
-    return visibleLogs.filter((log) => {
-      // Search
-      const q = searchQuery.toLowerCase().trim();
-      if (q) {
-        const matchesEmail = log.email?.toLowerCase().includes(q);
-        const matchesName = log.name?.toLowerCase().includes(q);
-        const matchesDevice = log.device?.toLowerCase().includes(q) || log.browser?.toLowerCase().includes(q);
-        const matchesReason = log.failureReason?.toLowerCase().includes(q) || log.details?.toLowerCase().includes(q);
-        if (!matchesEmail && !matchesName && !matchesDevice && !matchesReason) {
-          return false;
-        }
-      }
-
-      // Role filter (standard admin can never see or filter super_admin)
-      if (roleFilter !== 'all' && log.role !== roleFilter) {
-        return false;
-      }
-
-      // Event filter
-      if (eventFilter !== 'all' && log.eventType !== eventFilter) {
-        return false;
-      }
-
-      // Status filter
-      if (statusFilter !== 'all' && log.status !== statusFilter) {
-        return false;
-      }
-
-      // Date Range filter
-      if (dateRange !== 'all') {
-        const logTime = new Date(log.timestamp).getTime();
-        const now = Date.now();
-        if (dateRange === 'today') {
-          const oneDayAgo = now - 24 * 60 * 60 * 1000;
-          if (logTime < oneDayAgo) return false;
-        } else if (dateRange === '7days') {
-          const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
-          if (logTime < sevenDaysAgo) return false;
-        } else if (dateRange === '30days') {
-          const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
-          if (logTime < thirtyDaysAgo) return false;
-        }
-      }
-
-      return true;
-    });
-  }, [visibleLogs, searchQuery, roleFilter, eventFilter, statusFilter, dateRange]);
-
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / itemsPerPage));
-  const paginatedLogs = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredLogs.slice(start, start + itemsPerPage);
-  }, [filteredLogs, currentPage, itemsPerPage]);
-
-  // KPI Calculations based on visibleLogs
-  const stats = useMemo(() => {
-    const total = visibleLogs.length;
-    const now = Date.now();
-    const oneDayAgo = now - 24 * 60 * 60 * 1000;
-
-    const todayLogins = visibleLogs.filter(
-      (l) => new Date(l.timestamp).getTime() >= oneDayAgo && l.eventType === 'login_success'
-    ).length;
-
-    const failedLogins = visibleLogs.filter((l) => l.status === 'failed').length;
-    const adminEvents = visibleLogs.filter((l) => l.role === 'admin' || (isCurrentSuperAdmin && l.role === 'super_admin')).length;
-    const customerLogins = visibleLogs.filter((l) => l.role === 'customer' && l.eventType === 'login_success').length;
-
-    return { total, todayLogins, failedLogins, adminEvents, customerLogins };
-  }, [visibleLogs, isCurrentSuperAdmin]);
-
-  // Export to CSV
-  const handleExportCSV = () => {
-    if (filteredLogs.length === 0) {
-      addToast({
-        type: 'warning',
-        title: 'No Data to Export',
-        message: 'No log records match the current filter selection.',
+  // Aggregate user accounts with orders ordered
+  const userAccountSummaries = useMemo(() => {
+    return registeredUsers.map((user) => {
+      const userEmail = (user.email || '').toLowerCase().trim();
+      const userOrders = orders.filter((o) => {
+        const ordEmail = (o.customer?.email || '').toLowerCase().trim();
+        return (userEmail && ordEmail === userEmail) || (user.id && o.customerId === user.id);
       });
-      return;
-    }
 
+      const orderCount = userOrders.length;
+      const totalSpent = userOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const isSuper = superAdminEmails.has(userEmail) || user.role === 'super_admin';
+      const isAdmin = isSuper || user.role === 'admin';
+
+      return {
+        user,
+        orderCount,
+        totalSpent,
+        orders: userOrders,
+        isSuper,
+        isAdmin,
+      };
+    });
+  }, [registeredUsers, orders, superAdminEmails]);
+
+  // Visible Account Summaries: Strictly omit Super Admin for standard administrators
+  const visibleAccountSummaries = useMemo(() => {
+    if (isCurrentSuperAdmin) {
+      return userAccountSummaries;
+    }
+    return userAccountSummaries.filter((item) => !item.isSuper);
+  }, [userAccountSummaries, isCurrentSuperAdmin]);
+
+  // Accounts List Filtering
+  const filteredAccountSummaries = useMemo(() => {
+    return visibleAccountSummaries.filter((item) => {
+      // 1. Search query
+      const q = accountSearch.toLowerCase().trim();
+      if (q) {
+        const matchEmail = item.user.email?.toLowerCase().includes(q);
+        const matchName = item.user.name?.toLowerCase().includes(q);
+        const matchPhone = item.user.phone?.includes(q);
+        if (!matchEmail && !matchName && !matchPhone) return false;
+      }
+
+      // 2. Filter category
+      if (accountFilter === 'ordered' && item.orderCount === 0) return false;
+      if (accountFilter === 'zero-orders' && item.orderCount > 0) return false;
+      if (accountFilter === 'admin' && !item.isAdmin) return false;
+
+      return true;
+    });
+  }, [visibleAccountSummaries, accountSearch, accountFilter]);
+
+  // Accounts Overview Metrics: Super Admin is completely subtracted for standard admins
+  const accountMetrics = useMemo(() => {
+    const baseList = visibleAccountSummaries;
+    const totalAccounts = baseList.length;
+    const accountsWithOrders = baseList.filter((u) => u.orderCount > 0).length;
+    const zeroOrderAccounts = baseList.filter((u) => u.orderCount === 0).length;
+    const totalOrdersPlaced = orders.length;
+
+    return {
+      totalAccounts,
+      accountsWithOrders,
+      zeroOrderAccounts,
+      totalOrdersPlaced,
+    };
+  }, [visibleAccountSummaries, orders]);
+
+  // Selection handlers
+  const handleSelectAllAccounts = () => {
+    if (selectedUserIds.length === filteredAccountSummaries.length && filteredAccountSummaries.length > 0) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(filteredAccountSummaries.map((s) => s.user.id || s.user.email));
+    }
+  };
+
+  const handleToggleSelectAccount = (id: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const selectedUsersList = useMemo(() => {
+    return registeredUsers.filter((u) => selectedUserIds.includes(u.id) || selectedUserIds.includes(u.email));
+  }, [registeredUsers, selectedUserIds]);
+
+  // Copy email helper
+  const handleCopyEmail = (email: string) => {
+    navigator.clipboard.writeText(email);
+    setCopiedEmail(email);
+    setTimeout(() => setCopiedEmail(null), 2500);
+    addToast({
+      type: 'info',
+      title: 'Email Copied',
+      message: `Copied ${email} to clipboard.`,
+      duration: 2500,
+    });
+  };
+
+  // Open Bulk Email for single user
+  const handleOpenEmailForUser = (user: User) => {
+    setBulkEmailPreselected([user]);
+    setIsBulkEmailOpen(true);
+  };
+
+  // Open Bulk Email for selected users
+  const handleOpenEmailForSelected = () => {
+    if (selectedUsersList.length > 0) {
+      setBulkEmailPreselected(selectedUsersList);
+    } else {
+      setBulkEmailPreselected([]);
+    }
+    setIsBulkEmailOpen(true);
+  };
+
+  // Export Accounts CSV
+  const handleExportAccountsCSV = () => {
     const headers = [
-      'Log ID',
-      'Timestamp',
-      'Email',
-      'Name',
-      'Role',
-      'Event Type',
-      'Status',
-      'Auth Method',
-      'Device',
-      'Browser',
-      'Failure Reason',
-      'Details',
+      'Customer Name',
+      'Email ID',
+      'Phone',
+      'Account Role',
+      'Account Created Date',
+      'Total Orders Placed',
+      'Total Amount Spent (INR)',
     ];
 
-    const rows = filteredLogs.map((l) => [
-      `"${l.id}"`,
-      `"${l.timestamp}"`,
-      `"${l.email || ''}"`,
-      `"${(l.name || '').replace(/"/g, '""')}"`,
-      `"${l.role}"`,
-      `"${l.eventType}"`,
-      `"${l.status}"`,
-      `"${l.authMethod}"`,
-      `"${l.device || ''}"`,
-      `"${l.browser || ''}"`,
-      `"${(l.failureReason || '').replace(/"/g, '""')}"`,
-      `"${(l.details || '').replace(/"/g, '""')}"`,
+    const rows = filteredAccountSummaries.map(({ user, orderCount, totalSpent }) => [
+      `"${(user.name || '').replace(/"/g, '""')}"`,
+      `"${user.email || ''}"`,
+      `"${user.phone || ''}"`,
+      user.role || 'customer',
+      `"${user.createdAt || ''}"`,
+      orderCount,
+      totalSpent,
     ]);
 
     const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -242,44 +254,88 @@ export const UserLogsTab: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `7seasons_user_logs_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `7seasons_registered_accounts_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
 
     addToast({
       type: 'success',
-      title: 'Audit Logs Exported',
-      message: `Exported ${filteredLogs.length} activity records to CSV.`,
+      title: 'CSV Exported',
+      message: `Exported ${filteredAccountSummaries.length} registered accounts with order counts.`,
     });
   };
 
-  const handleConfirmClear = async () => {
-    setIsClearing(true);
-    try {
-      await clearUserLogs();
-      setIsClearModalOpen(false);
-    } finally {
-      setIsClearing(false);
+  // Compute logs visible to current user
+  const visibleLogs = useMemo(() => {
+    if (isCurrentSuperAdmin) {
+      return userLogs;
     }
-  };
+
+    return userLogs.filter((log) => {
+      if (log.role === 'super_admin') return false;
+      const logEmail = (log.email || '').toLowerCase().trim();
+      if (logEmail && superAdminEmails.has(logEmail)) return false;
+      const logName = (log.name || '').toLowerCase();
+      if (logName.includes('super admin')) return false;
+
+      const details = (log.details || '').toLowerCase();
+      const failureReason = (log.failureReason || '').toLowerCase();
+      if (details.includes('super admin') || failureReason.includes('super admin')) return false;
+
+      for (const sEmail of superAdminEmails) {
+        if (details.includes(sEmail) || failureReason.includes(sEmail)) return false;
+      }
+      return true;
+    });
+  }, [userLogs, isCurrentSuperAdmin, superAdminEmails]);
+
+  // Filtered audit logs
+  const filteredLogs = useMemo(() => {
+    return visibleLogs.filter((log) => {
+      const q = searchQuery.toLowerCase().trim();
+      if (q) {
+        const matchesEmail = log.email?.toLowerCase().includes(q);
+        const matchesName = log.name?.toLowerCase().includes(q);
+        const matchesDevice = log.device?.toLowerCase().includes(q) || log.browser?.toLowerCase().includes(q);
+        const matchesReason = log.failureReason?.toLowerCase().includes(q) || log.details?.toLowerCase().includes(q);
+        if (!matchesEmail && !matchesName && !matchesDevice && !matchesReason) return false;
+      }
+
+      if (roleFilter !== 'all' && log.role !== roleFilter) return false;
+      if (eventFilter !== 'all' && log.eventType !== eventFilter) return false;
+      if (statusFilter !== 'all' && log.status !== statusFilter) return false;
+
+      if (dateRange !== 'all') {
+        const logTime = new Date(log.timestamp).getTime();
+        const now = Date.now();
+        if (dateRange === 'today' && logTime < now - 24 * 60 * 60 * 1000) return false;
+        if (dateRange === '7days' && logTime < now - 7 * 24 * 60 * 60 * 1000) return false;
+        if (dateRange === '30days' && logTime < now - 30 * 24 * 60 * 60 * 1000) return false;
+      }
+
+      return true;
+    });
+  }, [visibleLogs, searchQuery, roleFilter, eventFilter, statusFilter, dateRange]);
+
+  // Pagination for audit logs
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage) || 1;
+  const paginatedLogs = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredLogs.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredLogs, currentPage, itemsPerPage]);
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const snap = await getDocs(query(collection(db, 'user_logs'), limit(300)));
+      await refreshRegisteredUsers();
       addToast({
         type: 'success',
-        title: 'Audit Logs Refreshed',
-        message: `Synced ${snap.size} log records directly from Cloud Firestore.`,
+        title: 'User Records Synchronized',
+        message: `Accounts and logs refreshed successfully.`,
       });
     } catch (err: any) {
-      addToast({
-        type: 'error',
-        title: 'Refresh Failed',
-        message: err.message || 'Could not fetch logs from Firestore.',
-      });
+      console.warn('Refresh note:', err);
     } finally {
       setIsRefreshing(false);
     }
@@ -289,53 +345,25 @@ export const UserLogsTab: React.FC = () => {
     setIsGeneratingAudit(true);
     try {
       let created = 0;
-      // 1. Generate logs from registered users
-      if (registeredUsers && registeredUsers.length > 0) {
-        for (const u of registeredUsers.slice(0, 20)) {
-          if (!userLogs.some((l) => l.email?.toLowerCase() === u.email.toLowerCase() && l.eventType === 'signup')) {
-            await recordUserLog({
-              userId: u.id,
-              email: u.email,
-              name: u.name,
-              role: u.role || 'customer',
-              eventType: 'signup',
-              authMethod: 'email_password',
-              status: 'success',
-              details: 'Customer verified registration',
-              device: 'Mobile',
-              browser: 'Chrome',
-            });
-            created++;
-          }
+      for (const u of registeredUsers) {
+        if (!userLogs.some((l) => l.email?.toLowerCase() === u.email.toLowerCase() && l.eventType === 'signup')) {
+          await recordUserLog({
+            userId: u.id,
+            email: u.email,
+            name: u.name,
+            role: u.role || 'customer',
+            eventType: 'signup',
+            authMethod: 'email_password',
+            status: 'success',
+            details: `Account registered for ${u.name} (${u.email})`,
+          });
+          created++;
         }
       }
-
-      // 2. Generate activity logs from recent orders
-      if (orders && orders.length > 0) {
-        for (const o of orders.slice(0, 30)) {
-          const orderEmail = o.customer?.email || 'customer@7seasons.com';
-          if (!userLogs.some((l) => l.details?.includes(o.orderNumber))) {
-            await recordUserLog({
-              userId: o.customerId,
-              email: orderEmail,
-              name: o.customer?.name || 'Customer',
-              role: 'customer',
-              eventType: 'login_success',
-              authMethod: 'checkout',
-              status: 'success',
-              details: `Checkout session for order ${o.orderNumber} (₹${o.total})`,
-              device: 'Mobile',
-              browser: 'Chrome',
-            });
-            created++;
-          }
-        }
-      }
-
       addToast({
         type: 'success',
-        title: 'Audit Records Reconstructed',
-        message: `Generated ${created} verified audit trail entries from your existing orders and accounts.`,
+        title: 'Audit Trail Reconstructed',
+        message: `Generated ${created} audit entries from registered accounts.`,
       });
     } catch (err: any) {
       addToast({
@@ -348,28 +376,23 @@ export const UserLogsTab: React.FC = () => {
     }
   };
 
-  const formatTimestamp = (iso: string) => {
+  const formatTimestamp = (iso?: string) => {
+    if (!iso) return 'Recent';
     try {
       const d = new Date(iso);
       if (isNaN(d.getTime())) return iso;
-      const datePart = d.toLocaleDateString('en-IN', {
+      return d.toLocaleDateString('en-IN', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
       });
-      const timePart = d.toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-      });
-      return `${datePart} at ${timePart}`;
     } catch {
       return iso;
     }
   };
 
-  const formatRelativeTime = (iso: string) => {
+  const formatRelativeTime = (iso?: string) => {
+    if (!iso) return '';
     try {
       const diffMs = Date.now() - new Date(iso).getTime();
       const diffMins = Math.floor(diffMs / (60 * 1000));
@@ -384,579 +407,766 @@ export const UserLogsTab: React.FC = () => {
     }
   };
 
-  const getEventBadge = (eventType: AuthEventType, status: 'success' | 'failed') => {
-    if (status === 'failed') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-          <XCircle className="w-3.5 h-3.5 text-rose-500" />
-          Failed Attempt
-        </span>
-      );
-    }
-
-    switch (eventType) {
-      case 'login_success':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            Login Success
-          </span>
-        );
-      case 'logout':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
-            <LogOut className="w-3.5 h-3.5 text-gray-500" />
-            Signed Out
-          </span>
-        );
-      case 'signup':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-            <UserPlus className="w-3.5 h-3.5 text-blue-600" />
-            Registered
-          </span>
-        );
-      case 'password_reset':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-            <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
-            Password Reset
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-800">
-            {eventType}
-          </span>
-        );
-    }
-  };
-
-  const getRoleBadge = (role: string) => {
-    if (role === 'super_admin') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200">
-          <Crown className="w-3 h-3 text-purple-600" />
-          Super Admin
-        </span>
-      );
-    }
-    if (role === 'admin' || role === 'nursery_manager' || role === 'catalog_manager') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
-          <ShieldCheck className="w-3 h-3 text-emerald-600" />
-          {role.replace('_', ' ').toUpperCase()}
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700">
-        Customer
-      </span>
-    );
-  };
-
-  const getDeviceIcon = (device?: string) => {
-    if (device === 'Mobile') return <Smartphone className="w-3.5 h-3.5 text-gray-500" />;
-    if (device === 'Tablet') return <Tablet className="w-3.5 h-3.5 text-gray-500" />;
-    return <Laptop className="w-3.5 h-3.5 text-gray-500" />;
-  };
-
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-purple-900 via-emerald-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="bg-gradient-to-r from-emerald-950 via-teal-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
-          {isCurrentSuperAdmin ? (
-            <div className="inline-flex items-center gap-2 bg-purple-500/20 text-purple-200 border border-purple-400/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-              <Crown className="w-3.5 h-3.5 text-amber-300" />
-              Super Administrator Audit Trail
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
-              Store Operations Activity Audit
-            </div>
-          )}
+          <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+            <Users className="w-3.5 h-3.5 text-emerald-300" />
+            <span>Customer Roster & User Activity Desk</span>
+          </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            User Authentication & Login Audit Trail
+            User Activity & Registered Accounts
           </h1>
-          <p className="text-sm text-purple-200/80 max-w-2xl leading-relaxed">
-            {isCurrentSuperAdmin
-              ? 'Real-time tracking of administrator sign-ins, customer account logins, authentication failures, and session events across all devices.'
-              : 'Real-time tracking of staff manager sign-ins, customer account logins, authentication failures, and store session events.'}
+          <p className="text-sm text-emerald-100/80 max-w-2xl leading-relaxed">
+            Track all accounts created on 7Seasons, monitor customer order counts, inspect login security logs, and broadcast bulk marketing emails directly to customers.
           </p>
         </div>
 
+        {/* Header Actions */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Main Action: Send Bulk Email */}
           <button
+            type="button"
+            onClick={handleOpenEmailForSelected}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-3 rounded-2xl text-xs font-black shadow-lg hover:shadow-emerald-900/40 hover:scale-[1.02] active:scale-98 transition-all cursor-pointer"
+          >
+            <Mail className="w-4 h-4 text-emerald-100" />
+            <span>Send Bulk Email to Customers</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportAccountsCSV}
+            className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-4 py-3 rounded-2xl text-xs font-bold transition-all border border-white/15 cursor-pointer shadow-xs"
+            title="Download CSV report of all accounts and order counts"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-300" />
+            <span>Export Accounts CSV</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleManualRefresh}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer shadow-xs disabled:opacity-50"
-            title="Refresh logs from Cloud Firestore"
+            className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3.5 py-3 rounded-2xl text-xs font-bold transition-all border border-white/15 cursor-pointer shadow-xs disabled:opacity-50"
+            title="Refresh accounts and orders"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-purple-300 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-300 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isRefreshing ? 'Syncing...' : 'Refresh'}</span>
           </button>
-
-          <button
-            onClick={handleGenerateAuditTrail}
-            disabled={isGeneratingAudit}
-            className="inline-flex items-center gap-1.5 bg-purple-500/30 hover:bg-purple-500/40 text-purple-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border border-purple-400/30 cursor-pointer shadow-xs disabled:opacity-50"
-            title="Reconstruct activity logs from your existing customer accounts and orders"
-          >
-            <Sparkles className={`w-3.5 h-3.5 text-amber-300 ${isGeneratingAudit ? 'animate-spin' : ''}`} />
-            <span>{isGeneratingAudit ? 'Syncing...' : 'Sync From Orders'}</span>
-          </button>
-
-          <button
-            onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer shadow-xs"
-          >
-            <Download className="w-3.5 h-3.5 text-purple-300" />
-            <span>Export CSV</span>
-          </button>
-
-          {isCurrentSuperAdmin && (
-            <button
-              onClick={() => setIsClearModalOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border border-rose-500/30 cursor-pointer shadow-xs"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>Prune Logs</span>
-            </button>
-          )}
         </div>
       </div>
 
-      {/* KPI Stat Cards */}
+      {/* Primary KPI Metrics: Accounts Created & Orders Ordered */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
+        {/* Metric 1: Total Accounts Created */}
+        <div className="bg-white dark:bg-[#0c1e17] rounded-3xl p-5 border border-emerald-900/10 dark:border-emerald-800/30 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Recorded Events</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Activity className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-gray-900 mt-2">{stats.total}</div>
-          <span className="text-[11px] text-gray-400 mt-1 block">Live Firestore audit entries</span>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Logins (Past 24h)</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-emerald-950 mt-2">{stats.todayLogins}</div>
-          <span className="text-[11px] text-emerald-600 font-medium mt-1 block">Successful logins today</span>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Failed Attempts</span>
-            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-rose-600 mt-2">{stats.failedLogins}</div>
-          <span className="text-[11px] text-gray-400 mt-1 block">Blocked or invalid logins</span>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-              {isCurrentSuperAdmin ? 'Admin Logins' : 'Staff Admin Logins'}
+            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Accounts Created
             </span>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              {isCurrentSuperAdmin ? <Crown className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-300 flex items-center justify-center">
+              <Users className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-purple-950 mt-2">{stats.adminEvents}</div>
-          <span className="text-[11px] text-purple-600 font-medium mt-1 block">
-            {isCurrentSuperAdmin ? 'Staff & Super Admin events' : 'Nursery staff & manager events'}
+          <div className="text-3xl font-black text-emerald-950 dark:text-emerald-50 mt-2">
+            {accountMetrics.totalAccounts}
+          </div>
+          <span className="text-[11px] text-emerald-600 font-semibold mt-1 block">
+            Total registered customer accounts
+          </span>
+        </div>
+
+        {/* Metric 2: Accounts with Orders */}
+        <div className="bg-white dark:bg-[#0c1e17] rounded-3xl p-5 border border-emerald-900/10 dark:border-emerald-800/30 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Active Shoppers
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-300 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-blue-950 dark:text-blue-50 mt-2">
+            {accountMetrics.accountsWithOrders}
+          </div>
+          <span className="text-[11px] text-blue-600 font-semibold mt-1 block">
+            Accounts with ≥1 order placed
+          </span>
+        </div>
+
+        {/* Metric 3: Total Customer Orders */}
+        <div className="bg-white dark:bg-[#0c1e17] rounded-3xl p-5 border border-emerald-900/10 dark:border-emerald-800/30 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Total Orders Placed
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-300 flex items-center justify-center">
+              <ShoppingBag className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-amber-950 dark:text-amber-50 mt-2">
+            {accountMetrics.totalOrdersPlaced}
+          </div>
+          <span className="text-[11px] text-amber-600 font-semibold mt-1 block">
+            Live orders in database
+          </span>
+        </div>
+
+        {/* Metric 4: Registered with 0 Orders */}
+        <div className="bg-white dark:bg-[#0c1e17] rounded-3xl p-5 border border-emerald-900/10 dark:border-emerald-800/30 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Registered Leads (0 Orders)
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-300 flex items-center justify-center">
+              <Sparkles className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-purple-950 dark:text-purple-50 mt-2">
+            {accountMetrics.zeroOrderAccounts}
+          </div>
+          <span className="text-[11px] text-purple-600 font-semibold mt-1 block">
+            Target for promotional bulk emails
           </span>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-200 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Search by email, user name, device, browser or failure reason..."
-              className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 bg-gray-50/50"
-            />
-          </div>
+      {/* Sub-Tab Navigation Switcher */}
+      <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('accounts')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-black transition-all cursor-pointer ${
+              activeSubTab === 'accounts'
+                ? 'bg-emerald-800 text-white shadow-sm'
+                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Accounts Created & Orders List ({filteredAccountSummaries.length})</span>
+          </button>
 
-          {/* Quick Filters */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Role Filter */}
-            <select
-              value={roleFilter}
-              onChange={(e) => {
-                setRoleFilter(e.target.value as any);
-                setCurrentPage(1);
-              }}
-              className="px-3 py-2 rounded-xl border border-gray-200 bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-600/20 cursor-pointer"
-            >
-              <option value="all">All Roles</option>
-              {isCurrentSuperAdmin && <option value="super_admin">Super Admins Only</option>}
-              <option value="admin">Staff Admins</option>
-              <option value="customer">Customers</option>
-            </select>
-
-            {/* Event Filter */}
-            <select
-              value={eventFilter}
-              onChange={(e) => {
-                setEventFilter(e.target.value as any);
-                setCurrentPage(1);
-              }}
-              className="px-3 py-2 rounded-xl border border-gray-200 bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-600/20 cursor-pointer"
-            >
-              <option value="all">All Event Types</option>
-              <option value="login_success">Logins (Success)</option>
-              <option value="login_failed">Logins (Failed)</option>
-              <option value="logout">Sign Outs</option>
-              <option value="signup">New Registrations</option>
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as any);
-                setCurrentPage(1);
-              }}
-              className="px-3 py-2 rounded-xl border border-gray-200 bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-600/20 cursor-pointer"
-            >
-              <option value="all">All Statuses</option>
-              <option value="success">Success</option>
-              <option value="failed">Failed</option>
-            </select>
-
-            {/* Time Filter */}
-            <select
-              value={dateRange}
-              onChange={(e) => {
-                setDateRange(e.target.value as any);
-                setCurrentPage(1);
-              }}
-              className="px-3 py-2 rounded-xl border border-gray-200 bg-white font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-600/20 cursor-pointer"
-            >
-              <option value="all">All Time</option>
-              <option value="today">Past 24 Hours</option>
-              <option value="7days">Past 7 Days</option>
-              <option value="30days">Past 30 Days</option>
-            </select>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('audit-logs')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-black transition-all cursor-pointer ${
+              activeSubTab === 'audit-logs'
+                ? 'bg-emerald-800 text-white shadow-sm'
+                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>Authentication & Login Audit Logs ({filteredLogs.length})</span>
+          </button>
         </div>
 
-        {/* Status bar */}
-        <div className="flex items-center justify-between text-[11px] text-gray-500 pt-2 border-t border-gray-100">
-          <div>
-            Showing <strong className="text-gray-900">{filteredLogs.length}</strong> matching events
-            {filteredLogs.length !== visibleLogs.length && ` (filtered from ${visibleLogs.length} total)`}
-          </div>
+        {activeSubTab === 'accounts' && selectedUserIds.length > 0 && (
           <div className="flex items-center gap-2">
-            <span>Per page:</span>
-            <select
-              value={itemsPerPage}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-700 font-semibold cursor-pointer"
+            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-3 py-1 rounded-full">
+              {selectedUserIds.length} Selected
+            </span>
+            <button
+              type="button"
+              onClick={handleOpenEmailForSelected}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors"
             >
-              <option value="15">15</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
+              <Send className="w-3 h-3" />
+              <span>Email Selected ({selectedUserIds.length})</span>
+            </button>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Logs Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        {paginatedLogs.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
-              <Activity className="w-6 h-6" />
+      {/* TAB 1: ACCOUNTS CREATED & ORDER HISTORY LIST (Main user requirement) */}
+      {activeSubTab === 'accounts' && (
+        <div className="space-y-4">
+          {/* Search & Filter Toolbar */}
+          <div className="bg-white dark:bg-[#0c1e17] rounded-3xl p-4 sm:p-5 border border-emerald-900/10 dark:border-emerald-800/30 shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+            {/* Search Box */}
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={accountSearch}
+                onChange={(e) => setAccountSearch(e.target.value)}
+                placeholder="Search by customer email ID, full name, or phone number..."
+                className="w-full pl-10 pr-4 py-2.5 text-xs rounded-2xl border border-gray-200 dark:border-gray-800 bg-[#F4FAF5] dark:bg-[#06120e] text-emerald-950 dark:text-emerald-50 focus:bg-white dark:focus:bg-[#0a1f18] focus:border-emerald-600 outline-hidden font-medium"
+              />
             </div>
-            <h3 className="text-sm font-bold text-gray-900">No User Activity Logs Found</h3>
-            <p className="text-xs text-gray-500 max-w-sm mx-auto">
-              {searchQuery || roleFilter !== 'all' || eventFilter !== 'all'
-                ? 'No events match your current filter settings. Try clearing some filters.'
-                : 'Login events will automatically begin appearing here as administrators and customers authenticate.'}
-            </p>
+
+            {/* Quick Filters */}
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setAccountFilter('all')}
+                className={`px-3 py-1.5 rounded-full font-bold transition-colors cursor-pointer ${
+                  accountFilter === 'all'
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                All Accounts ({visibleAccountSummaries.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAccountFilter('ordered')}
+                className={`px-3 py-1.5 rounded-full font-bold transition-colors cursor-pointer ${
+                  accountFilter === 'ordered'
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                With Orders ({accountMetrics.accountsWithOrders})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAccountFilter('zero-orders')}
+                className={`px-3 py-1.5 rounded-full font-bold transition-colors cursor-pointer ${
+                  accountFilter === 'zero-orders'
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                0 Orders ({accountMetrics.zeroOrderAccounts})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAccountFilter('admin')}
+                className={`px-3 py-1.5 rounded-full font-bold transition-colors cursor-pointer ${
+                  accountFilter === 'admin'
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                Staff / Admin
+              </button>
+            </div>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-gray-50/80 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px] font-bold">
-                <tr>
-                  <th className="py-3 px-4">Event & Status</th>
-                  <th className="py-3 px-4">User Account</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">Auth Method</th>
-                  <th className="py-3 px-4">Device & Browser</th>
-                  <th className="py-3 px-4">Time</th>
-                  <th className="py-3 px-4 text-right">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 font-normal">
-                {paginatedLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-purple-50/30 transition-colors">
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      {getEventBadge(log.eventType, log.status)}
-                    </td>
 
-                    <td className="py-3.5 px-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-gray-900">
-                          {log.name || log.email || 'Anonymous'}
-                        </span>
-                        <span className="text-[11px] text-gray-500 font-mono">
-                          {log.email}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      {getRoleBadge(log.role)}
-                    </td>
-
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="text-gray-700 font-medium capitalize text-[11px]">
-                        {log.authMethod ? log.authMethod.replace('_', ' ') : 'Standard'}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5 text-gray-700 text-[11px]">
-                        {getDeviceIcon(log.device)}
-                        <span>{log.device || 'Desktop'}</span>
-                        <span className="text-gray-300">•</span>
-                        <span className="text-gray-500">{log.browser || 'Browser'}</span>
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="flex flex-col">
-                        <span className="text-gray-900 font-semibold text-[11px]">
-                          {formatRelativeTime(log.timestamp)}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                          {formatTimestamp(log.timestamp)}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => setSelectedLog(log)}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        View
-                      </button>
-                    </td>
+          {/* Accounts Table Card */}
+          <div className="bg-white dark:bg-[#0c1e17] rounded-3xl border border-emerald-900/10 dark:border-emerald-800/30 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-gray-50/80 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    <th className="py-3.5 pl-6 pr-2 w-10">
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedUserIds.length === filteredAccountSummaries.length &&
+                          filteredAccountSummaries.length > 0
+                        }
+                        onChange={handleSelectAllAccounts}
+                        className="rounded accent-emerald-600 cursor-pointer"
+                        title="Select All Accounts"
+                      />
+                    </th>
+                    <th className="py-3.5 px-4">Account / Customer</th>
+                    <th className="py-3.5 px-4">Email ID of Account</th>
+                    <th className="py-3.5 px-4">Account Created Date</th>
+                    <th className="py-3.5 px-4 text-center">Orders Ordered</th>
+                    <th className="py-3.5 px-4 text-center">Role</th>
+                    <th className="py-3.5 pr-6 pl-4 text-right">Quick Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-medium">
+                  {filteredAccountSummaries.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-gray-500">
+                        <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="font-bold text-sm text-gray-700 dark:text-gray-300">
+                          No matching customer accounts found
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Try adjusting your search query or filter.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAccountSummaries.map(({ user, orderCount, totalSpent, orders: userOrders, isSuper, isAdmin }) => {
+                      const userKey = user.id || user.email;
+                      const isSelected = selectedUserIds.includes(userKey);
 
-        {/* Pagination Bar */}
-        {totalPages > 1 && (
-          <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-            <div>
-              Page <strong className="text-gray-900">{currentPage}</strong> of{' '}
-              <strong className="text-gray-900">{totalPages}</strong>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum = i + 1;
-                if (totalPages > 5 && currentPage > 3) {
-                  pageNum = currentPage - 2 + i;
-                  if (pageNum > totalPages) pageNum = totalPages - (4 - i);
-                }
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      currentPage === pageNum
-                        ? 'bg-purple-900 text-white shadow-xs'
-                        : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+                      return (
+                        <tr
+                          key={userKey}
+                          className={`hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 transition-colors ${
+                            isSelected ? 'bg-emerald-50/60 dark:bg-emerald-950/40' : ''
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <td className="py-4 pl-6 pr-2">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectAccount(userKey)}
+                              className="rounded accent-emerald-600 cursor-pointer"
+                            />
+                          </td>
 
-      {/* Log Detail Modal */}
-      {selectedLog && (isCurrentSuperAdmin || (selectedLog.role !== 'super_admin' && !superAdminEmails.has((selectedLog.email || '').toLowerCase().trim()))) && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 border border-gray-200 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                          {/* Customer Name & Avatar */}
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              {user.profileImage ? (
+                                <img
+                                  src={user.profileImage}
+                                  alt={user.name}
+                                  className="w-8 h-8 rounded-full object-cover border border-emerald-600/30"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 font-black flex items-center justify-center text-xs">
+                                  {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-bold text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                                  <span>{user.name || 'Unnamed Customer'}</span>
+                                  {isSuper && (
+                                    <span title="Super Administrator">
+                                      <Crown className="w-3.5 h-3.5 text-amber-500" />
+                                    </span>
+                                  )}
+                                </div>
+                                {user.phone && (
+                                  <div className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
+                                    <Phone className="w-2.5 h-2.5" />
+                                    <span>{user.phone}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Email ID of Account with Copy Button */}
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                                {user.email}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyEmail(user.email)}
+                                className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-950 rounded-md transition-colors cursor-pointer"
+                                title="Copy Email ID"
+                              >
+                                {copiedEmail === user.email ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Account Created Date */}
+                          <td className="py-4 px-4 text-gray-600 dark:text-gray-400">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <div>
+                                <span>{formatTimestamp(user.createdAt)}</span>
+                                {user.createdAt && (
+                                  <span className="text-[10px] text-gray-400 block">
+                                    {formatRelativeTime(user.createdAt)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Number of Orders Ordered */}
+                          <td className="py-4 px-4 text-center">
+                            {orderCount > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedUserForOrders(user)}
+                                className="inline-flex flex-col items-center group cursor-pointer"
+                                title="Click to view customer's order history"
+                              >
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 group-hover:bg-emerald-200 transition-colors">
+                                  <ShoppingBag className="w-3 h-3 text-emerald-600" />
+                                  <span>{orderCount} Order{orderCount === 1 ? '' : 's'}</span>
+                                </span>
+                                {totalSpent > 0 && (
+                                  <span className="text-[10px] font-bold text-gray-500 mt-0.5">
+                                    ₹{totalSpent.toLocaleString('en-IN')} total
+                                  </span>
+                                )}
+                              </button>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-500">
+                                0 Orders
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Role Badge */}
+                          <td className="py-4 px-4 text-center">
+                            {isSuper ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200">
+                                <Crown className="w-3 h-3 text-purple-600" />
+                                Super Admin
+                              </span>
+                            ) : isAdmin ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                Admin
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                Customer
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Quick Actions */}
+                          <td className="py-4 pr-6 pl-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Direct Email */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEmailForUser(user)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 text-xs font-bold transition-colors cursor-pointer"
+                                title="Compose email to this customer"
+                              >
+                                <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Email</span>
+                              </button>
+
+                              {/* View Orders Modal trigger */}
+                              {orderCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedUserForOrders(user)}
+                                  className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
+                                  title="View orders details"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Table Footer with Summary */}
+            <div className="p-4 bg-gray-50/70 dark:bg-gray-800/40 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2">
+              <div>
+                Showing <strong>{filteredAccountSummaries.length}</strong> of{' '}
+                <strong>{visibleAccountSummaries.length}</strong> registered customer accounts on the site.
+              </div>
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-                  <Activity className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-gray-900">Audit Record Detail</h3>
-                  <span className="text-[10px] text-gray-400 font-mono">{selectedLog.id}</span>
+                <button
+                  type="button"
+                  onClick={handleExportAccountsCSV}
+                  className="font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Download Accounts CSV</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: AUTHENTICATION & LOGIN AUDIT LOGS */}
+      {activeSubTab === 'audit-logs' && (
+        <div className="space-y-4">
+          {/* Audit Logs Filter Bar */}
+          <div className="bg-white dark:bg-[#0c1e17] rounded-3xl p-4 sm:p-5 border border-emerald-900/10 dark:border-emerald-800/30 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Search by email, name, browser or failure reason..."
+                  className="w-full pl-10 pr-4 py-2 text-xs rounded-2xl border border-gray-200 dark:border-gray-800 bg-[#F4FAF5] dark:bg-[#06120e] text-emerald-950 dark:text-emerald-50 focus:bg-white dark:focus:bg-[#0a1f18] focus:border-emerald-600 outline-hidden font-medium"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <select
+                  value={eventFilter}
+                  onChange={(e) => {
+                    setEventFilter(e.target.value as any);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0a1f18] text-gray-700 dark:text-gray-300 outline-hidden font-medium"
+                >
+                  <option value="all">All Events</option>
+                  <option value="login_success">Login Success</option>
+                  <option value="login_failed">Login Failed</option>
+                  <option value="signup">Sign Up</option>
+                  <option value="logout">Sign Out</option>
+                  <option value="password_reset">Password Reset</option>
+                </select>
+
+                <select
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value as any);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0a1f18] text-gray-700 dark:text-gray-300 outline-hidden font-medium"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="success">Success Only</option>
+                  <option value="failed">Failed Only</option>
+                </select>
+
+                <select
+                  value={dateRange}
+                  onChange={(e) => {
+                    setDateRange(e.target.value as any);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0a1f18] text-gray-700 dark:text-gray-300 outline-hidden font-medium"
+                >
+                  <option value="all">All Time</option>
+                  <option value="today">Past 24 Hours</option>
+                  <option value="7days">Past 7 Days</option>
+                  <option value="30days">Past 30 Days</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Audit Logs Table */}
+          <div className="bg-white dark:bg-[#0c1e17] rounded-3xl border border-emerald-900/10 dark:border-emerald-800/30 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-gray-50/80 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 text-[11px] font-black uppercase tracking-wider text-gray-500">
+                    <th className="py-3.5 pl-6 pr-4">Event Type</th>
+                    <th className="py-3.5 px-4">User / Account</th>
+                    <th className="py-3.5 px-4">Role</th>
+                    <th className="py-3.5 px-4">Timestamp</th>
+                    <th className="py-3.5 px-4">Method / Details</th>
+                    <th className="py-3.5 pr-6 pl-4 text-right">View</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-medium">
+                  {paginatedLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-gray-500">
+                        <Activity className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="font-bold text-sm">No activity records match your filter</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/40 transition-colors">
+                        <td className="py-3.5 pl-6 pr-4">
+                          {log.status === 'failed' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                              Failed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              {log.eventType.replace('_', ' ').toUpperCase()}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-gray-900 dark:text-gray-100">{log.name || 'Anonymous User'}</div>
+                          <div className="text-[11px] text-gray-500 font-mono">{log.email}</div>
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-600 capitalize">{log.role || 'customer'}</td>
+                        <td className="py-3.5 px-4 text-gray-500">{formatTimestamp(log.timestamp)}</td>
+                        <td className="py-3.5 px-4 text-gray-600 truncate max-w-xs">{log.details || log.failureReason || 'Auth event'}</td>
+                        <td className="py-3.5 pr-6 pl-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLog(log)}
+                            className="p-1.5 text-gray-400 hover:text-emerald-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                            title="Inspect log details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs text-gray-500">
+                <span>Page {currentPage} of {totalPages} ({filteredLogs.length} logs)</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-40"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-40"
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Customer Orders History Modal (when clicking a user's orders) */}
+      {selectedUserForOrders && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white dark:bg-[#0c1e17] rounded-3xl p-6 max-w-2xl w-full shadow-2xl border border-emerald-900/15 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 dark:text-gray-100">
+                  Order History for {selectedUserForOrders.name || selectedUserForOrders.email}
+                </h3>
+                <p className="text-xs text-gray-500 font-mono">{selectedUserForOrders.email}</p>
+              </div>
               <button
-                onClick={() => setSelectedLog(null)}
-                className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 cursor-pointer"
+                type="button"
+                onClick={() => setSelectedUserForOrders(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer"
               >
-                ✕
+                <XCircle className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-2xl">
-                <div>
-                  <span className="text-[10px] uppercase text-gray-400 font-bold block">Status & Event</span>
-                  <div className="mt-1">{getEventBadge(selectedLog.eventType, selectedLog.status)}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase text-gray-400 font-bold block">Account Role</span>
-                  <div className="mt-1">{getRoleBadge(selectedLog.role)}</div>
-                </div>
-              </div>
+            {(() => {
+              const uEmail = (selectedUserForOrders.email || '').toLowerCase().trim();
+              const uOrders = orders.filter((o) => {
+                const ordEmail = (o.customer?.email || '').toLowerCase().trim();
+                return (uEmail && ordEmail === uEmail) || (selectedUserForOrders.id && o.customerId === selectedUserForOrders.id);
+              });
 
-              <div className="p-3 bg-gray-50 rounded-2xl space-y-2">
-                <div>
-                  <span className="text-[10px] uppercase text-gray-400 font-bold block">User Identity</span>
-                  <span className="font-bold text-gray-900 block">{selectedLog.name || 'Not provided'}</span>
-                  <span className="text-gray-500 font-mono text-[11px]">{selectedLog.email}</span>
-                </div>
-                {selectedLog.userId && (
-                  <div>
-                    <span className="text-[10px] uppercase text-gray-400 font-bold block">User ID</span>
-                    <span className="font-mono text-[11px] text-gray-600">{selectedLog.userId}</span>
+              if (uOrders.length === 0) {
+                return (
+                  <div className="py-8 text-center text-gray-500">
+                    <ShoppingBag className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="font-bold">No orders found for this account.</p>
                   </div>
-                )}
-              </div>
+                );
+              }
 
-              <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-2xl">
-                <div>
-                  <span className="text-[10px] uppercase text-gray-400 font-bold block">Device / Browser</span>
-                  <div className="flex items-center gap-1.5 mt-1 text-gray-700">
-                    {getDeviceIcon(selectedLog.device)}
-                    <span className="font-medium">{selectedLog.device || 'Desktop'}</span>
-                    <span>•</span>
-                    <span>{selectedLog.browser || 'Browser'}</span>
-                  </div>
+              return (
+                <div className="space-y-3">
+                  {uOrders.map((ord) => (
+                    <div
+                      key={ord.id}
+                      className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-xs space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-emerald-950 dark:text-emerald-100">
+                          #{ord.orderNumber}
+                        </span>
+                        <span className="font-extrabold text-sm text-emerald-700">
+                          ₹{ord.total}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-gray-500">
+                        <span>Placed on: {formatTimestamp(ord.createdAt)}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                          {ord.orderStatus}
+                        </span>
+                      </div>
+                      {ord.items && ord.items.length > 0 && (
+                        <div className="pt-2 border-t border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
+                          <strong>Items:</strong> {ord.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <span className="text-[10px] uppercase text-gray-400 font-bold block">Auth Method</span>
-                  <span className="font-medium text-gray-800 capitalize mt-1 block">
-                    {selectedLog.authMethod ? selectedLog.authMethod.replace('_', ' ') : 'Standard'}
-                  </span>
-                </div>
-              </div>
+              );
+            })()}
 
-              {selectedLog.failureReason && (
-                <div className="p-3 bg-rose-50 border border-rose-100 rounded-2xl text-rose-800 space-y-1">
-                  <span className="text-[10px] uppercase text-rose-500 font-bold block">Failure Reason</span>
-                  <p className="font-medium">{selectedLog.failureReason}</p>
-                </div>
-              )}
-
-              {selectedLog.details && (
-                <div className="p-3 bg-blue-50 border border-blue-100 rounded-2xl text-blue-800 space-y-1">
-                  <span className="text-[10px] uppercase text-blue-500 font-bold block">Additional Details</span>
-                  <p className="font-medium">{selectedLog.details}</p>
-                </div>
-              )}
-
-              <div className="p-3 bg-gray-50 rounded-2xl">
-                <span className="text-[10px] uppercase text-gray-400 font-bold block">Timestamp</span>
-                <span className="text-gray-700 font-mono">{formatTimestamp(selectedLog.timestamp)}</span>
-              </div>
-            </div>
-
-            <div className="pt-2">
+            <div className="pt-2 flex justify-end">
               <button
-                onClick={() => setSelectedLog(null)}
-                className="w-full py-2.5 rounded-xl bg-gray-900 text-white font-bold text-xs hover:bg-black transition-colors cursor-pointer"
+                type="button"
+                onClick={() => setSelectedUserForOrders(null)}
+                className="px-5 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs"
               >
-                Close Record
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Clear Logs Confirmation Modal */}
-      {isClearModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-gray-200 shadow-2xl">
-            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <div className="text-center space-y-1">
-              <h3 className="text-base font-black text-gray-900">Purge User Activity Logs?</h3>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                This will permanently delete all {userLogs.length} authentication and login history records from Cloud Firestore. This action cannot be undone.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsClearModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                Cancel
+      {/* Log Details Modal */}
+      {selectedLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white dark:bg-[#0c1e17] rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-emerald-900/15 space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Audit Log Details</h3>
+              <button onClick={() => setSelectedLog(null)} className="p-1 text-gray-400 hover:text-gray-600">
+                <XCircle className="w-5 h-5" />
               </button>
-              <button
-                type="button"
-                disabled={isClearing}
-                onClick={handleConfirmClear}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-              >
-                {isClearing ? 'Purging...' : 'Yes, Purge Logs'}
+            </div>
+            <div className="space-y-2 text-gray-700 dark:text-gray-300">
+              <div><strong>Event:</strong> {selectedLog.eventType}</div>
+              <div><strong>Status:</strong> {selectedLog.status}</div>
+              <div><strong>User:</strong> {selectedLog.name} ({selectedLog.email})</div>
+              <div><strong>Role:</strong> {selectedLog.role}</div>
+              <div><strong>Timestamp:</strong> {selectedLog.timestamp}</div>
+              <div><strong>Details:</strong> {selectedLog.details || 'N/A'}</div>
+              {selectedLog.failureReason && <div className="text-rose-600"><strong>Failure:</strong> {selectedLog.failureReason}</div>}
+            </div>
+            <div className="pt-2 flex justify-end">
+              <button onClick={() => setSelectedLog(null)} className="px-4 py-2 bg-gray-100 rounded-full font-bold text-xs">
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Bulk Email Composer Modal */}
+      <BulkEmailModal
+        isOpen={isBulkEmailOpen}
+        onClose={() => setIsBulkEmailOpen(false)}
+        selectedUsers={bulkEmailPreselected.filter(
+          (u) =>
+            isCurrentSuperAdmin ||
+            (!superAdminEmails.has((u.email || '').toLowerCase().trim()) && u.role !== 'super_admin')
+        )}
+        allUsers={
+          isCurrentSuperAdmin
+            ? registeredUsers
+            : registeredUsers.filter(
+                (u) =>
+                  !superAdminEmails.has((u.email || '').toLowerCase().trim()) &&
+                  u.role !== 'super_admin'
+              )
+        }
+        orders={orders}
+      />
     </div>
   );
 };

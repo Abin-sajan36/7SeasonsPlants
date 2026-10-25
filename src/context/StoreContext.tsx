@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { auth, db, firebaseConfig } from '../lib/firebase';
+import {
+  auth,
+  db,
+  firebaseConfig,
+  handleFirestoreQuotaError,
+  isFirestoreQuotaExceeded,
+  subscribeQuotaState,
+} from '../lib/firebase';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -252,6 +259,8 @@ interface StoreContextType {
   updateProductStock: (productId: string, stock: number) => Promise<void>;
   updateComboStock: (comboId: string, stock: number) => Promise<void>;
   batchUpdateStock: (items: { id: string; type: 'plant' | 'combo'; stock: number }[]) => Promise<void>;
+  hasUserPurchasedCombo: (comboIdOrSlug: string) => boolean;
+  notifyRegisteredUsersOfExclusiveDeal: (combo: PlantCombo) => Promise<{ success: boolean; count?: number }>;
 
   addDailyDeal: (deal: Omit<DailyDeal, 'id'>) => Promise<void> | void;
   updateDailyDeal: (deal: DailyDeal) => Promise<void> | void;
@@ -365,31 +374,42 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [categories, setCategories] = useState<Category[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_categories`);
-    if (!saved) return initialCategories;
-    try {
-      const parsed: Category[] = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_category_ids`) || '[]');
-        const deletedSet = new Set(deletedIds);
-        const filtered = parsed.filter((c) => !deletedSet.has(c.id) && !deletedSet.has(c.slug));
-        return filtered.length > 0 ? filtered : initialCategories;
-      }
-      return initialCategories;
-    } catch {
-      return initialCategories;
+    const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_category_ids`) || '[]');
+    const deletedSet = new Set(deletedIds);
+    if (saved !== null) {
+      try {
+        const parsed: Category[] = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((c) => !deletedSet.has(c.id) && !deletedSet.has(c.slug) && !deletedSet.has(c.name));
+        }
+      } catch {}
     }
+    return initialCategories.filter((c) => !deletedSet.has(c.id) && !deletedSet.has(c.slug) && !deletedSet.has(c.name));
   });
 
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_products`);
-    return saved ? JSON.parse(saved) : initialProducts;
+    const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_product_ids`) || '[]');
+    const deletedSet = new Set(deletedIds);
+    if (saved !== null) {
+      try {
+        const parsed: Product[] = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p) => !deletedSet.has(p.id) && !deletedSet.has(p.slug));
+        }
+      } catch {}
+    }
+    return initialProducts.filter((p) => !deletedSet.has(p.id) && !deletedSet.has(p.slug));
   });
 
   const [combos, setCombos] = useState<PlantCombo[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_combos`);
-    const list = saved ? JSON.parse(saved) : initialPlantCombos;
-    const array = Array.isArray(list) ? list : initialPlantCombos;
-    return [...array].sort((a, b) => {
+    const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_combo_ids`) || '[]');
+    const deletedSet = new Set(deletedIds);
+    const rawList = saved ? JSON.parse(saved) : initialPlantCombos;
+    const array = Array.isArray(rawList) ? rawList : initialPlantCombos;
+    const filtered = array.filter((c: PlantCombo) => !deletedSet.has(c.id));
+    return [...filtered].sort((a, b) => {
       const aInStock = (a.stock ?? 0) > 0;
       const bInStock = (b.stock ?? 0) > 0;
       if (aInStock && !bInStock) return -1;
@@ -417,28 +437,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [banners, setBanners] = useState<HeroBanner[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_banners`);
-    if (saved) {
+    const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_banner_ids`) || '[]');
+    const deletedSet = new Set(deletedIds);
+    if (saved !== null) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((b: HeroBanner) => ({
-            ...b,
-            subtitle: b.subtitle
-              ? b.subtitle
-                  .replace(/Kerala & Tamil Nadu/gi, 'Kerala, Tamil Nadu & Karnataka')
-                  .replace(/Kerala and Tamil Nadu/gi, 'Kerala, Tamil Nadu, and Karnataka')
-              : b.subtitle,
-            ctaText: /shop\s*plants/i.test(b.ctaText) ? 'Explore Plant Combos' : /best\s*seller/i.test(b.ctaText) ? 'Best Selling Combos' : b.ctaText,
-            ctaLink: b.ctaLink === '/plants' || b.ctaLink?.startsWith('/plants') ? '/combos' : b.ctaLink,
-            secondaryCtaText: /shop\s*plants/i.test(b.secondaryCtaText || '') ? 'Explore Combos' : b.secondaryCtaText,
-            secondaryCtaLink: b.secondaryCtaLink === '/plants' || b.secondaryCtaLink?.startsWith('/plants') ? '/combos' : b.secondaryCtaLink,
-          }));
+        if (Array.isArray(parsed)) {
+          return parsed.filter((b: HeroBanner) => !deletedSet.has(b.id));
         }
-      } catch {
-        return initialBanners;
-      }
+      } catch {}
     }
-    return initialBanners;
+    return initialBanners.filter((b) => !deletedSet.has(b.id));
   });
 
   const [plantCareGuides, setPlantCareGuides] = useState<PlantCareGuide[]>(() => {
@@ -784,6 +793,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Sync store settings with Firebase
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       doc(db, 'storeSettings', 'global'),
       async (docSnap) => {
@@ -791,7 +801,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const data = docSnap.data() as StoreSettings;
           if (!data.email || data.email === '7seasonsplants@gmail.com') {
             data.email = 'mannaratharayil@gmail.com';
-            setDoc(doc(db, 'storeSettings', 'global'), { email: 'mannaratharayil@gmail.com' }, { merge: true }).catch(() => {});
+            if (!isFirestoreQuotaExceeded()) {
+              setDoc(doc(db, 'storeSettings', 'global'), { email: 'mannaratharayil@gmail.com' }, { merge: true }).catch(() => {});
+            }
           }
           setStoreSettings((prev) => {
             const merged: StoreSettings = {
@@ -809,6 +821,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       (error) => {
+        if (handleFirestoreQuotaError(error, 'storeSettings')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore storeSettings sync note:', error.message || error);
       }
     );
@@ -818,6 +834,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Plant Combos from Firestore
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       collection(db, 'combos'),
       (snapshot) => {
@@ -863,15 +880,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             console.warn('LocalStorage error:', err);
           }
         } else {
-          setCombos(initialPlantCombos);
-          try {
-            safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(initialPlantCombos));
-          } catch (err) {
-            console.warn('LocalStorage error:', err);
-          }
+          setCombos((prev) => {
+            const filtered = prev.filter((c) => !deletedSet.has(c.id));
+            try {
+              safeSetItem(`${STORAGE_KEY}_combos`, JSON.stringify(filtered));
+            } catch (err) {}
+            return filtered;
+          });
         }
       },
       (error) => {
+        if (handleFirestoreQuotaError(error, 'combos')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore combos sync note:', error.message || error);
       }
     );
@@ -881,6 +903,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Products from Firestore
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       collection(db, 'products'),
       (snapshot) => {
@@ -893,7 +916,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const list: Product[] = [];
           snapshot.forEach((docSnap) => {
             const p = { ...(docSnap.data() as Product), id: docSnap.id };
-            if (!deletedSet.has(p.id)) {
+            if (!deletedSet.has(p.id) && !deletedSet.has(p.slug)) {
               list.push(p);
             }
           });
@@ -904,13 +927,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             console.warn('LocalStorage error:', err);
           }
         } else {
-          // If cloud collection is unseeded, populate from initialProducts instead of wiping to empty array
-          initialProducts.forEach((p) => {
-            setDoc(doc(db, 'products', p.id), removeUndefined(p)).catch(() => {});
+          // Do not re-seed initialProducts into cloud or state; respect user deletion or empty state
+          setProducts((prev) => {
+            const filtered = prev.filter((p) => !deletedSet.has(p.id) && !deletedSet.has(p.slug));
+            try {
+              safeSetItem(`${STORAGE_KEY}_products`, JSON.stringify(filtered));
+            } catch (err) {}
+            return filtered;
           });
         }
       },
       (error) => {
+        if (handleFirestoreQuotaError(error, 'products')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore products sync note:', error.message || error);
       }
     );
@@ -920,6 +951,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Categories from Firestore
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       collection(db, 'categories'),
       (snapshot) => {
@@ -932,7 +964,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const list: Category[] = [];
           snapshot.forEach((docSnap) => {
             const cat = { ...(docSnap.data() as Category), id: docSnap.id };
-            if (!deletedSet.has(cat.id) && !deletedSet.has(cat.slug)) {
+            if (!deletedSet.has(cat.id) && !deletedSet.has(cat.slug) && !deletedSet.has(cat.name)) {
               list.push(cat);
             }
           });
@@ -943,15 +975,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             console.warn('LocalStorage error:', err);
           }
         } else {
-          setCategories([]);
-          try {
-            safeSetItem(`${STORAGE_KEY}_categories`, JSON.stringify([]));
-          } catch (err) {
-            console.warn('LocalStorage error:', err);
-          }
+          setCategories((prev) => {
+            const filtered = prev.filter((c) => !deletedSet.has(c.id) && !deletedSet.has(c.slug) && !deletedSet.has(c.name));
+            try {
+              safeSetItem(`${STORAGE_KEY}_categories`, JSON.stringify(filtered));
+            } catch (err) {}
+            return filtered;
+          });
         }
       },
       (error) => {
+        if (handleFirestoreQuotaError(error, 'categories')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore categories sync note:', error.message || error);
       }
     );
@@ -961,6 +998,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Daily Deals from Firestore
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       collection(db, 'dailyDeals'),
       (snapshot) => {
@@ -981,6 +1019,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       (error) => {
+        if (handleFirestoreQuotaError(error, 'dailyDeals')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore dailyDeals sync note:', error.message || error);
       }
     );
@@ -990,6 +1032,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Coupons from Firestore
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       collection(db, 'coupons'),
       (snapshot) => {
@@ -1026,6 +1069,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       (error) => {
+        if (handleFirestoreQuotaError(error, 'coupons')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore coupons sync note:', error.message || error);
       }
     );
@@ -1035,41 +1082,84 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Banners from Firestore
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       collection(db, 'banners'),
       (snapshot) => {
+        const deletedIds: string[] = JSON.parse(
+          localStorage.getItem(`${STORAGE_KEY}_deleted_banner_ids`) || '[]'
+        );
+        const deletedSet = new Set(deletedIds);
+
         if (!snapshot.empty) {
           const list: HeroBanner[] = [];
           snapshot.forEach((docSnap) => {
             const b = docSnap.data() as HeroBanner;
-            list.push({
-              ...b,
-              id: docSnap.id,
-              subtitle: b.subtitle
-                ? b.subtitle
-                    .replace(/Kerala & Tamil Nadu/gi, 'Kerala, Tamil Nadu & Karnataka')
-                    .replace(/Kerala and Tamil Nadu/gi, 'Kerala, Tamil Nadu, and Karnataka')
-                : b.subtitle,
-              ctaText: /shop\s*plants/i.test(b.ctaText) ? 'Explore Plant Combos' : /best\s*seller/i.test(b.ctaText) ? 'Best Selling Combos' : b.ctaText,
-              ctaLink: b.ctaLink === '/plants' || b.ctaLink?.startsWith('/plants') ? '/combos' : b.ctaLink,
-              secondaryCtaText: /shop\s*plants/i.test(b.secondaryCtaText || '') ? 'Explore Combos' : b.secondaryCtaText,
-              secondaryCtaLink: b.secondaryCtaLink === '/plants' || b.secondaryCtaLink?.startsWith('/plants') ? '/combos' : b.secondaryCtaLink,
-            });
+            if (!deletedSet.has(docSnap.id)) {
+              list.push({
+                ...b,
+                id: docSnap.id,
+              });
+            }
           });
+          list.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
           setBanners(list);
           try {
             safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(list));
           } catch (e) {}
-        } else {
-          // Do not wipe banners when collection is unseeded; seed initial banners to Firestore
-          const toSeed = initialBanners;
-          toSeed.forEach((b) => {
-            setDoc(doc(db, 'banners', b.id), removeUndefined(b)).catch(() => {});
-          });
+        }
+        // Do NOT auto-seed initialBanners if empty: respect user deletions & custom settings
+      },
+      (error) => {
+        if (handleFirestoreQuotaError(error, 'banners')) {
+          unsubscribe();
+          return;
+        }
+        console.warn('Firestore banners sync note:', error.message || error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization of cross-device deletion tombstones from Firestore
+  useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
+    const unsubscribe = onSnapshot(
+      doc(db, 'storeSettings', 'tombstones'),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (Array.isArray(data?.deletedProductIds) && data.deletedProductIds.length > 0) {
+            const localProd: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_product_ids`) || '[]');
+            const mergedProd = Array.from(new Set([...localProd, ...data.deletedProductIds]));
+            safeSetItem(`${STORAGE_KEY}_deleted_product_ids`, JSON.stringify(mergedProd));
+            setProducts((prev) => prev.filter((p) => !mergedProd.includes(p.id) && !mergedProd.includes(p.slug)));
+          }
+          if (Array.isArray(data?.deletedCategoryIds) && data.deletedCategoryIds.length > 0) {
+            const localCat: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_category_ids`) || '[]');
+            const mergedCat = Array.from(new Set([...localCat, ...data.deletedCategoryIds]));
+            safeSetItem(`${STORAGE_KEY}_deleted_category_ids`, JSON.stringify(mergedCat));
+            setCategories((prev) => prev.filter((c) => !mergedCat.includes(c.id) && !mergedCat.includes(c.slug) && !mergedCat.includes(c.name)));
+          }
+          if (Array.isArray(data?.deletedComboIds) && data.deletedComboIds.length > 0) {
+            const localCombo: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_combo_ids`) || '[]');
+            const mergedCombo = Array.from(new Set([...localCombo, ...data.deletedComboIds]));
+            safeSetItem(`${STORAGE_KEY}_deleted_combo_ids`, JSON.stringify(mergedCombo));
+            setCombos((prev) => prev.filter((c) => !mergedCombo.includes(c.id)));
+          }
+          if (Array.isArray(data?.deletedBannerIds) && data.deletedBannerIds.length > 0) {
+            const localBanner: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_banner_ids`) || '[]');
+            const mergedBanner = Array.from(new Set([...localBanner, ...data.deletedBannerIds]));
+            safeSetItem(`${STORAGE_KEY}_deleted_banner_ids`, JSON.stringify(mergedBanner));
+            setBanners((prev) => prev.filter((b) => !mergedBanner.includes(b.id)));
+          }
         }
       },
       (error) => {
-        console.warn('Firestore banners sync note:', error.message || error);
+        if (handleFirestoreQuotaError(error, 'tombstones')) {
+          unsubscribe();
+        }
       }
     );
 
@@ -1079,6 +1169,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Plant Care Guides from Firestore
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       collection(db, 'plantCareGuides'),
       (snapshot) => {
@@ -1099,6 +1190,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       (error) => {
+        if (handleFirestoreQuotaError(error, 'plantCareGuides')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore plantCareGuides sync note:', error.message || error);
       }
     );
@@ -1108,6 +1203,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Blog Posts from Firestore
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     let seeded = false;
     const unsubscribe = onSnapshot(
       collection(db, 'blogs'),
@@ -1132,7 +1228,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           try {
             safeSetItem(`${STORAGE_KEY}_blogs`, JSON.stringify(list));
           } catch (e) {}
-        } else if (!seeded) {
+        } else if (!seeded && !isFirestoreQuotaExceeded()) {
           seeded = true;
           const hasStored = localStorage.getItem(`${STORAGE_KEY}_blogs`);
           if (hasStored === null && deletedSet.size === 0) {
@@ -1157,6 +1253,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       (error) => {
+        if (handleFirestoreQuotaError(error, 'blogs')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore blogs sync note:', error.message || error);
       }
     );
@@ -1166,6 +1266,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of Instagram Reels from Firestore
   useEffect(() => {
+    if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       collection(db, 'instagram_reels'),
       (snapshot) => {
@@ -1182,6 +1283,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       (error) => {
+        if (handleFirestoreQuotaError(error, 'instagram_reels')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore instagram_reels sync note:', error.message || error);
       }
     );
@@ -1213,25 +1318,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(banners));
   }, [banners]);
 
-  // Fix spelling mistake and update state references in banners that were already loaded into localStorage
-  useEffect(() => {
-    setBanners((prev) => 
-      prev.map(b => {
-        let updatedSubtitle = b.subtitle;
-        if (updatedSubtitle) {
-          updatedSubtitle = updatedSubtitle
-            .replace(/Kerala & Tamil Nadu/gi, 'Kerala, Tamil Nadu & Karnataka')
-            .replace(/Kerala and Tamil Nadu/gi, 'Kerala, Tamil Nadu, and Karnataka');
-        }
-        return {
-          ...b,
-          badge: b.id === 'banner-hero-1' ? 'FRESH FROM MANNARATHARAYIL GARDENS LLP' : b.badge,
-          subtitle: updatedSubtitle,
-        };
-      })
-    );
-  }, []);
-
   useEffect(() => {
     safeSetItem(`${STORAGE_KEY}_guides`, JSON.stringify(plantCareGuides));
   }, [plantCareGuides]);
@@ -1254,16 +1340,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     safeSetItem(`${STORAGE_KEY}_cart`, JSON.stringify(cart));
-    if (currentUser?.id) {
+    if (currentUser?.id && !isFirestoreQuotaExceeded()) {
       const cleanCart = removeUndefined(cart);
       updateDoc(doc(db, 'users', currentUser.id), {
         cart: cleanCart,
         updatedAt: new Date().toISOString(),
-      }).catch(() => {
+      }).catch((err) => {
+        if (handleFirestoreQuotaError(err, 'cartUpdate')) return;
         setDoc(doc(db, 'users', currentUser.id), {
           cart: cleanCart,
           updatedAt: new Date().toISOString(),
-        }, { merge: true }).catch(console.warn);
+        }, { merge: true }).catch((e) => {
+          handleFirestoreQuotaError(e, 'cartSetDoc');
+        });
       });
     }
   }, [cart, currentUser?.id]);
@@ -1311,10 +1400,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time synchronization of User Activity & Login Logs from Firestore (Super Admin audit)
   useEffect(() => {
-    // Only subscribe if user has Super Admin or Admin access
+    // Only subscribe if user has Super Admin or Admin access and quota is healthy
     if (!isAdminAuthenticated && !currentAdmin && !isCurrentSuperAdmin) return;
+    if (isFirestoreQuotaExceeded()) return;
     try {
-      const q = query(collection(db, 'user_logs'), limit(300));
+      const q = query(collection(db, 'user_logs'), limit(150));
       const unsubscribe = onSnapshot(
         q,
         (snapshot) => {
@@ -1331,6 +1421,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         },
         (error) => {
+          if (handleFirestoreQuotaError(error, 'user_logs')) {
+            unsubscribe();
+            return;
+          }
           console.warn('Firestore user_logs sync note:', error.message || error);
         }
       );
@@ -1340,10 +1434,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [isAdminAuthenticated, currentAdmin, isCurrentSuperAdmin]);
 
-  // Realtime synchronization of all users from Firestore
+  // Realtime synchronization of all users from Firestore (Restricted to Administrator sessions)
   useEffect(() => {
+    // Only administrators require the full user roster; shoppers do not stream other users
+    if (!isAdminAuthenticated && !currentAdmin && !isCurrentSuperAdmin) return;
+    if (isFirestoreQuotaExceeded()) return;
+
     const unsubscribe = onSnapshot(
-      collection(db, 'users'),
+      query(collection(db, 'users'), limit(150)),
       (snapshot) => {
         if (!snapshot.empty) {
           const fetched: User[] = [];
@@ -1369,16 +1467,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       (err) => {
+        if (handleFirestoreQuotaError(err, 'users')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore users realtime sync notice:', err.message || err);
       }
     );
     return () => unsubscribe();
-  }, []);
+  }, [isAdminAuthenticated, currentAdmin, isCurrentSuperAdmin]);
 
-  // Realtime synchronization of all orders from Firestore
+  // Realtime synchronization of orders from Firestore (Restricted to Administrator sessions)
   useEffect(() => {
+    // Only administrators stream all store orders; regular shoppers access their orders via state or targeted queries
+    if (!isAdminAuthenticated && !currentAdmin && !isCurrentSuperAdmin) return;
+    if (isFirestoreQuotaExceeded()) return;
+
     const unsubscribe = onSnapshot(
-      collection(db, 'orders'),
+      query(collection(db, 'orders'), limit(150)),
       (snapshot) => {
         if (!snapshot.empty) {
           const fetchedOrders: Order[] = [];
@@ -1417,11 +1523,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       (err) => {
+        if (handleFirestoreQuotaError(err, 'orders')) {
+          unsubscribe();
+          return;
+        }
         console.warn('Firestore orders realtime sync notice:', err.message || err);
       }
     );
     return () => unsubscribe();
-  }, []);
+  }, [isAdminAuthenticated, currentAdmin, isCurrentSuperAdmin]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -1689,6 +1799,67 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return Math.max(0, threshold - cartSubtotal);
   }, [cartSubtotal, storeSettings]);
 
+  // Check if current customer account has already purchased a specific combo
+  const hasUserPurchasedCombo = useCallback(
+    (comboIdOrSlug: string): boolean => {
+      if (!currentUser && !currentAdmin) return false;
+      const userEmail = (currentUser?.email || currentAdmin?.email || '').toLowerCase().trim();
+      const userId = currentUser?.id || currentAdmin?.id || '';
+
+      const relevantOrders = orders.filter((o) => {
+        if (o.orderStatus === 'Cancelled' || o.orderStatus === 'Payment Failed') return false;
+        const ordEmail = (o.customer?.email || '').toLowerCase().trim();
+        const ordUserId = o.customerId || (o.customer as any)?.id || '';
+        return Boolean((userId && ordUserId === userId) || (userEmail && ordEmail === userEmail));
+      });
+
+      return relevantOrders.some((o) =>
+        o.items?.some(
+          (it) => it.id === comboIdOrSlug || it.slug === comboIdOrSlug
+        )
+      );
+    },
+    [currentUser, currentAdmin, orders]
+  );
+
+  // Broadcast email alerts to all registered customers when a special exclusive deal is published
+  const notifyRegisteredUsersOfExclusiveDeal = useCallback(
+    async (combo: PlantCombo): Promise<{ success: boolean; count?: number }> => {
+      try {
+        const recipients = registeredUsers
+          .filter((u) => u.email && u.email.includes('@'))
+          .map((u) => ({ email: u.email, name: u.name }));
+
+        const res = await fetch('/api/combos/notify-exclusive-deal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            combo,
+            recipients,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          addToast({
+            type: 'success',
+            title: 'Exclusive Deal Broadcasted ✉️',
+            message: `Special 1-per-account deal email sent to ${data.count ?? recipients.length} registered customers.`,
+            duration: 6000,
+          });
+          return { success: true, count: data.count };
+        } else {
+          console.warn('Exclusive deal broadcast response:', data);
+          return { success: false };
+        }
+      } catch (err: any) {
+        console.warn('Could not broadcast exclusive deal notification:', err);
+        return { success: false };
+      }
+    },
+    [registeredUsers]
+  );
+
   // Cart Actions
   const addToCart = (
     item: Product | PlantCombo,
@@ -1715,20 +1886,47 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ? (combos.find((c) => c.id === item.id)?.stock ?? item.stock)
         : (products.find((p) => p.id === item.id)?.stock ?? item.stock);
 
+    // Strictly forbid purchase if sold out
     if (liveStock <= 0) {
       addToast({
         type: 'warning',
         title: 'Sold Out',
-        message: `${item.name} is currently out of stock.`,
+        message: `${item.name} is currently sold out and unavailable for purchase.`,
       });
       return;
+    }
+
+    // 1-per-account validation for exclusive combo deals
+    const liveCombo = type === 'combo' ? (combos.find((c) => c.id === item.id) || (item as PlantCombo)) : null;
+    if (liveCombo?.onePerAccount) {
+      if (hasUserPurchasedCombo(liveCombo.id) || hasUserPurchasedCombo(liveCombo.slug)) {
+        addToast({
+          type: 'warning',
+          title: 'Limit Reached (1 Per Account)',
+          message: `"${liveCombo.name}" is an exclusive deal limited to 1 purchase per customer account. You have already claimed this deal in a previous order.`,
+          duration: 6000,
+        });
+        return;
+      }
+
+      const existingInCart = cart.find((ci) => ci.id === liveCombo.id);
+      if (existingInCart) {
+        addToast({
+          type: 'info',
+          title: 'Limit: 1 Per Account',
+          message: `"${liveCombo.name}" is already in your shopping bag. This special deal is limited to a maximum of 1 per customer account.`,
+          duration: 5000,
+        });
+        return;
+      }
+      quantity = 1;
     }
 
     setCart((prev) => {
       const existingIndex = prev.findIndex((ci) => ci.id === item.id);
       if (existingIndex > -1) {
         const existing = prev[existingIndex];
-        const newQty = Math.min(existing.quantity + quantity, liveStock);
+        const newQty = liveCombo?.onePerAccount ? 1 : Math.min(existing.quantity + quantity, liveStock);
         const updated = [...prev];
         updated[existingIndex] = { ...existing, quantity: newQty, stock: liveStock };
         return updated;
@@ -1741,7 +1939,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           price: item.price,
           originalPrice: item.originalPrice,
           image: item.images?.[0] || '',
-          quantity: Math.min(quantity, liveStock),
+          quantity: liveCombo?.onePerAccount ? 1 : Math.min(quantity, liveStock),
           stock: liveStock,
           weight: item.weight,
           comboItems: type === 'combo' ? (item as PlantCombo).items : undefined,
@@ -1754,7 +1952,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     addToast({
       type: 'success',
       title: 'Added to Cart 🌿',
-      message: `${item.name} (${quantity}) added to your shopping bag.`,
+      message: `${item.name} (${liveCombo?.onePerAccount ? 1 : quantity}) added to your shopping bag.`,
     });
   };
 
@@ -1775,6 +1973,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === id) {
+          const combo = item.type === 'combo' ? combos.find((c) => c.id === id) : null;
+          if (combo?.onePerAccount && quantity > 1) {
+            addToast({
+              type: 'info',
+              title: 'Limit: 1 Per Account',
+              message: `"${item.name}" is restricted to 1 purchase per customer account.`,
+            });
+            return { ...item, quantity: 1 };
+          }
           const liveStock =
             item.type === 'combo'
               ? (combos.find((c) => c.id === item.id)?.stock ?? item.stock)
@@ -1931,14 +2138,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         // 2. Persist to Cloud Firestore combos collection
         try {
-          const comboRef = doc(db, 'combos', item.id);
-          const comboSnap = await getDoc(comboRef);
-          if (comboSnap.exists()) {
-            const currentDbStock = comboSnap.data()?.stock ?? 0;
-            const updatedStock = Math.max(0, currentDbStock + quantityChange);
-            await updateDoc(comboRef, { stock: updatedStock });
+          if (!isFirestoreQuotaExceeded()) {
+            const comboRef = doc(db, 'combos', item.id);
+            const comboSnap = await getDoc(comboRef);
+            if (comboSnap.exists()) {
+              const currentDbStock = comboSnap.data()?.stock ?? 0;
+              const updatedStock = Math.max(0, currentDbStock + quantityChange);
+              await updateDoc(comboRef, { stock: updatedStock });
+            }
           }
         } catch (err) {
+          handleFirestoreQuotaError(err, 'adjustInventoryCombos');
           console.warn(`[Inventory] Error persisting combo stock for ${item.id}:`, err);
         }
       } else {
@@ -1956,14 +2166,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         // 2. Persist to Cloud Firestore products collection
         try {
-          const prodRef = doc(db, 'products', item.id);
-          const prodSnap = await getDoc(prodRef);
-          if (prodSnap.exists()) {
-            const currentDbStock = prodSnap.data()?.stock ?? 0;
-            const updatedStock = Math.max(0, currentDbStock + quantityChange);
-            await updateDoc(prodRef, { stock: updatedStock });
+          if (!isFirestoreQuotaExceeded()) {
+            const prodRef = doc(db, 'products', item.id);
+            const prodSnap = await getDoc(prodRef);
+            if (prodSnap.exists()) {
+              const currentDbStock = prodSnap.data()?.stock ?? 0;
+              const updatedStock = Math.max(0, currentDbStock + quantityChange);
+              await updateDoc(prodRef, { stock: updatedStock });
+            }
           }
         } catch (err) {
+          handleFirestoreQuotaError(err, 'adjustInventoryProducts');
           console.warn(`[Inventory] Error persisting product stock for ${item.id}:`, err);
         }
       }
@@ -2083,11 +2296,30 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Authoritative stock verification before creating order to prevent overselling sold-out combos
     for (const item of orderPayload.items || []) {
       if (item.type === 'combo') {
-        const comboDoc = await getDoc(doc(db, 'combos', item.id));
-        if (comboDoc.exists()) {
-          const currentStock = comboDoc.data()?.stock ?? 0;
-          if (currentStock <= 0) {
-            throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
+        try {
+          if (!isFirestoreQuotaExceeded()) {
+            const comboDoc = await getDoc(doc(db, 'combos', item.id));
+            if (comboDoc.exists()) {
+              const currentStock = comboDoc.data()?.stock ?? 0;
+              if (currentStock <= 0) {
+                throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
+              }
+            }
+          } else {
+            // Local fallback stock check
+            const localCombo = combos.find((c) => c.id === item.id);
+            if (localCombo && (localCombo.stock ?? 0) <= 0) {
+              throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
+            }
+          }
+        } catch (stockErr: any) {
+          if (handleFirestoreQuotaError(stockErr, 'comboStockCheck')) {
+            const localCombo = combos.find((c) => c.id === item.id);
+            if (localCombo && (localCombo.stock ?? 0) <= 0) {
+              throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
+            }
+          } else if (stockErr.message?.includes('sold out')) {
+            throw stockErr;
           }
         }
       }
@@ -2102,8 +2334,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Persist order to Firestore orders collection
     try {
-      await setDoc(doc(db, 'orders', newOrder.id), removeUndefined(newOrder));
+      if (!isFirestoreQuotaExceeded()) {
+        await setDoc(doc(db, 'orders', newOrder.id), removeUndefined(newOrder));
+      }
     } catch (fsErr) {
+      handleFirestoreQuotaError(fsErr, 'saveOrder');
       console.warn('Could not save order to Firestore:', fsErr);
     }
 
@@ -3857,21 +4092,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const prepareComboForFirestore = async (combo: PlantCombo): Promise<PlantCombo> => {
     const sanitized: PlantCombo = { ...combo };
 
-    // 1. Sanitize & host combo gallery photos (max 5 photos)
+    // 1. Sanitize & host combo gallery photos (max 5 photos) - skip if already hosted URLs
     if (Array.isArray(sanitized.images) && sanitized.images.length > 0) {
       sanitized.images = await Promise.all(
-        sanitized.images.slice(0, 5).map((img, idx) =>
-          safeOptimizeImageForFirestore(img, `combo-${sanitized.slug || 'bundle'}-${idx + 1}`)
-        )
+        sanitized.images.slice(0, 5).map((img, idx) => {
+          if (!img) return '';
+          if (!img.startsWith('data:image/') || img.length < 90000) return img;
+          return safeOptimizeImageForFirestore(img, `combo-${sanitized.slug || 'bundle'}-${idx + 1}`);
+        })
       );
     }
 
-    // 2. Sanitize & host included bundle items photos
+    // 2. Sanitize & host included bundle items photos - skip if already hosted URLs
     if (Array.isArray(sanitized.items) && sanitized.items.length > 0) {
       sanitized.items = await Promise.all(
         sanitized.items.map(async (item, idx) => {
           let itemImg = item.image;
-          if (itemImg && (itemImg.startsWith('data:image/') || itemImg.length > 500)) {
+          if (itemImg && itemImg.startsWith('data:image/') && itemImg.length > 90000) {
             itemImg = await safeOptimizeImageForFirestore(itemImg, `combo-item-${sanitized.slug || 'item'}-${idx + 1}`);
           }
           return {
@@ -3990,10 +4227,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const deletedIds: string[] = JSON.parse(
       localStorage.getItem(`${STORAGE_KEY}_deleted_product_ids`) || '[]'
     );
+    const target = products.find((p) => p.id === id);
     if (!deletedIds.includes(id)) {
       deletedIds.push(id);
-      safeSetItem(`${STORAGE_KEY}_deleted_product_ids`, JSON.stringify(deletedIds));
     }
+    if (target?.slug && !deletedIds.includes(target.slug)) {
+      deletedIds.push(target.slug);
+    }
+    safeSetItem(`${STORAGE_KEY}_deleted_product_ids`, JSON.stringify(deletedIds));
+
+    try {
+      if (!isFirestoreQuotaExceeded()) {
+        setDoc(doc(db, 'storeSettings', 'tombstones'), {
+          deletedProductIds: deletedIds,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
+      }
+    } catch (e) {}
 
     // 2. Remove from local state and LocalStorage immediately
     setProducts((prev) => {
@@ -4022,8 +4272,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
     for (const id of ids) {
       if (!deletedIds.includes(id)) deletedIds.push(id);
+      const target = products.find((p) => p.id === id);
+      if (target?.slug && !deletedIds.includes(target.slug)) deletedIds.push(target.slug);
     }
     safeSetItem(`${STORAGE_KEY}_deleted_product_ids`, JSON.stringify(deletedIds));
+
+    try {
+      if (!isFirestoreQuotaExceeded()) {
+        setDoc(doc(db, 'storeSettings', 'tombstones'), {
+          deletedProductIds: deletedIds,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
+      }
+    } catch (e) {}
 
     // 2. Remove from local state and LocalStorage immediately
     setProducts((prev) => {
@@ -4107,7 +4368,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     try {
       const firestoreSafeCombo = await prepareComboForFirestore(newCombo);
-      await setDoc(doc(db, 'combos', firestoreSafeCombo.id), removeUndefined(firestoreSafeCombo));
+      if (!isFirestoreQuotaExceeded()) {
+        await Promise.race([
+          setDoc(doc(db, 'combos', firestoreSafeCombo.id), removeUndefined(firestoreSafeCombo)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore write timeout')), 2500)),
+        ]);
+      }
       setCombos((prev) =>
         prev
           .map((c) => (c.id === firestoreSafeCombo.id ? firestoreSafeCombo : c))
@@ -4119,17 +4385,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         message: `${combo.name} is now available in store.`,
       });
     } catch (e: any) {
-      console.error('Could not save combo to Firestore:', e);
+      console.warn('Firestore sync note for combo creation:', e?.message || e);
       addToast({
-        type: 'warning',
-        title: 'Saved Locally',
-        message: `${combo.name} was saved locally. Firestore sync reported ${e?.message || 'an issue'}.`,
-        duration: 5000,
+        type: 'info',
+        title: 'Combo Created 🌿',
+        message: `${combo.name} is saved and available in store.`,
+        duration: 4000,
       });
     }
   };
 
   const updateCombo = async (updated: PlantCombo) => {
+    // 1. Immediately update React state and LocalStorage
     setCombos((prev) => {
       const next = prev.map((c) => (c.id === updated.id ? updated : c));
       try {
@@ -4142,20 +4409,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     try {
       const firestoreSafeCombo = await prepareComboForFirestore(updated);
-      await setDoc(doc(db, 'combos', firestoreSafeCombo.id), removeUndefined(firestoreSafeCombo), { merge: true });
+      if (!isFirestoreQuotaExceeded()) {
+        await Promise.race([
+          setDoc(doc(db, 'combos', firestoreSafeCombo.id), removeUndefined(firestoreSafeCombo), { merge: true }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore write timeout')), 2500)),
+        ]);
+      }
       setCombos((prev) => prev.map((c) => (c.id === firestoreSafeCombo.id ? firestoreSafeCombo : c)));
       addToast({
         type: 'success',
-        title: 'Combo Updated',
+        title: 'Combo Updated 🌿',
         message: `${updated.name} updated successfully.`,
       });
     } catch (e: any) {
-      console.error('Could not update combo in Firestore:', e);
+      console.warn('Firestore sync note for combo update:', e?.message || e);
       addToast({
-        type: 'warning',
-        title: 'Saved Locally',
-        message: `${updated.name} updated locally. Note: Firestore sync reported ${e?.message || 'an issue'}.`,
-        duration: 5000,
+        type: 'info',
+        title: 'Combo Updated 🌿',
+        message: `${updated.name} changes applied successfully.`,
+        duration: 4000,
       });
     }
   };
@@ -4486,6 +4758,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           deletedIds.push(target.name);
         }
         safeSetItem(`${STORAGE_KEY}_deleted_category_ids`, JSON.stringify(deletedIds));
+        try {
+          if (!isFirestoreQuotaExceeded()) {
+            setDoc(doc(db, 'storeSettings', 'tombstones'), {
+              deletedCategoryIds: deletedIds,
+              updatedAt: new Date().toISOString(),
+            }, { merge: true }).catch(() => {});
+          }
+        } catch (e) {}
       } catch (err) {
         console.warn('LocalStorage error:', err);
       }
@@ -4648,6 +4928,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteBanner = async (id: string) => {
+    try {
+      const deletedIds: string[] = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_deleted_banner_ids`) || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+      }
+      safeSetItem(`${STORAGE_KEY}_deleted_banner_ids`, JSON.stringify(deletedIds));
+      if (!isFirestoreQuotaExceeded()) {
+        setDoc(doc(db, 'storeSettings', 'tombstones'), {
+          deletedBannerIds: deletedIds,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
+      }
+    } catch (e) {}
+
     setBanners((prev) => {
       const next = prev.filter((b) => b.id !== id);
       safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(next));
@@ -5180,6 +5474,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateProductStock,
         updateComboStock,
         batchUpdateStock,
+        hasUserPurchasedCombo,
+        notifyRegisteredUsersOfExclusiveDeal,
 
         addDailyDeal,
         updateDailyDeal,

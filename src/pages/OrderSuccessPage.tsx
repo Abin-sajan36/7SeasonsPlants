@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle2, Truck, ArrowRight, Phone, Printer, Package, Sparkles, AlertCircle, Loader2, Calendar, ShieldCheck } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, isFirestoreQuotaExceeded, handleFirestoreQuotaError } from '../lib/firebase';
 import { Order } from '../types';
 
 interface OrderSuccessPageProps {
@@ -51,6 +51,12 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderId, onN
         return;
       }
 
+      // If quota is exhausted, do not hit backend
+      if (isFirestoreQuotaExceeded()) {
+        if (isMounted) setIsLoading(false);
+        return;
+      }
+
       // 2. Fetch directly from Cloud Firestore by Document ID
       try {
         const orderRef = doc(db, 'orders', cleanId);
@@ -71,6 +77,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderId, onN
           return;
         }
       } catch (err) {
+        handleFirestoreQuotaError(err, 'orderSuccessFetch');
         console.warn('Error fetching order from Firestore on OrderSuccessPage:', err);
       }
 

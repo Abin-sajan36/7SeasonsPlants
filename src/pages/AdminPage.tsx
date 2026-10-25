@@ -63,7 +63,7 @@ import {
 import { AnalyticsDashboard } from '../components/admin/AnalyticsDashboard';
 import { InventoryManagement } from '../components/admin/InventoryManagement';
 import { useStore } from '../context/StoreContext';
-import { auth, db } from '../lib/firebase';
+import { auth, db, isFirestoreQuotaExceeded, handleFirestoreQuotaError } from '../lib/firebase';
 import { collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { UserManagementTab } from '../components/admin/UserManagementTab';
 import { UserLogsTab } from '../components/admin/UserLogsTab';
@@ -117,6 +117,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     deleteCombo,
     deleteCombos,
     duplicateCombo,
+    notifyRegisteredUsersOfExclusiveDeal,
     updateOrderStatus,
     deleteOrder,
     updateStoreSettings,
@@ -209,58 +210,61 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
       }
 
       // 2. Query Firestore 'complaints' collection directly (primary persistent audit log)
-      try {
-        const complaintsRef = collection(db, 'complaints');
-        let snapshot;
+      if (!isFirestoreQuotaExceeded()) {
         try {
-          const q = query(complaintsRef, orderBy('createdAt', 'desc'));
-          snapshot = await getDocs(q);
-        } catch {
-          snapshot = await getDocs(complaintsRef);
-        }
-
-        if (snapshot && !snapshot.empty) {
-          const dbComplaints = snapshot.docs.map((d) => {
-            const data = d.data();
-            let createdAtStr = new Date().toISOString();
-            if (data.createdAt?.toDate) {
-              createdAtStr = data.createdAt.toDate().toISOString();
-            } else if (typeof data.createdAt === 'string') {
-              createdAtStr = data.createdAt;
-            }
-            return {
-              id: d.id,
-              ticketId: data.ticketId || `CMP-${d.id.slice(-6)}`,
-              customerName: data.customerName || 'Customer',
-              customerEmail: data.customerEmail || '',
-              customerPhone: data.customerPhone || '',
-              orderNumber: data.orderNumber || undefined,
-              category: data.category || 'Plant Condition / Transit',
-              urgency: data.urgency || 'Normal',
-              description: data.description || '',
-              desiredResolution: data.desiredResolution || 'Replacement',
-              photoAttachment: data.photoAttachment || null,
-              status: data.status || 'open',
-              createdAt: createdAtStr,
-            };
-          });
-
-          // Merge any API complaints with DB complaints, de-duplicating by ticketId/id
-          const seen = new Set<string>();
-          const merged: any[] = [];
-          for (const item of [...dbComplaints, ...complaintsFound]) {
-            const key = item.ticketId || item.id;
-            if (!seen.has(key)) {
-              seen.add(key);
-              merged.push(item);
-            }
+          const complaintsRef = collection(db, 'complaints');
+          let snapshot;
+          try {
+            const q = query(complaintsRef, orderBy('createdAt', 'desc'));
+            snapshot = await getDocs(q);
+          } catch {
+            snapshot = await getDocs(complaintsRef);
           }
-          merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          setComplaintsList(merged);
-          return;
+
+          if (snapshot && !snapshot.empty) {
+            const dbComplaints = snapshot.docs.map((d) => {
+              const data = d.data();
+              let createdAtStr = new Date().toISOString();
+              if (data.createdAt?.toDate) {
+                createdAtStr = data.createdAt.toDate().toISOString();
+              } else if (typeof data.createdAt === 'string') {
+                createdAtStr = data.createdAt;
+              }
+              return {
+                id: d.id,
+                ticketId: data.ticketId || `CMP-${d.id.slice(-6)}`,
+                customerName: data.customerName || 'Customer',
+                customerEmail: data.customerEmail || '',
+                customerPhone: data.customerPhone || '',
+                orderNumber: data.orderNumber || undefined,
+                category: data.category || 'Plant Condition / Transit',
+                urgency: data.urgency || 'Normal',
+                description: data.description || '',
+                desiredResolution: data.desiredResolution || 'Replacement',
+                photoAttachment: data.photoAttachment || null,
+                status: data.status || 'open',
+                createdAt: createdAtStr,
+              };
+            });
+
+            // Merge any API complaints with DB complaints, de-duplicating by ticketId/id
+            const seen = new Set<string>();
+            const merged: any[] = [];
+            for (const item of [...dbComplaints, ...complaintsFound]) {
+              const key = item.ticketId || item.id;
+              if (!seen.has(key)) {
+                seen.add(key);
+                merged.push(item);
+              }
+            }
+            merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setComplaintsList(merged);
+            return;
+          }
+        } catch (fsErr) {
+          handleFirestoreQuotaError(fsErr, 'adminComplaintsQuery');
+          console.warn('Firestore complaints collection query notice:', fsErr);
         }
-      } catch (fsErr) {
-        console.warn('Firestore complaints collection query notice:', fsErr);
       }
 
       if (apiSuccess) {
@@ -275,8 +279,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
 
   const handleUpdateComplaintStatus = async (complaintId: string, newStatus: string) => {
     try {
-      if (complaintId && !complaintId.startsWith('complaint_')) {
-        await updateDoc(doc(db, 'complaints', complaintId), { status: newStatus });
+      if (complaintId && !complaintId.startsWith('complaint_') && !isFirestoreQuotaExceeded()) {
+        try {
+          await updateDoc(doc(db, 'complaints', complaintId), { status: newStatus });
+        } catch (e) {
+          handleFirestoreQuotaError(e, 'adminComplaintUpdate');
+        }
       }
       setComplaintsList((prev) =>
         prev.map((c) => (c.id === complaintId || c.ticketId === complaintId ? { ...c, status: newStatus } : c))
@@ -297,8 +305,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
   const handleDeleteComplaint = async (complaintId: string) => {
     if (!window.confirm('Are you sure you want to dismiss this complaint record?')) return;
     try {
-      if (complaintId && !complaintId.startsWith('complaint_')) {
-        await deleteDoc(doc(db, 'complaints', complaintId));
+      if (complaintId && !complaintId.startsWith('complaint_') && !isFirestoreQuotaExceeded()) {
+        try {
+          await deleteDoc(doc(db, 'complaints', complaintId));
+        } catch (e) {
+          handleFirestoreQuotaError(e, 'adminComplaintDelete');
+        }
       }
       setComplaintsList((prev) => prev.filter((c) => c.id !== complaintId && c.ticketId !== complaintId));
       addToast({
@@ -1433,6 +1445,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
       } else {
         await addCombo(savedCombo);
       }
+
+      // If combo is published and has onePerAccount enabled, broadcast exclusive deal email to all registered customers
+      if (savedCombo.onePerAccount && savedCombo.status === 'published') {
+        notifyRegisteredUsersOfExclusiveDeal(savedCombo)
+          .then((res) => {
+            if (res.success && (res.count ?? 0) > 0) {
+              addToast({
+                type: 'success',
+                title: 'Exclusive Deal Broadcasted ✉️',
+                message: `Notified ${res.count} registered customer(s) about "${savedCombo.name}".`,
+              });
+            }
+          })
+          .catch((e) => {
+            console.warn('Failed broadcasting exclusive deal:', e);
+          });
+      }
+
       // Reset category filter & search so the newly saved combo is immediately visible in the table
       setSelectedComboCategoryFilter('all');
       setComboSearch('');
@@ -2124,7 +2154,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                 {filteredCombos.map((combo) => (
                   <div
                     key={combo.id}
-                    className={`bg-white rounded-3xl p-5 border ${selectedComboIds.includes(combo.id) ? 'border-emerald-500 shadow-md ring-2 ring-emerald-500/20' : 'border-gray-200 shadow-2xs hover:border-emerald-400 hover:shadow-md'} space-y-4 flex flex-col justify-between transition-all relative`}
+                    className={`rounded-3xl p-5 border ${
+                      combo.onePerAccount
+                        ? 'border-amber-400 ring-2 ring-amber-400/50 shadow-[0_4px_25px_rgba(245,158,11,0.2)] bg-gradient-to-b from-amber-500/[0.04] to-white'
+                        : selectedComboIds.includes(combo.id)
+                        ? 'border-emerald-500 shadow-md ring-2 ring-emerald-500/20 bg-white'
+                        : 'border-gray-200 shadow-2xs hover:border-emerald-400 hover:shadow-md bg-white'
+                    } space-y-4 flex flex-col justify-between transition-all relative`}
                   >
                     <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm rounded-full p-1 shadow-sm">
                       <input
@@ -2153,6 +2189,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                           <span className="text-[10px] font-black uppercase text-emerald-900 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-md shadow-2xs">
                             {combo.category}
                           </span>
+                          {combo.onePerAccount && (
+                            <span className="text-[9px] font-black uppercase text-amber-950 bg-amber-300/95 px-2 py-0.5 rounded-md shadow-2xs border border-amber-400 flex items-center gap-1">
+                              👑 1/Acct Deal
+                            </span>
+                          )}
                           {combo.isFeatured && (
                             <span className="text-[9px] font-black uppercase text-amber-900 bg-amber-200/95 px-1.5 py-0.5 rounded-md shadow-2xs">
                               ★ Featured
@@ -2215,14 +2256,36 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
 
                     {/* Action Bar */}
                     <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                           onClick={() => handleEditCombo(combo)}
                           className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
                         >
                           <Edit2 className="w-3 h-3" />
-                          <span>Edit Combo</span>
+                          <span>Edit</span>
                         </button>
+
+                        {combo.onePerAccount && (
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Send exclusive deal notification email for "${combo.name}" to all registered customer accounts now?`)) {
+                                const res = await notifyRegisteredUsersOfExclusiveDeal(combo);
+                                if (res.success) {
+                                  addToast({
+                                    type: 'success',
+                                    title: 'Broadcast Dispatched ✉️',
+                                    message: `Sent to ${res.count || 0} registered customer(s).`,
+                                  });
+                                }
+                              }
+                            }}
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl border border-amber-300 transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
+                            title="Send exclusive deal email to all registered customers"
+                          >
+                            <Mail className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Notify</span>
+                          </button>
+                        )}
 
                         <button
                           onClick={() => handleDuplicateCombo(combo)}

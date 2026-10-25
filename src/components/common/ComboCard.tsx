@@ -1,5 +1,5 @@
 import React from 'react';
-import { Heart, ShoppingBag, Star, PackageCheck, Eye, MapPin, Truck } from 'lucide-react';
+import { Heart, ShoppingBag, Star, PackageCheck, Eye, MapPin, Truck, Crown, Check, Sparkles } from 'lucide-react';
 import { PlantCombo } from '../../types';
 import { useStore } from '../../context/StoreContext';
 import { calculateComboDispatchAndDelivery } from '../../utils/dispatchCalculator';
@@ -11,11 +11,22 @@ interface ComboCardProps {
 }
 
 export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, featured = false }) => {
-  const { addToCart, toggleWishlist, isInWishlist, openQuickView, selectedDeliveryState, combos, storeSettings } = useStore();
+  const {
+    addToCart,
+    toggleWishlist,
+    isInWishlist,
+    openQuickView,
+    selectedDeliveryState,
+    combos,
+    storeSettings,
+    hasUserPurchasedCombo,
+  } = useStore();
 
   const liveCombo = combos.find((c) => c.id === combo.id) || combo;
   const isSaved = isInWishlist(combo.id);
-  const isOutOfStock = liveCombo.stock <= 0;
+  const isOutOfStock = (liveCombo.stock ?? 0) <= 0;
+  const isExclusive = Boolean(liveCombo.onePerAccount);
+  const alreadyClaimed = isExclusive ? hasUserPurchasedCombo(liveCombo.id) : false;
 
   const dispatchEstimate = calculateComboDispatchAndDelivery({
     combo: liveCombo,
@@ -25,10 +36,12 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
 
   return (
     <div
-      className={`group relative bg-white rounded-3xl overflow-hidden border transition-all duration-300 flex flex-col justify-between ${
-        featured
-          ? 'border-emerald-500 shadow-xl hover:shadow-2xl ring-2 ring-emerald-500/30'
-          : 'border-emerald-900/10 hover:border-emerald-500/50 hover:shadow-xl'
+      className={`group relative rounded-3xl overflow-hidden transition-all duration-300 flex flex-col justify-between ${
+        isExclusive
+          ? 'border-2 border-amber-400 ring-4 ring-amber-400/25 shadow-[0_10px_35px_rgba(245,158,11,0.25)] bg-gradient-to-b from-amber-500/[0.04] via-white to-amber-500/[0.02] hover:shadow-[0_14px_45px_rgba(245,158,11,0.35)]'
+          : featured
+          ? 'bg-white border-emerald-500 shadow-xl hover:shadow-2xl ring-2 ring-emerald-500/30'
+          : 'bg-white border-emerald-900/10 hover:border-emerald-500/50 hover:shadow-xl'
       }`}
     >
       {/* 1. Combo Image Header */}
@@ -49,6 +62,12 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
 
         {/* Top Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+          {isExclusive && (
+            <span className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-amber-950 text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md uppercase tracking-wider w-fit border border-amber-300 flex items-center gap-1">
+              <Crown className="w-3 h-3 fill-amber-950 text-amber-950" />
+              <span>1 Per Account Deal</span>
+            </span>
+          )}
           <span className="bg-rose-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-xs uppercase tracking-wider w-fit">
             Save ₹{combo.savings} • {combo.discountPercentage}% OFF
           </span>
@@ -82,13 +101,26 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
           <span>Quick View Bundle</span>
         </button>
 
-        {isOutOfStock && (
-          <div className="absolute inset-0 bg-white/80 backdrop-blur-[1px] flex items-center justify-center">
-            <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-              Combo Sold Out
+        {isOutOfStock ? (
+          <div className="absolute inset-0 bg-white/85 backdrop-blur-[2px] flex flex-col items-center justify-center p-3 text-center z-15">
+            <span className="bg-gray-900 text-white text-xs font-black px-3.5 py-1 rounded-full uppercase tracking-wider shadow-md">
+              Sold Out
             </span>
+            <span className="text-[11px] text-gray-700 font-semibold mt-1">Currently Out of Stock</span>
           </div>
-        )}
+        ) : alreadyClaimed ? (
+          <div className="absolute inset-0 bg-emerald-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center p-3 text-center z-15">
+            <div className="w-8 h-8 rounded-full bg-amber-400 text-amber-950 flex items-center justify-center mb-1 shadow-md">
+              <Check className="w-5 h-5 stroke-[3]" />
+            </div>
+            <span className="bg-amber-400 text-amber-950 text-xs font-black px-3 py-0.5 rounded-full uppercase tracking-wider shadow-md">
+              Claimed (1/Account)
+            </span>
+            <p className="text-[10px] text-white/90 font-medium mt-1">
+              Already purchased on your account
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {/* 2. Combo Content & "What's Inside" Breakdown */}
@@ -198,23 +230,42 @@ export const ComboCard: React.FC<ComboCardProps> = ({ combo, onNavigate, feature
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (isOutOfStock || alreadyClaimed) return;
                 addToCart(liveCombo, 'combo', 1);
               }}
-              disabled={isOutOfStock}
-              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+              disabled={isOutOfStock || alreadyClaimed}
+              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 ${
                 isOutOfStock
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white shadow-sm hover:shadow-md'
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                  : alreadyClaimed
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300 cursor-not-allowed font-semibold'
+                  : isExclusive
+                  ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-600 hover:to-amber-500 text-amber-950 font-black shadow-md hover:shadow-lg border border-amber-400 cursor-pointer'
+                  : 'bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white shadow-sm hover:shadow-md cursor-pointer'
               }`}
             >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Add Combo</span>
+              {alreadyClaimed ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-amber-800 stroke-[3]" />
+                  <span>Claimed (1/Acct)</span>
+                </>
+              ) : isOutOfStock ? (
+                <span>Sold Out</span>
+              ) : isExclusive ? (
+                <>
+                  <Crown className="w-3.5 h-3.5 fill-amber-950 text-amber-950" />
+                  <span>Claim Exclusive</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>Add Combo</span>
+                </>
+              )}
             </button>
-          </div>
         </div>
       </div>
     </div>

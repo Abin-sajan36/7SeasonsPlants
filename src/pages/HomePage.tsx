@@ -2,6 +2,7 @@ import React from 'react';
 import { HeroBanner } from '../components/home/HeroBanner';
 import { TrustBenefits } from '../components/home/TrustBenefits';
 import { FeaturedCombosSection } from '../components/home/FeaturedCombosSection';
+import { CustomerComplaintSection } from '../components/home/CustomerComplaintSection';
 import { BestSellersSection } from '../components/home/BestSellersSection';
 import { PlantCarePreview } from '../components/home/PlantCarePreview';
 import { ReviewsSection } from '../components/home/ReviewsSection';
@@ -21,10 +22,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       {/* 2. Trust Benefits Bar */}
       <TrustBenefits />
 
-      {/* 3. Signature Plant Combos Spotlight */}
+      {/* 3. Signature Plant Combos Spotlight ("Curated Plant Combos") */}
       <FeaturedCombosSection onNavigate={onNavigate} />
 
-      {/* 4. Best Selling Plants Grid */}
+      {/* 4. Raise a Customer Complaint Desk & Pop-up Trigger */}
+      <CustomerComplaintSection onNavigate={onNavigate} />
+
+      {/* 5. Best Selling Plant Combos Grid */}
       <BestSellersSection onNavigate={onNavigate} />
 
       {/* 5. Plant Doctor AI & Care Guidance */}

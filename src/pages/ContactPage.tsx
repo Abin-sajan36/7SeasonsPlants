@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, isFirestoreQuotaExceeded, handleFirestoreQuotaError } from '../lib/firebase';
 
 interface ContactPageProps {
   initialParam?: string;
@@ -176,9 +176,10 @@ export const ContactPage: React.FC<ContactPageProps> = ({ initialParam, onNaviga
     const ticketId = `CMP-${Date.now().toString().slice(-6)}`;
 
     try {
-      // 1. Persist directly to Firestore 'complaints' collection first so customer grievances are NEVER lost
+      // 1. Save locally so customer grievances are NEVER lost
       try {
-        await addDoc(collection(db, 'complaints'), {
+        const storedComplaints = JSON.parse(localStorage.getItem('7seasons_complaints') || '[]');
+        storedComplaints.unshift({
           ticketId,
           customerName: complaintForm.name.trim(),
           customerEmail: complaintForm.email.trim(),
@@ -191,10 +192,32 @@ export const ContactPage: React.FC<ContactPageProps> = ({ initialParam, onNaviga
           photoAttachment: complaintForm.photoAttachment || null,
           status: 'open',
           companyEmail,
-          createdAt: serverTimestamp(),
+          createdAt: new Date().toISOString(),
         });
-      } catch (firestoreErr) {
-        console.warn('Firestore complaints sync note:', firestoreErr);
+        localStorage.setItem('7seasons_complaints', JSON.stringify(storedComplaints.slice(0, 100)));
+      } catch {}
+
+      // 2. Persist directly to Firestore 'complaints' collection when cloud network is available
+      if (!isFirestoreQuotaExceeded()) {
+        try {
+          await addDoc(collection(db, 'complaints'), {
+            ticketId,
+            customerName: complaintForm.name.trim(),
+            customerEmail: complaintForm.email.trim(),
+            customerPhone: complaintForm.phone.trim(),
+            orderNumber: complaintForm.orderNumber.trim() || null,
+            category: complaintForm.category,
+            urgency: complaintForm.urgency,
+            description: complaintForm.description.trim(),
+            desiredResolution: complaintForm.desiredResolution,
+            photoAttachment: complaintForm.photoAttachment || null,
+            status: 'open',
+            companyEmail,
+            createdAt: serverTimestamp(),
+          });
+        } catch (firestoreErr) {
+          handleFirestoreQuotaError(firestoreErr, 'complaints');
+        }
       }
 
       // 2. Dispatch to serverless endpoint /api/complaints to trigger notification email

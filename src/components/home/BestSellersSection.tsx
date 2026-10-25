@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ArrowRight, Sparkles, MapPin } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { ComboCard } from '../common/ComboCard';
@@ -8,20 +8,59 @@ interface BestSellersSectionProps {
 }
 
 export const BestSellersSection: React.FC<BestSellersSectionProps> = ({ onNavigate }) => {
-  const { combos, selectedDeliveryState, isItemDeliverable, openStateModal } = useStore();
-  const [activeTab, setActiveTab] = useState<'all' | 'air-purifying' | 'balcony' | 'living-room'>('all');
+  const { combos, categories, selectedDeliveryState, isItemDeliverable, openStateModal } = useStore();
+  const [activeTab, setActiveTab] = useState<string>('all');
 
-  const filteredCombos = React.useMemo(() => {
+  // Dynamically derive filter tabs only from categories that actually exist in the store
+  const availableTabs = useMemo(() => {
+    const activeCategories = categories
+      .filter((c) => c.type === 'combo' || c.type === 'both' || !c.type)
+      .map((c) => ({
+        id: c.slug || c.id,
+        name: c.name,
+      }));
+
+    const distinctList: { id: string; name: string }[] = [];
+    const seen = new Set<string>();
+
+    activeCategories.forEach((cat) => {
+      const key = cat.name.trim().toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        distinctList.push(cat);
+      }
+    });
+
+    return [
+      { id: 'all', name: 'All Combos' },
+      ...distinctList,
+    ];
+  }, [categories]);
+
+  // Keep activeTab synchronized with available tabs
+  useEffect(() => {
+    if (activeTab !== 'all' && !availableTabs.some((t) => t.id === activeTab)) {
+      setActiveTab('all');
+    }
+  }, [availableTabs, activeTab]);
+
+  const filteredCombos = useMemo(() => {
     let list = combos.filter((c) => isItemDeliverable(c));
-    if (activeTab === 'air-purifying') {
-      list = list.filter((c) => /air|purif/i.test(c.name) || /air|purif/i.test(c.description || ''));
-    } else if (activeTab === 'balcony') {
-      list = list.filter((c) => /balcony|flower|outdoor/i.test(c.name) || /balcony|flower/i.test(c.description || ''));
-    } else if (activeTab === 'living-room') {
-      list = list.filter((c) => /living|decor|room|trio|duo/i.test(c.name) || /living|decor/i.test(c.description || ''));
+    if (activeTab !== 'all') {
+      const selected = availableTabs.find((t) => t.id === activeTab);
+      const tabName = (selected?.name || activeTab).toLowerCase();
+      const tabId = activeTab.toLowerCase();
+      list = list.filter((c) => {
+        const cCat = (c.category || '').toLowerCase();
+        return (
+          cCat === tabName ||
+          cCat === tabId ||
+          c.tags?.some((t) => t.toLowerCase() === tabName || t.toLowerCase() === tabId)
+        );
+      });
     }
     return list.slice(0, 8);
-  }, [combos, activeTab, isItemDeliverable]);
+  }, [combos, activeTab, isItemDeliverable, availableTabs]);
 
   return (
     <section className="py-16 bg-[#F4FAF5]">
@@ -54,46 +93,19 @@ export const BestSellersSection: React.FC<BestSellersSectionProps> = ({ onNaviga
 
           {/* Filter Pills */}
           <div className="flex items-center gap-1.5 p-1 bg-emerald-50 rounded-2xl overflow-x-auto border border-emerald-100">
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'all'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'text-emerald-900 hover:text-emerald-700'
-              }`}
-            >
-              All Combos
-            </button>
-            <button
-              onClick={() => setActiveTab('air-purifying')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'air-purifying'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'text-emerald-900 hover:text-emerald-700'
-              }`}
-            >
-              Air Purifier Sets
-            </button>
-            <button
-              onClick={() => setActiveTab('balcony')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'balcony'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'text-emerald-900 hover:text-emerald-700'
-              }`}
-            >
-              Balcony & Flowering
-            </button>
-            <button
-              onClick={() => setActiveTab('living-room')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'living-room'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'text-emerald-900 hover:text-emerald-700'
-              }`}
-            >
-              Living Room Pairs
-            </button>
+            {availableTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-emerald-900 hover:text-emerald-700'
+                }`}
+              >
+                {tab.name}
+              </button>
+            ))}
           </div>
         </div>
 
