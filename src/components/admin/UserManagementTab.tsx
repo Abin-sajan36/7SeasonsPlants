@@ -236,7 +236,8 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
     }));
 
     try {
-      const authorizer = currentAdmin?.email || currentUser?.email || 'abinsajan36@gmail.com';
+      const rawAuthorizer = currentAdmin?.email || currentUser?.email || 'abinsajan36@gmail.com';
+      const authorizer = rawAuthorizer.toLowerCase() === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : rawAuthorizer;
       const res = await sendPromotionOtp({
         targetEmail: authorizer,
         authorizerEmail: authorizer,
@@ -252,7 +253,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
         otpCountdown: 30,
         sentMail: {
           subject: res.mailSubject || `🔐 ${otpCode} is your 7Seasons Authorization Code`,
-          from: res.fromAddress || '7Seasonsplants Security <security@7seasonsplants.com>',
+          from: res.fromAddress || '"7Seasonsplants Security" <mannaratharayil@gmail.com>',
           to: authorizer,
           otp: otpCode,
           sentAt: res.sentAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -263,7 +264,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
       addToast({
         type: 'info',
         title: 'Authorization Code Dispatched',
-        message: `Security OTP sent to ${authorizer}. Please check your email, and if the mail is not there, check your spam folder.`,
+        message: `Security OTP sent to authorizer (${authorizer}). Please check your email inbox and spam folder.`,
         duration: 9000,
       });
     } catch (err: any) {
@@ -296,7 +297,8 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
 
     setPromotionModal((prev) => ({ ...prev, isVerifyingOtp: true }));
     try {
-      const authorizer = currentAdmin?.email || currentUser?.email || 'abinsajan36@gmail.com';
+      const rawAuthorizer = currentAdmin?.email || currentUser?.email || 'abinsajan36@gmail.com';
+      const authorizer = rawAuthorizer.toLowerCase() === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : rawAuthorizer;
       const verifyRes = await verifyPromotionOtp(
         authorizer,
         cleanOtp,
@@ -1071,31 +1073,66 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
             {/* STEP 2: OTP VERIFICATION */}
             {promotionModal.step === 'otp' && (
               <div className="space-y-4 mt-4">
-                {/* Security Authorization Guidance Notice */}
-                <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200 text-xs space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-950 font-bold">
-                    <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-                    <span>Security Verification Code Dispatched</span>
+                {/* On-Screen Preview Card: Mail Sent For Role Elevation */}
+                <div className="p-4 bg-emerald-50/90 rounded-2xl border border-emerald-200 text-xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-emerald-200/80">
+                    <div className="flex items-center gap-2 text-emerald-950 font-bold">
+                      <Mail className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span className="text-sm font-black text-emerald-950">Mail Sent For Role Elevation</span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                      Dispatched
+                    </span>
                   </div>
-                  <p className="text-[12px] text-emerald-900 leading-relaxed">
-                    A 6-digit authorization code was dispatched to{' '}
-                    <strong className="font-semibold text-emerald-950">
-                      {currentAdmin?.email || currentUser?.email || 'abinsajan36@gmail.com'}
-                    </strong>{' '}
-                    to verify elevating <strong>{promotionModal.user.name}</strong> to{' '}
-                    <strong>
-                      {promotionModal.targetRole === 'super_admin'
-                        ? 'Super Administrator'
-                        : promotionModal.targetRole === 'nursery_manager'
-                        ? 'Nursery Operations Manager'
-                        : promotionModal.targetRole === 'inventory_staff'
-                        ? 'Inventory Specialist'
-                        : 'Nursery Administrator'}
-                    </strong>.
-                  </p>
-                  <p className="text-[11px] text-emerald-800/90 font-medium bg-emerald-100/70 p-2.5 rounded-xl border border-emerald-200/80">
-                    💡 Please check your email inbox. If you do not see the email, please check your <strong>spam/junk folder</strong>.
-                  </p>
+
+                  <div className="space-y-1.5 text-emerald-900 text-xs">
+                    <div className="flex items-center justify-between py-1 px-2.5 bg-white/80 rounded-xl border border-emerald-100">
+                      <span className="text-gray-600 font-medium">Mail Recipient:</span>
+                      <strong className="text-emerald-950 font-bold font-mono text-[12px]">
+                        {promotionModal.sentMail?.to ||
+                          (currentAdmin?.email?.toLowerCase() === 'admin@7seasons.com'
+                            ? 'abinsajan36@gmail.com'
+                            : currentAdmin?.email) ||
+                          'abinsajan36@gmail.com'}
+                      </strong>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1 px-2.5 bg-white/60 rounded-xl border border-emerald-100/60">
+                      <span className="text-gray-500 font-medium">Sender:</span>
+                      <span className="text-gray-700 font-medium font-mono text-[11px]">
+                        mannaratharayil@gmail.com
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1 px-2.5 bg-white/60 rounded-xl border border-emerald-100/60">
+                      <span className="text-gray-500 font-medium">Candidate:</span>
+                      <span className="text-gray-800 font-semibold text-[11px]">
+                        {promotionModal.user.name} ({promotionModal.user.email})
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1 px-2.5 bg-white/60 rounded-xl border border-emerald-100/60">
+                      <span className="text-gray-500 font-medium">Elevating To:</span>
+                      <span className="text-emerald-900 font-bold text-[11px]">
+                        {promotionModal.targetRole === 'super_admin'
+                          ? 'Super Administrator 👑'
+                          : promotionModal.targetRole === 'nursery_manager'
+                          ? 'Nursery Operations Manager'
+                          : promotionModal.targetRole === 'inventory_staff'
+                          ? 'Inventory Specialist'
+                          : 'Nursery Administrator 🛡️'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-emerald-100/70 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 space-y-1">
+                    <p className="font-semibold">
+                      📩 Security OTP delivered to the recipient address above.
+                    </p>
+                    <p className="text-emerald-800/90 leading-relaxed">
+                      Please check the email inbox. If you do not see the email, please check your <strong>spam / junk folder</strong>.
+                    </p>
+                  </div>
                 </div>
 
                 {/* 6-Digit OTP Field */}

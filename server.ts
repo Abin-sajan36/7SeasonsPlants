@@ -155,6 +155,12 @@ function getMailTransporter(): nodemailer.Transporter | null {
   });
 }
 
+// Helper to strictly guarantee the From header matches mannaratharayil@gmail.com directly to avoid spam
+function getMailSenderAddress(displayName = "7Seasonsplants Security"): string {
+  const user = (process.env.SMTP_USER || "mannaratharayil@gmail.com").trim();
+  return `"${displayName}" <${user}>`;
+}
+
 // Initialize Gemini SDK lazily
 function getGenAI(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -516,7 +522,7 @@ app.post("/api/orders/send-status-update", async (req, res) => {
       return res.json({ success: true, emailSent: false, message: "Notification logged, no email sent (SMTP not configured)" });
     }
 
-    const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
+    const fromAddress = getMailSenderAddress("7Seasonsplants");
     
     const isOrderPlacement = status === 'Order Placed' || status === 'Payment Confirmed' || status === 'Confirmed';
     const emailSubject = isOrderPlacement
@@ -1055,7 +1061,7 @@ app.post("/api/admin/send-bulk-email", async (req, res) => {
     }
 
     const transporter = getMailTransporter();
-    const fromAddress = process.env.SMTP_FROM || `"7Seasons Nursery" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
+    const fromAddress = getMailSenderAddress("7Seasons Nursery");
 
     let sentCount = 0;
     const errors: string[] = [];
@@ -1403,7 +1409,7 @@ app.post("/api/auth/send-registration-otp", async (req, res) => {
 
     if (transporter) {
       try {
-        const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
+        const fromAddress = getMailSenderAddress("7Seasonsplants");
         await transporter.sendMail({
           from: fromAddress,
           replyTo: `"7Seasonsplants Support" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`,
@@ -1487,7 +1493,7 @@ app.post("/api/auth/send-registration-otp", async (req, res) => {
       message: `Verification code sent to ${cleanEmail}. Please check your email, and if the mail is not there, check the spam folder.`,
       statusInfo: mailStatusMessage,
       mailSubject: `🌿 ${otp} is your 7Seasons Nursery admin verification code`,
-      fromAddress: process.env.SMTP_FROM || `"7Seasonsplants Security" <${process.env.SMTP_USER || "security@7seasonsplants.com"}>`,
+      fromAddress: getMailSenderAddress("7Seasonsplants Security"),
       sentAt: new Date().toISOString(),
     });
   } catch (error: any) {
@@ -1585,7 +1591,7 @@ app.post("/api/auth/send-admin-login-otp", async (req, res) => {
     let mailStatusMessage = "";
 
     const mailSubject = `🔐 ${otp} is your 7Seasons Administrator Daily Login Code`;
-    const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants Security" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
+    const fromAddress = getMailSenderAddress("7Seasonsplants Security");
 
     if (transporter) {
       try {
@@ -1752,16 +1758,16 @@ app.post("/api/auth/verify-admin-login-otp", (req, res) => {
 app.post("/api/auth/send-promotion-otp", async (req, res) => {
   try {
     const { targetEmail, candidateEmail, candidateName, targetRole, authorizerEmail } = req.body;
-    const recipient = (targetEmail || authorizerEmail || "abinsajan36@gmail.com").toString().trim().toLowerCase();
-
-    if (!recipient || !recipient.includes("@")) {
-      return res.status(400).json({ success: false, error: "Valid recipient email address is required" });
+    // 1. Send OTP strictly to the authorizer (the Super Admin approving the elevation)
+    let recipient = (authorizerEmail || targetEmail || "abinsajan36@gmail.com").toString().trim().toLowerCase();
+    if (recipient === "admin@7seasons.com" || !recipient.includes("@")) {
+      recipient = "abinsajan36@gmail.com";
     }
 
     const cleanCandidateEmail = (candidateEmail || "").toString().trim().toLowerCase();
     const cleanCandidateName = (candidateName || "User").toString().trim();
     const cleanTargetRole = (targetRole || "admin").toString().trim();
-    const cleanAuthorizerEmail = (authorizerEmail || "abinsajan36@gmail.com").toString().trim().toLowerCase();
+    const cleanAuthorizerEmail = recipient;
 
     const roleLabel =
       cleanTargetRole === "super_admin"
@@ -1788,7 +1794,7 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
     });
 
     console.log(`\n======================================================`);
-    console.log(`[7Seasons Auth] 👑 Promotion OTP generated for: ${recipient}`);
+    console.log(`[7Seasons Auth] 👑 Promotion OTP generated for authorizer: ${recipient}`);
     console.log(`[7Seasons Auth] 🎯 Candidate: ${cleanCandidateName} (${cleanCandidateEmail}) -> ${roleLabel}`);
     console.log(`[7Seasons Auth] 🔑 OTP Code: ${otp}`);
     console.log(`======================================================\n`);
@@ -1798,7 +1804,8 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
     let mailStatusMessage = "";
 
     const mailSubject = `🔐 ${otp} is your 7Seasons Authorization Code: ${cleanTargetRole === "super_admin" ? "Super Admin Promotion" : "Admin Role Grant"}`;
-    const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants Security" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
+    // 2. Align sender address so From header matches mannaratharayil@gmail.com directly to prevent Spam
+    const fromAddress = getMailSenderAddress("7Seasonsplants Security");
 
     if (transporter) {
       try {
