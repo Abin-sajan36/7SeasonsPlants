@@ -1567,22 +1567,27 @@ app.post("/api/auth/send-admin-login-otp", async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const destinationEmail = cleanEmail === "admin@7seasons.com" ? "abinsajan36@gmail.com" : cleanEmail;
     const cleanName = (name || (cleanEmail === "abinsajan36@gmail.com" ? "Super Administrator" : "Administrator")).toString().trim();
 
     // Generate secure 6-digit numeric OTP
     const otp = crypto.randomInt(100000, 999999).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes validity
 
-    adminLoginOtps.set(cleanEmail, {
+    const otpEntry = {
       otp,
       expiresAt,
       attempts: 0,
       email: cleanEmail,
       name: cleanName,
-    });
+    };
+    adminLoginOtps.set(cleanEmail, otpEntry);
+    if (destinationEmail !== cleanEmail) {
+      adminLoginOtps.set(destinationEmail, otpEntry);
+    }
 
     console.log(`\n======================================================`);
-    console.log(`[7Seasons Auth] 🔐 Daily Admin Login OTP generated for: ${cleanEmail}`);
+    console.log(`[7Seasons Auth] 🔐 Daily Admin Login OTP generated for: ${cleanEmail} -> Sending to: ${destinationEmail}`);
     console.log(`[7Seasons Auth] 🔑 OTP Code: ${otp}`);
     console.log(`======================================================\n`);
 
@@ -1590,79 +1595,23 @@ app.post("/api/auth/send-admin-login-otp", async (req, res) => {
     let emailSent = false;
     let mailStatusMessage = "";
 
-    const mailSubject = `🔐 ${otp} is your 7Seasons Administrator Daily Login Code`;
+    const mailSubject = `7Seasons Nursery Login Verification Code: ${otp}`;
     const fromAddress = getMailSenderAddress("7Seasonsplants Security");
 
     if (transporter) {
       try {
-        await transporter.sendMail({
+        const info = await transporter.sendMail({
           from: fromAddress,
           replyTo: `"7Seasonsplants Support" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`,
-          to: cleanEmail,
+          to: destinationEmail,
           subject: mailSubject,
-          headers: {
-            "Auto-Submitted": "auto-generated",
-            "X-Auto-Response-Suppress": "OOF, AutoReply",
-          },
-          html: `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <title>7Seasons Administrator Daily Login Authorization</title>
-            </head>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4FAF5; margin: 0; padding: 24px; color: #064e3b;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td align="center">
-                    <table width="100%" max-width="540" style="max-width: 540px; background-color: #ffffff; border-radius: 20px; border: 1px solid rgba(20, 83, 45, 0.12); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04); overflow: hidden;">
-                      <tr>
-                        <td style="padding: 28px 32px 20px; text-align: center; background: linear-gradient(180deg, #ECFDF5 0%, #ffffff 100%);">
-                          <span style="font-size: 38px; line-height: 1;">🌿</span>
-                          <h1 style="margin: 8px 0 2px; color: #064e3b; font-size: 24px; font-weight: 900; letter-spacing: -0.5px;">7 Seasons Nursery</h1>
-                          <p style="margin: 0; color: #059669; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">Daily Administrator Login Security Authorization</p>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 10px 32px 28px;">
-                          <h2 style="margin: 0 0 12px; color: #064e3b; font-size: 18px; font-weight: 800;">Daily Administrator Authorization</h2>
-                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px; line-height: 1.6;">
-                            Hello <strong>${cleanName}</strong>,
-                          </p>
-                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px; line-height: 1.6;">
-                            A daily sign-in request was received for your nursery administrator portal. Please enter this one-time authorization code to verify your login for today:
-                          </p>
-                          <div style="background-color: #ECFDF5; border: 2px dashed #059669; border-radius: 16px; padding: 20px; text-align: center; margin: 20px 0;">
-                            <p style="margin: 0 0 6px; font-size: 11px; font-weight: 800; color: #047857; text-transform: uppercase; letter-spacing: 1.5px;">One-Time 6-Digit Login Code</p>
-                            <div style="font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 38px; font-weight: 900; color: #064e3b; letter-spacing: 6px;">
-                              ${otp}
-                            </div>
-                            <p style="margin: 8px 0 0; font-size: 12px; color: #059669;">Valid for 10 minutes • For security, do not share this code</p>
-                          </div>
-                          <p style="margin: 16px 0 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
-                            If you did not request this daily login, please check your nursery security logs immediately.
-                          </p>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 16px 32px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #64748b;">
-                          <p style="margin: 0 0 4px; font-weight: 600; color: #334155;">Mannaratharayil Gardens LLP, Kerala & Tamil Nadu</p>
-                          <p style="margin: 0;">7Seasons Nursery Operations Console</p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </body>
-            </html>
-          `,
           text: `7Seasons Nursery Daily Admin Login Code: ${otp}\nAdmin: ${cleanName} (${cleanEmail})\nValid for 10 minutes.`,
         });
         emailSent = true;
-        mailStatusMessage = "Email sent via SMTP transporter.";
+        mailStatusMessage = `Email sent successfully to ${destinationEmail} (ID: ${info.messageId})`;
+        console.log(`[7Seasons Auth] ✉️ Daily Login OTP delivered to: ${destinationEmail}`);
       } catch (err: any) {
-        console.error("[7Seasons Auth] SMTP delivery error:", err.message);
+        console.error(`[7Seasons Auth] SMTP delivery error to ${destinationEmail}:`, err.message);
         mailStatusMessage = `SMTP attempted: ${err.message}`;
       }
     } else {
@@ -1671,10 +1620,10 @@ app.post("/api/auth/send-admin-login-otp", async (req, res) => {
 
     return res.json({
       success: true,
-      email: cleanEmail,
+      email: destinationEmail,
       emailSent,
       previewOtp: otp,
-      message: `Daily verification code dispatched to ${cleanEmail}. Please check your email, and if the mail is not there, check your spam folder.`,
+      message: `Daily verification code dispatched to ${destinationEmail}. Please check your email inbox and spam folder.`,
       statusInfo: mailStatusMessage,
       mailSubject,
       fromAddress,
@@ -1685,6 +1634,7 @@ app.post("/api/auth/send-admin-login-otp", async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to dispatch admin login verification code" });
   }
 });
+
 
 // Verify Administrator Daily Login OTP
 app.post("/api/auth/verify-admin-login-otp", (req, res) => {
@@ -1757,17 +1707,18 @@ app.post("/api/auth/verify-admin-login-otp", (req, res) => {
 // Send Role Promotion OTP
 app.post("/api/auth/send-promotion-otp", async (req, res) => {
   try {
-    const { targetEmail, candidateEmail, candidateName, targetRole, authorizerEmail } = req.body;
-    // 1. Send OTP strictly to the authorizer (the Super Admin approving the elevation)
-    let recipient = (authorizerEmail || targetEmail || "abinsajan36@gmail.com").toString().trim().toLowerCase();
-    if (recipient === "admin@7seasons.com" || !recipient.includes("@")) {
+    const { targetEmail, candidateEmail, candidateName, targetRole, authorizerEmail, promoterEmail } = req.body || {};
+    // Dynamic promoter: send OTP strictly to whoever is currently promoting (the active promoter/authorizer)
+    const rawRecipient = (promoterEmail || authorizerEmail || targetEmail || "").toString().trim().toLowerCase();
+    let recipient = rawRecipient;
+    if (!recipient || !recipient.includes("@")) {
       recipient = "abinsajan36@gmail.com";
     }
 
     const cleanCandidateEmail = (candidateEmail || "").toString().trim().toLowerCase();
     const cleanCandidateName = (candidateName || "User").toString().trim();
     const cleanTargetRole = (targetRole || "admin").toString().trim();
-    const cleanAuthorizerEmail = recipient;
+    const cleanPromoterEmail = recipient;
 
     const roleLabel =
       cleanTargetRole === "super_admin"
@@ -1782,7 +1733,7 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
     const otp = crypto.randomInt(100000, 999999).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes validity
 
-    promotionOtps.set(recipient, {
+    const otpPayload = {
       otp,
       expiresAt,
       attempts: 0,
@@ -1790,11 +1741,16 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
       candidateEmail: cleanCandidateEmail,
       candidateName: cleanCandidateName,
       targetRole: cleanTargetRole,
-      authorizerEmail: cleanAuthorizerEmail,
-    });
+      authorizerEmail: cleanPromoterEmail,
+    };
+
+    promotionOtps.set(recipient, otpPayload);
+    if (rawRecipient && rawRecipient !== recipient) {
+      promotionOtps.set(rawRecipient, otpPayload);
+    }
 
     console.log(`\n======================================================`);
-    console.log(`[7Seasons Auth] 👑 Promotion OTP generated for authorizer: ${recipient}`);
+    console.log(`[7Seasons Auth] 👑 Promotion OTP generated for promoter: ${recipient}`);
     console.log(`[7Seasons Auth] 🎯 Candidate: ${cleanCandidateName} (${cleanCandidateEmail}) -> ${roleLabel}`);
     console.log(`[7Seasons Auth] 🔑 OTP Code: ${otp}`);
     console.log(`======================================================\n`);
@@ -1803,20 +1759,21 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
     let emailSent = false;
     let mailStatusMessage = "";
 
-    const mailSubject = `🔐 ${otp} is your 7Seasons Authorization Code: ${cleanTargetRole === "super_admin" ? "Super Admin Promotion" : "Admin Role Grant"}`;
-    // 2. Align sender address so From header matches mannaratharayil@gmail.com directly to prevent Spam
+    // Clean subject without emojis to prevent aggressive spam filtering by Gmail
+    const mailSubject = `7Seasons Nursery: Role Elevation Authorization Code - ${otp}`;
+    // Strictly align From address with authenticated Gmail account to prevent SPF/DMARC spoof warnings
     const fromAddress = getMailSenderAddress("7Seasonsplants Security");
 
     if (transporter) {
       try {
-        await transporter.sendMail({
+        const info = await transporter.sendMail({
           from: fromAddress,
           replyTo: `"7Seasonsplants Support" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`,
           to: recipient,
           subject: mailSubject,
           headers: {
-            "Auto-Submitted": "auto-generated",
-            "X-Auto-Response-Suppress": "OOF, AutoReply",
+            "X-Priority": "1",
+            "Importance": "High",
           },
           html: `
             <!DOCTYPE html>
@@ -1832,7 +1789,6 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
                     <table width="100%" max-width="540" style="max-width: 540px; background-color: #ffffff; border-radius: 20px; border: 1px solid rgba(20, 83, 45, 0.12); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04); overflow: hidden;">
                       <tr>
                         <td style="padding: 28px 32px 20px; text-align: center; background: linear-gradient(180deg, #ECFDF5 0%, #ffffff 100%);">
-                          <span style="font-size: 38px; line-height: 1;">👑</span>
                           <h1 style="margin: 8px 0 2px; color: #064e3b; font-size: 24px; font-weight: 900; letter-spacing: -0.5px;">7 Seasons Nursery</h1>
                           <p style="margin: 0; color: #059669; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">Security Authorization • Administrative Privilege Elevation</p>
                         </td>
@@ -1853,8 +1809,8 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
                               <td style="font-size: 13px; color: #064e3b; padding: 4px 8px;"><strong>${roleLabel}</strong></td>
                             </tr>
                             <tr>
-                              <td style="font-size: 13px; color: #166534; padding: 4px 8px;"><strong>Authorizer:</strong></td>
-                              <td style="font-size: 13px; color: #064e3b; padding: 4px 8px;">${cleanAuthorizerEmail}</td>
+                              <td style="font-size: 13px; color: #166534; padding: 4px 8px;"><strong>Promoter / Authorizer:</strong></td>
+                              <td style="font-size: 13px; color: #064e3b; padding: 4px 8px;">${cleanPromoterEmail}</td>
                             </tr>
                           </table>
                           <div style="background-color: #ECFDF5; border: 2px dashed #059669; border-radius: 16px; padding: 20px; text-align: center; margin: 20px 0;">
@@ -1876,12 +1832,13 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
             </body>
             </html>
           `,
-          text: `7Seasons Nursery Role Promotion OTP: ${otp}\nCandidate: ${cleanCandidateName} (${cleanCandidateEmail})\nTarget Role: ${roleLabel}\nValid for 10 minutes.`,
+          text: `7Seasons Nursery Role Promotion OTP: ${otp}\nPromoter: ${cleanPromoterEmail}\nCandidate: ${cleanCandidateName} (${cleanCandidateEmail})\nTarget Role: ${roleLabel}\nValid for 10 minutes.`,
         });
         emailSent = true;
-        mailStatusMessage = "Email sent via SMTP transporter.";
+        mailStatusMessage = `Email successfully dispatched to ${recipient} (ID: ${info.messageId})`;
+        console.log(`[7Seasons Auth] ✉️ Promotion OTP delivered to: ${recipient}`);
       } catch (err: any) {
-        console.error("[7Seasons Auth] SMTP delivery error:", err.message);
+        console.error(`[7Seasons Auth] SMTP delivery error to ${recipient}:`, err.message);
         mailStatusMessage = `SMTP attempted: ${err.message}`;
       }
     } else {
@@ -1893,7 +1850,7 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
       email: recipient,
       emailSent,
       previewOtp: otp,
-      message: `Security OTP dispatched to ${recipient}. Please check your email, and if the mail is not there, check your spam folder.`,
+      message: `Security OTP dispatched to promoter (${recipient}). Please check your email inbox and spam folder.`,
       statusInfo: mailStatusMessage,
       mailSubject,
       fromAddress,
@@ -1908,21 +1865,35 @@ app.post("/api/auth/send-promotion-otp", async (req, res) => {
 // Verify Role Promotion OTP
 app.post("/api/auth/verify-promotion-otp", (req, res) => {
   try {
-    const { email, otp } = req.body;
-    if (!email || !otp) {
+    const { email, otp, promoterEmail, authorizerEmail } = req.body || {};
+    const candidateAddress = (email || promoterEmail || authorizerEmail || "").toString().trim().toLowerCase();
+    if (!candidateAddress || !otp) {
       return res.status(400).json({ success: false, error: "Recipient email and OTP are required" });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
     const cleanOtp = otp.toString().trim();
 
     // Development preview fallback codes
     if (cleanOtp === "123456" || cleanOtp === "000000") {
-      promotionOtps.delete(cleanEmail);
+      promotionOtps.delete(candidateAddress);
       return res.json({ success: true, verified: true, message: "Promotion authorized via preview code." });
     }
 
-    const record = promotionOtps.get(cleanEmail);
+    let record = promotionOtps.get(candidateAddress);
+    let matchedKey = candidateAddress;
+
+    if (!record && promoterEmail) {
+      const pEmail = promoterEmail.toString().trim().toLowerCase();
+      record = promotionOtps.get(pEmail);
+      if (record) matchedKey = pEmail;
+    }
+
+    if (!record && authorizerEmail) {
+      const aEmail = authorizerEmail.toString().trim().toLowerCase();
+      record = promotionOtps.get(aEmail);
+      if (record) matchedKey = aEmail;
+    }
+
     if (!record) {
       return res.status(400).json({
         success: false,
@@ -1931,7 +1902,7 @@ app.post("/api/auth/verify-promotion-otp", (req, res) => {
     }
 
     if (Date.now() > record.expiresAt) {
-      promotionOtps.delete(cleanEmail);
+      promotionOtps.delete(matchedKey);
       return res.status(400).json({
         success: false,
         error: "Verification code has expired. Please request a new authorization code.",
@@ -1940,7 +1911,7 @@ app.post("/api/auth/verify-promotion-otp", (req, res) => {
 
     record.attempts += 1;
     if (record.attempts > 5) {
-      promotionOtps.delete(cleanEmail);
+      promotionOtps.delete(matchedKey);
       return res.status(429).json({
         success: false,
         error: "Too many failed attempts. Please request a fresh OTP code.",
@@ -1955,7 +1926,7 @@ app.post("/api/auth/verify-promotion-otp", (req, res) => {
     }
 
     // Successfully verified!
-    promotionOtps.delete(cleanEmail);
+    promotionOtps.delete(matchedKey);
     return res.json({
       success: true,
       verified: true,

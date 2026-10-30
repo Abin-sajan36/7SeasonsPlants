@@ -253,6 +253,7 @@ interface StoreContextType {
     candidateName: string;
     targetRole: string;
     authorizerEmail?: string;
+    promoterEmail?: string;
   }) => Promise<{
     success: boolean;
     email?: string;
@@ -3238,6 +3239,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     candidateName: string;
     targetRole: string;
     authorizerEmail?: string;
+    promoterEmail?: string;
   }) => {
     try {
       const response = await fetch('/api/auth/send-promotion-otp', {
@@ -3261,13 +3263,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('Failed to send promotion OTP:', error);
       // Fallback preview OTP so promotion is not blocked
       const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      const resolvedEmail = params.promoterEmail || params.targetEmail || params.authorizerEmail || 'authorizer';
       return {
         success: true,
         previewOtp: fallbackOtp,
-        email: params.targetEmail || params.authorizerEmail || 'abinsajan36@gmail.com',
+        email: resolvedEmail,
         message: 'Security authorization code generated.',
-        mailSubject: `🔐 ${fallbackOtp} is your 7Seasons Authorization Code`,
-        fromAddress: '7Seasonsplants Security <security@7seasonsplants.com>',
+        mailSubject: `7Seasons Nursery: Role Elevation Authorization Code - ${fallbackOtp}`,
+        fromAddress: '"7Seasonsplants Security" <mannaratharayil@gmail.com>',
         sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
     }

@@ -54,6 +54,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
     targetRole: AdminRole;
     isSuperElevation: boolean;
     step: 'details' | 'otp';
+    promoterEmail: string;
     otpInput: string;
     isSendingOtp: boolean;
     isVerifyingOtp: boolean;
@@ -73,6 +74,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
     targetRole: 'admin',
     isSuperElevation: false,
     step: 'details',
+    promoterEmail: '',
     otpInput: '',
     isSendingOtp: false,
     isVerifyingOtp: false,
@@ -195,12 +197,15 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
 
   // Open promotion modals
   const openPromoteToSuperModal = (user: User) => {
+    const activePromoter = (currentAdmin?.email || currentUser?.email || '').trim().toLowerCase();
+    const defaultPromoter = activePromoter === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : activePromoter || 'abinsajan36@gmail.com';
     setPromotionModal({
       isOpen: true,
       user,
       targetRole: 'super_admin',
       isSuperElevation: true,
       step: 'details',
+      promoterEmail: defaultPromoter,
       otpInput: '',
       isSendingOtp: false,
       isVerifyingOtp: false,
@@ -211,12 +216,15 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
   };
 
   const openGrantAdminModal = (user: User) => {
+    const activePromoter = (currentAdmin?.email || currentUser?.email || '').trim().toLowerCase();
+    const defaultPromoter = activePromoter === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : activePromoter || 'abinsajan36@gmail.com';
     setPromotionModal({
       isOpen: true,
       user,
       targetRole: 'admin',
       isSuperElevation: false,
       step: 'details',
+      promoterEmail: defaultPromoter,
       otpInput: '',
       isSendingOtp: false,
       isVerifyingOtp: false,
@@ -228,19 +236,31 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
 
   const handleInitiateOtp = async (targetRole: AdminRole) => {
     if (!promotionModal.user) return;
+    const rawPromoter = (promotionModal.promoterEmail || currentAdmin?.email || currentUser?.email || '').trim().toLowerCase();
+    const promoter = rawPromoter === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : rawPromoter || 'abinsajan36@gmail.com';
+
+    if (!promoter || !promoter.includes('@')) {
+      addToast({
+        type: 'error',
+        title: 'Promoter Email Required',
+        message: 'Please provide a valid promoter email address to receive the authorization OTP.',
+      });
+      return;
+    }
+
     setPromotionModal((prev) => ({
       ...prev,
       targetRole,
+      promoterEmail: promoter,
       isSendingOtp: true,
       step: 'otp',
     }));
 
     try {
-      const rawAuthorizer = currentAdmin?.email || currentUser?.email || 'abinsajan36@gmail.com';
-      const authorizer = rawAuthorizer.toLowerCase() === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : rawAuthorizer;
       const res = await sendPromotionOtp({
-        targetEmail: authorizer,
-        authorizerEmail: authorizer,
+        promoterEmail: promoter,
+        authorizerEmail: promoter,
+        targetEmail: promoter,
         candidateEmail: promotionModal.user.email,
         candidateName: promotionModal.user.name,
         targetRole,
@@ -252,9 +272,9 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
         isSendingOtp: false,
         otpCountdown: 30,
         sentMail: {
-          subject: res.mailSubject || `🔐 ${otpCode} is your 7Seasons Authorization Code`,
+          subject: res.mailSubject || `7Seasons Nursery: Role Elevation Authorization Code - ${otpCode}`,
           from: res.fromAddress || '"7Seasonsplants Security" <mannaratharayil@gmail.com>',
-          to: authorizer,
+          to: res.email || promoter,
           otp: otpCode,
           sentAt: res.sentAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           emailSent: Boolean(res.emailSent),
@@ -264,7 +284,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
       addToast({
         type: 'info',
         title: 'Authorization Code Dispatched',
-        message: `Security OTP sent to authorizer (${authorizer}). Please check your email inbox and spam folder.`,
+        message: `Security OTP sent to promoter (${res.email || promoter}). Please check your email inbox and spam folder.`,
         duration: 9000,
       });
     } catch (err: any) {
@@ -297,10 +317,10 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
 
     setPromotionModal((prev) => ({ ...prev, isVerifyingOtp: true }));
     try {
-      const rawAuthorizer = currentAdmin?.email || currentUser?.email || 'abinsajan36@gmail.com';
-      const authorizer = rawAuthorizer.toLowerCase() === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : rawAuthorizer;
+      const rawPromoter = (promotionModal.promoterEmail || currentAdmin?.email || currentUser?.email || '').trim().toLowerCase();
+      const promoter = rawPromoter === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : rawPromoter || 'abinsajan36@gmail.com';
       const verifyRes = await verifyPromotionOtp(
-        authorizer,
+        promoter,
         cleanOtp,
         promotionModal.user.email,
         promotionModal.targetRole
@@ -332,6 +352,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
           targetRole: 'admin',
           isSuperElevation: false,
           step: 'details',
+          promoterEmail: '',
           otpInput: '',
           isSendingOtp: false,
           isVerifyingOtp: false,
@@ -867,6 +888,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                     targetRole: 'admin',
                     isSuperElevation: false,
                     step: 'details',
+                    promoterEmail: '',
                     otpInput: '',
                     isSendingOtp: false,
                     isVerifyingOtp: false,
@@ -1022,6 +1044,34 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                   </div>
                 )}
 
+                {/* Promoter Account (Dynamic OTP Recipient) */}
+                <div className="p-3.5 bg-emerald-50/80 rounded-2xl border border-emerald-200/90 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-emerald-950 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                      <span>Promoter Account (OTP Recipient)</span>
+                    </label>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                      Active Promoter
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-900/90 leading-snug">
+                    The one-time authorization code will be sent to this administrator to confirm role elevation.
+                  </p>
+                  <div>
+                    <input
+                      type="email"
+                      value={promotionModal.promoterEmail}
+                      onChange={(e) => setPromotionModal((prev) => ({ ...prev, promoterEmail: e.target.value }))}
+                      placeholder="e.g. your-email@gmail.com"
+                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-emerald-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 text-emerald-950"
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-500">
+                    Logged-in account: <span className="font-semibold text-gray-700">{currentAdmin?.name || currentUser?.name || 'Administrator'}</span> ({currentAdmin?.email || currentUser?.email || 'Active'})
+                  </p>
+                </div>
+
                 <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-gray-100">
                   <button
                     type="button"
@@ -1032,6 +1082,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                         targetRole: 'admin',
                         isSuperElevation: false,
                         step: 'details',
+                        promoterEmail: '',
                         otpInput: '',
                         isSendingOtp: false,
                         isVerifyingOtp: false,
@@ -1089,11 +1140,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                     <div className="flex items-center justify-between py-1 px-2.5 bg-white/80 rounded-xl border border-emerald-100">
                       <span className="text-gray-600 font-medium">Mail Recipient:</span>
                       <strong className="text-emerald-950 font-bold font-mono text-[12px]">
-                        {promotionModal.sentMail?.to ||
-                          (currentAdmin?.email?.toLowerCase() === 'admin@7seasons.com'
-                            ? 'abinsajan36@gmail.com'
-                            : currentAdmin?.email) ||
-                          'abinsajan36@gmail.com'}
+                        {promotionModal.sentMail?.to || promotionModal.promoterEmail || 'Promoter'}
                       </strong>
                     </div>
 
@@ -1198,6 +1245,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                           targetRole: 'admin',
                           isSuperElevation: false,
                           step: 'details',
+                          promoterEmail: '',
                           otpInput: '',
                           isSendingOtp: false,
                           isVerifyingOtp: false,
