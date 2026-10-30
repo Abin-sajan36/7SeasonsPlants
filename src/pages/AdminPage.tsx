@@ -1710,12 +1710,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                     isSuperAdminOnly: true,
                   },
                   {
-                    id: 'accounts',
-                    label: `Admin Accounts & Security (${adminAccounts.length})`,
-                    icon: ShieldCheck,
-                    isSuperAdminOnly: true,
-                  },
-                  {
                     id: 'users',
                     label: 'User Management',
                     icon: Users,
@@ -3255,7 +3249,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
 
         {/* TAB: USER MANAGEMENT (Restricted to Super Admin) */}
         {activeTab === 'users' && isCurrentSuperAdmin && (
-          <UserManagementTab onNavigateToAccounts={() => setActiveTab('accounts')} />
+          <UserManagementTab />
         )}
 
         {/* TAB: USER ACTIVITY & LOGIN LOGS (Accessible to All Administrators) */}
