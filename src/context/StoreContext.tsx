@@ -1746,36 +1746,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Daily Admin OTP expiration check across days
-  useEffect(() => {
-    if (!isAdminAuthenticated || !currentAdmin?.email) return;
-
-    const checkDailyOtpStatus = () => {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const cleanEmail = currentAdmin.email.trim().toLowerCase();
-      const lastOtpDate = localStorage.getItem(`7seasons_admin_otp_date_${cleanEmail}`);
-
-      if (!lastOtpDate || lastOtpDate !== todayStr) {
-        setIsAdminAuthenticated(false);
-        sessionStorage.removeItem(`${STORAGE_KEY}_admin_auth`);
-        localStorage.removeItem(`${STORAGE_KEY}_admin_auth`);
-        addToast({
-          type: 'warning',
-          title: 'Daily Verification Required',
-          message: 'Your daily administrator OTP session has expired. Please verify your OTP to continue.',
-        });
-      }
-    };
-
-    // Check on window focus and every 60 seconds
-    const interval = setInterval(checkDailyOtpStatus, 60000);
-    window.addEventListener('focus', checkDailyOtpStatus);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', checkDailyOtpStatus);
-    };
-  }, [isAdminAuthenticated, currentAdmin]);
 
   // Cart Calculations
   const cartCount = useMemo(() => {

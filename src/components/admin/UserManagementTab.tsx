@@ -17,8 +17,6 @@ import {
   X,
   UserCheck,
   Sparkles,
-  KeyRound,
-  ArrowLeft,
 } from 'lucide-react';
 import { User, AdminRole } from '../../types';
 import { useStore } from '../../context/StoreContext';
@@ -37,8 +35,6 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
     revokeAdminRoleFromUser,
     promoteAdminToSuperAdmin,
     demoteSuperAdminToAdmin,
-    sendPromotionOtp,
-    verifyPromotionOtp,
     refreshRegisteredUsers,
     addToast,
   } = useStore();
@@ -53,34 +49,13 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
     user: User | null;
     targetRole: AdminRole;
     isSuperElevation: boolean;
-    step: 'details' | 'otp';
-    promoterEmail: string;
-    otpInput: string;
-    isSendingOtp: boolean;
-    isVerifyingOtp: boolean;
-    otpCountdown: number;
-    sentMail: {
-      subject: string;
-      from: string;
-      to: string;
-      otp: string;
-      sentAt: string;
-      emailSent: boolean;
-    } | null;
-    copied: boolean;
+    isSubmitting: boolean;
   }>({
     isOpen: false,
     user: null,
     targetRole: 'admin',
     isSuperElevation: false,
-    step: 'details',
-    promoterEmail: '',
-    otpInput: '',
-    isSendingOtp: false,
-    isVerifyingOtp: false,
-    otpCountdown: 0,
-    sentMail: null,
-    copied: false,
+    isSubmitting: false,
   });
 
   const [demoteModal, setDemoteModal] = useState<{
@@ -183,193 +158,64 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
     };
   }, [registeredUsers]);
 
-  // Countdown timer for promotion OTP resend
-  useEffect(() => {
-    if (promotionModal.otpCountdown <= 0) return;
-    const timer = setInterval(() => {
-      setPromotionModal((prev) => ({
-        ...prev,
-        otpCountdown: Math.max(0, prev.otpCountdown - 1),
-      }));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [promotionModal.otpCountdown]);
-
   // Open promotion modals
   const openPromoteToSuperModal = (user: User) => {
-    const activePromoter = (currentAdmin?.email || currentUser?.email || '').trim().toLowerCase();
-    const defaultPromoter = activePromoter === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : activePromoter || 'abinsajan36@gmail.com';
     setPromotionModal({
       isOpen: true,
       user,
       targetRole: 'super_admin',
       isSuperElevation: true,
-      step: 'details',
-      promoterEmail: defaultPromoter,
-      otpInput: '',
-      isSendingOtp: false,
-      isVerifyingOtp: false,
-      otpCountdown: 0,
-      sentMail: null,
-      copied: false,
+      isSubmitting: false,
     });
   };
 
   const openGrantAdminModal = (user: User) => {
-    const activePromoter = (currentAdmin?.email || currentUser?.email || '').trim().toLowerCase();
-    const defaultPromoter = activePromoter === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : activePromoter || 'abinsajan36@gmail.com';
     setPromotionModal({
       isOpen: true,
       user,
       targetRole: 'admin',
       isSuperElevation: false,
-      step: 'details',
-      promoterEmail: defaultPromoter,
-      otpInput: '',
-      isSendingOtp: false,
-      isVerifyingOtp: false,
-      otpCountdown: 0,
-      sentMail: null,
-      copied: false,
+      isSubmitting: false,
     });
   };
 
-  const handleInitiateOtp = async (targetRole: AdminRole) => {
-    if (!promotionModal.user) return;
-    const rawPromoter = (promotionModal.promoterEmail || currentAdmin?.email || currentUser?.email || '').trim().toLowerCase();
-    const promoter = rawPromoter === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : rawPromoter || 'abinsajan36@gmail.com';
+  const handleConfirmPromotion = async () => {
+    if (!promotionModal.user || promotionModal.isSubmitting) return;
 
-    if (!promoter || !promoter.includes('@')) {
-      addToast({
-        type: 'error',
-        title: 'Promoter Email Required',
-        message: 'Please provide a valid promoter email address to receive the authorization OTP.',
-      });
-      return;
-    }
-
-    setPromotionModal((prev) => ({
-      ...prev,
-      targetRole,
-      promoterEmail: promoter,
-      isSendingOtp: true,
-      step: 'otp',
-    }));
-
+    setPromotionModal((prev) => ({ ...prev, isSubmitting: true }));
     try {
-      const res = await sendPromotionOtp({
-        promoterEmail: promoter,
-        authorizerEmail: promoter,
-        targetEmail: promoter,
-        candidateEmail: promotionModal.user.email,
-        candidateName: promotionModal.user.name,
-        targetRole,
-      });
-
-      const otpCode = res.previewOtp || '123456';
-      setPromotionModal((prev) => ({
-        ...prev,
-        isSendingOtp: false,
-        otpCountdown: 30,
-        sentMail: {
-          subject: res.mailSubject || `7Seasons Nursery: Role Elevation Authorization Code - ${otpCode}`,
-          from: res.fromAddress || '"7Seasonsplants Security" <mannaratharayil@gmail.com>',
-          to: res.email || promoter,
-          otp: otpCode,
-          sentAt: res.sentAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          emailSent: Boolean(res.emailSent),
-        },
-      }));
-
-      addToast({
-        type: 'info',
-        title: 'Authorization Code Dispatched',
-        message: `Security OTP sent to promoter (${res.email || promoter}). Please check your email inbox and spam folder.`,
-        duration: 9000,
-      });
-    } catch (err: any) {
-      console.error('Error initiating promotion OTP:', err);
-      setPromotionModal((prev) => ({ ...prev, isSendingOtp: false }));
-      addToast({
-        type: 'error',
-        title: 'OTP Dispatch Failed',
-        message: err.message || 'Could not send verification code.',
-      });
-    }
-  };
-
-  const handleResendPromotionOtp = async () => {
-    if (!promotionModal.user || promotionModal.otpCountdown > 0 || promotionModal.isSendingOtp) return;
-    await handleInitiateOtp(promotionModal.targetRole);
-  };
-
-  const handleVerifyAndConfirmPromotion = async () => {
-    if (!promotionModal.user) return;
-    const cleanOtp = promotionModal.otpInput.trim();
-    if (!cleanOtp) {
-      addToast({
-        type: 'error',
-        title: 'OTP Required',
-        message: 'Please enter the 6-digit authorization code.',
-      });
-      return;
-    }
-
-    setPromotionModal((prev) => ({ ...prev, isVerifyingOtp: true }));
-    try {
-      const rawPromoter = (promotionModal.promoterEmail || currentAdmin?.email || currentUser?.email || '').trim().toLowerCase();
-      const promoter = rawPromoter === 'admin@7seasons.com' ? 'abinsajan36@gmail.com' : rawPromoter || 'abinsajan36@gmail.com';
-      const verifyRes = await verifyPromotionOtp(
-        promoter,
-        cleanOtp,
-        promotionModal.user.email,
-        promotionModal.targetRole
-      );
-
-      if (!verifyRes.success) {
-        setPromotionModal((prev) => ({ ...prev, isVerifyingOtp: false }));
-        addToast({
-          type: 'error',
-          title: 'Authorization Rejected',
-          message: verifyRes.error || 'The entered OTP code is invalid or has expired.',
-        });
-        return;
-      }
-
-      // Execute role elevation with otpVerified = true
       let res;
       if (promotionModal.targetRole === 'super_admin') {
-        res = await promoteAdminToSuperAdmin(promotionModal.user.id, true);
+        res = await promoteAdminToSuperAdmin(promotionModal.user.id);
       } else {
-        res = await grantAdminRoleToUser(promotionModal.user.id, promotionModal.targetRole, true);
+        res = await grantAdminRoleToUser(promotionModal.user.id, promotionModal.targetRole);
       }
 
-      setPromotionModal((prev) => ({ ...prev, isVerifyingOtp: false }));
-      if (res.success) {
+      if (res && res.success) {
         setPromotionModal({
           isOpen: false,
           user: null,
           targetRole: 'admin',
           isSuperElevation: false,
-          step: 'details',
-          promoterEmail: '',
-          otpInput: '',
-          isSendingOtp: false,
-          isVerifyingOtp: false,
-          otpCountdown: 0,
-          sentMail: null,
-          copied: false,
+          isSubmitting: false,
         });
         await refreshRegisteredUsers();
+      } else if (res && !res.success) {
+        addToast({
+          type: 'error',
+          title: 'Promotion Failed',
+          message: res.message || 'Could not complete promotion.',
+        });
       }
     } catch (err: any) {
       console.error('Error confirming promotion:', err);
-      setPromotionModal((prev) => ({ ...prev, isVerifyingOtp: false }));
       addToast({
         type: 'error',
         title: 'Promotion Failed',
         message: err.message || 'Could not complete promotion.',
       });
+    } finally {
+      setPromotionModal((prev) => ({ ...prev, isSubmitting: false }));
     }
   };
 
@@ -841,12 +687,10 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
         )}
       </div>
 
-      {/* UNIFIED PROMOTION MODAL WITH MANDATORY OTP VERIFICATION */}
+      {/* MODAL 2: ROLE PROMOTION CONFIRMATION (DIRECT, NO OTP) */}
       {promotionModal.isOpen && promotionModal.user && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className={`bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl transition-all duration-200 border animate-in fade-in zoom-in-95 my-8 ${
-            promotionModal.step === 'otp' ? 'border-emerald-200' : 'border-gray-100'
-          }`}>
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl transition-all duration-200 border border-gray-100 animate-in fade-in zoom-in-95 my-8">
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
@@ -858,25 +702,19 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                   {promotionModal.targetRole === 'super_admin' ? (
                     <Crown className="w-5 h-5 text-amber-700" />
                   ) : (
-                    <KeyRound className="w-5 h-5 text-emerald-700" />
+                    <ShieldCheck className="w-5 h-5 text-emerald-700" />
                   )}
                 </div>
                 <div>
                   <h3 className="font-black text-base text-gray-900">
-                    {promotionModal.step === 'otp'
-                      ? promotionModal.targetRole === 'super_admin'
-                        ? 'Super Admin OTP Verification'
-                        : 'Admin Promotion OTP Verification'
-                      : promotionModal.isSuperElevation
+                    {promotionModal.isSuperElevation
                       ? 'Promote to Super Admin'
                       : 'Grant Admin Privileges'}
                   </h3>
                   <p className="text-[11px] text-gray-500 font-medium">
-                    {promotionModal.step === 'otp'
-                      ? 'Security authorization code required to confirm'
-                      : promotionModal.isSuperElevation
+                    {promotionModal.isSuperElevation
                       ? 'Elevate administrator to master super admin authority'
-                      : 'Select administrative role level & confirm via OTP'}
+                      : 'Select administrative role level & confirm'}
                   </p>
                 </div>
               </div>
@@ -887,14 +725,7 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
                     user: null,
                     targetRole: 'admin',
                     isSuperElevation: false,
-                    step: 'details',
-                    promoterEmail: '',
-                    otpInput: '',
-                    isSendingOtp: false,
-                    isVerifyingOtp: false,
-                    otpCountdown: 0,
-                    sentMail: null,
-                    copied: false,
+                    isSubmitting: false,
                   })
                 }
                 className="text-gray-400 hover:text-gray-600 cursor-pointer p-1 rounded-xl hover:bg-gray-100 transition-colors"
@@ -934,365 +765,158 @@ export const UserManagementTab: React.FC<UserManagementTabProps> = ({ onNavigate
               </div>
             </div>
 
-            {/* STEP 1: DETAILS & ROLE SELECTION */}
-            {promotionModal.step === 'details' && (
-              <div className="space-y-4 mt-4">
-                {promotionModal.isSuperElevation ? (
-                  <div className="space-y-3 text-xs text-gray-600">
-                    <p className="font-bold text-gray-800">What does promoting to Super Admin grant?</p>
-                    <ul className="space-y-1.5 text-[11px] list-disc pl-4 text-gray-600 leading-relaxed">
-                      <li>
-                        <strong className="text-gray-800">Full Master Authority:</strong> Unrestricted control over catalog, plant combos, inventory, and site parameters.
-                      </li>
-                      <li>
-                        <strong className="text-gray-800">Delegation & Role Promotion:</strong> Full power to promote other admins, manage accounts, and assign permissions.
-                      </li>
-                      <li>
-                        <strong className="text-gray-800">Audit Logs & Confidential Settings:</strong> Complete access to user audit logs, backups, and operational control.
-                      </li>
-                      <li>
-                        <strong className="text-gray-800">Privacy Exemption:</strong> Automatically excluded from standard admin account counts and bulk emails.
-                      </li>
-                    </ul>
+            {/* ROLE SELECTION & CONFIRMATION DETAILS */}
+            <div className="space-y-4 mt-4">
+              {promotionModal.isSuperElevation ? (
+                <div className="space-y-3 text-xs text-gray-600">
+                  <p className="font-bold text-gray-800">What does promoting to Super Admin grant?</p>
+                  <ul className="space-y-1.5 text-[11px] list-disc pl-4 text-gray-600 leading-relaxed">
+                    <li>
+                      <strong className="text-gray-800">Full Master Authority:</strong> Unrestricted control over catalog, plant combos, inventory, and site parameters.
+                    </li>
+                    <li>
+                      <strong className="text-gray-800">Delegation & Role Promotion:</strong> Full power to promote other admins, manage accounts, and assign permissions.
+                    </li>
+                    <li>
+                      <strong className="text-gray-800">Audit Logs & Confidential Settings:</strong> Complete access to user audit logs, backups, and operational control.
+                    </li>
+                    <li>
+                      <strong className="text-gray-800">Privacy Exemption:</strong> Automatically excluded from standard admin account counts and bulk emails.
+                    </li>
+                  </ul>
 
-                    <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                      <span>
-                        Security verification required: clicking proceed will send a one-time 6-digit authorization code to confirm this action.
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-gray-700 block">
-                      Select Administrative Role Level
-                    </label>
-                    <div className="grid grid-cols-1 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPromotionModal((prev) => ({ ...prev, targetRole: 'admin' }))}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                          promotionModal.targetRole === 'admin'
-                            ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                          <span>General Nursery Administrator</span>
-                        </div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">
-                          Full access to manage plant products, combos, care guides, and customer orders.
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPromotionModal((prev) => ({ ...prev, targetRole: 'super_admin' }))}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                          promotionModal.targetRole === 'super_admin'
-                            ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-500/20'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="font-bold text-xs text-amber-950 flex items-center gap-1.5">
-                          <Crown className="w-3.5 h-3.5 text-amber-700" />
-                          <span>Super Administrator (Full Master Control)</span>
-                        </div>
-                        <div className="text-[11px] text-amber-800/80 mt-0.5">
-                          Unrestricted access to all features, secrets vault, audit logs, and promoting other admins.
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPromotionModal((prev) => ({ ...prev, targetRole: 'nursery_manager' }))}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                          promotionModal.targetRole === 'nursery_manager'
-                            ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="font-bold text-xs text-gray-900">Nursery Operations Manager</div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">
-                          Focuses on plant inventories, stock alerts, and dispatch fulfillment.
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPromotionModal((prev) => ({ ...prev, targetRole: 'inventory_staff' }))}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                          promotionModal.targetRole === 'inventory_staff'
-                            ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="font-bold text-xs text-gray-900">Inventory Specialist</div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">
-                          Manages catalog details, pricing tags, and combo offerings.
-                        </div>
-                      </button>
-                    </div>
-
-                    <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                      <span>
-                        Role elevations require one-time security OTP authorization. An OTP will be requested in the next step before confirming.
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Promoter Account (Dynamic OTP Recipient) */}
-                <div className="p-3.5 bg-emerald-50/80 rounded-2xl border border-emerald-200/90 text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-emerald-950 flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                      <span>Promoter Account (OTP Recipient)</span>
-                    </label>
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
-                      Active Promoter
+                  <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                    <span>
+                      Please confirm that you want to promote <strong>{promotionModal.user.name}</strong> to Super Administrator. This change takes effect immediately.
                     </span>
                   </div>
-                  <p className="text-[11px] text-emerald-900/90 leading-snug">
-                    The one-time authorization code will be sent to this administrator to confirm role elevation.
-                  </p>
-                  <div>
-                    <input
-                      type="email"
-                      value={promotionModal.promoterEmail}
-                      onChange={(e) => setPromotionModal((prev) => ({ ...prev, promoterEmail: e.target.value }))}
-                      placeholder="e.g. your-email@gmail.com"
-                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-emerald-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500 text-emerald-950"
-                    />
-                  </div>
-                  <p className="text-[10px] text-gray-500">
-                    Logged-in account: <span className="font-semibold text-gray-700">{currentAdmin?.name || currentUser?.name || 'Administrator'}</span> ({currentAdmin?.email || currentUser?.email || 'Active'})
-                  </p>
                 </div>
-
-                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPromotionModal({
-                        isOpen: false,
-                        user: null,
-                        targetRole: 'admin',
-                        isSuperElevation: false,
-                        step: 'details',
-                        promoterEmail: '',
-                        otpInput: '',
-                        isSendingOtp: false,
-                        isVerifyingOtp: false,
-                        otpCountdown: 0,
-                        sentMail: null,
-                        copied: false,
-                      })
-                    }
-                    className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInitiateOtp(promotionModal.targetRole)}
-                    disabled={promotionModal.isSendingOtp}
-                    className={`px-5 py-2.5 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-1.5 disabled:opacity-50 ${
-                      promotionModal.targetRole === 'super_admin'
-                        ? 'bg-gradient-to-r from-amber-600 via-amber-700 to-yellow-700 hover:from-amber-700 hover:to-amber-800'
-                        : 'bg-emerald-800 hover:bg-emerald-900'
-                    }`}
-                  >
-                    {promotionModal.isSendingOtp ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Sending Authorization Code...</span>
-                      </>
-                    ) : (
-                      <>
-                        <KeyRound className="w-3.5 h-3.5" />
-                        <span>Continue to OTP Verification</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 2: OTP VERIFICATION */}
-            {promotionModal.step === 'otp' && (
-              <div className="space-y-4 mt-4">
-                {/* On-Screen Preview Card: Mail Sent For Role Elevation */}
-                <div className="p-4 bg-emerald-50/90 rounded-2xl border border-emerald-200 text-xs space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-emerald-200/80">
-                    <div className="flex items-center gap-2 text-emerald-950 font-bold">
-                      <Mail className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span className="text-sm font-black text-emerald-950">Mail Sent For Role Elevation</span>
-                    </div>
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
-                      Dispatched
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 text-emerald-900 text-xs">
-                    <div className="flex items-center justify-between py-1 px-2.5 bg-white/80 rounded-xl border border-emerald-100">
-                      <span className="text-gray-600 font-medium">Mail Recipient:</span>
-                      <strong className="text-emerald-950 font-bold font-mono text-[12px]">
-                        {promotionModal.sentMail?.to || promotionModal.promoterEmail || 'Promoter'}
-                      </strong>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1 px-2.5 bg-white/60 rounded-xl border border-emerald-100/60">
-                      <span className="text-gray-500 font-medium">Sender:</span>
-                      <span className="text-gray-700 font-medium font-mono text-[11px]">
-                        mannaratharayil@gmail.com
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1 px-2.5 bg-white/60 rounded-xl border border-emerald-100/60">
-                      <span className="text-gray-500 font-medium">Candidate:</span>
-                      <span className="text-gray-800 font-semibold text-[11px]">
-                        {promotionModal.user.name} ({promotionModal.user.email})
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1 px-2.5 bg-white/60 rounded-xl border border-emerald-100/60">
-                      <span className="text-gray-500 font-medium">Elevating To:</span>
-                      <span className="text-emerald-900 font-bold text-[11px]">
-                        {promotionModal.targetRole === 'super_admin'
-                          ? 'Super Administrator 👑'
-                          : promotionModal.targetRole === 'nursery_manager'
-                          ? 'Nursery Operations Manager'
-                          : promotionModal.targetRole === 'inventory_staff'
-                          ? 'Inventory Specialist'
-                          : 'Nursery Administrator 🛡️'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 bg-emerald-100/70 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 space-y-1">
-                    <p className="font-semibold">
-                      📩 Security OTP delivered to the recipient address above.
-                    </p>
-                    <p className="text-emerald-800/90 leading-relaxed">
-                      Please check the email inbox. If you do not see the email, please check your <strong>spam / junk folder</strong>.
-                    </p>
-                  </div>
-                </div>
-
-                {/* 6-Digit OTP Field */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <label className="font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <KeyRound className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>Enter 6-Digit Authorization Code</span>
-                    </label>
+              ) : (
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-gray-700 block">
+                    Select Administrative Role Level
+                  </label>
+                  <div className="grid grid-cols-1 gap-2">
                     <button
                       type="button"
-                      onClick={handleResendPromotionOtp}
-                      disabled={promotionModal.otpCountdown > 0 || promotionModal.isSendingOtp}
-                      className="text-[11px] text-emerald-700 hover:text-emerald-800 font-bold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${promotionModal.isSendingOtp ? 'animate-spin' : ''}`} />
-                      <span>
-                        {promotionModal.isSendingOtp
-                          ? 'Dispatching...'
-                          : promotionModal.otpCountdown > 0
-                          ? `Resend code in ${promotionModal.otpCountdown}s`
-                          : 'Resend Email OTP'}
-                      </span>
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={promotionModal.otpInput}
-                    onChange={(e) =>
-                      setPromotionModal((prev) => ({
-                        ...prev,
-                        otpInput: e.target.value.replace(/\D/g, '').slice(0, 6),
-                      }))
-                    }
-                    placeholder="••••••"
-                    maxLength={6}
-                    autoFocus
-                    className="w-full text-center font-mono text-3xl font-black tracking-[0.35em] py-3.5 bg-gray-50 border-2 border-emerald-300 focus:border-emerald-600 focus:bg-white rounded-2xl outline-hidden text-emerald-950 transition-all shadow-inner"
-                  />
-                  <p className="text-[11px] text-gray-500 text-center">
-                    Enter the code dispatched to your authorized administrator address to elevate this account.
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setPromotionModal((prev) => ({ ...prev, step: 'details', otpInput: '' }))}
-                    disabled={promotionModal.isVerifyingOtp}
-                    className="inline-flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Back</span>
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPromotionModal({
-                          isOpen: false,
-                          user: null,
-                          targetRole: 'admin',
-                          isSuperElevation: false,
-                          step: 'details',
-                          promoterEmail: '',
-                          otpInput: '',
-                          isSendingOtp: false,
-                          isVerifyingOtp: false,
-                          otpCountdown: 0,
-                          sentMail: null,
-                          copied: false,
-                        })
-                      }
-                      disabled={promotionModal.isVerifyingOtp}
-                      className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleVerifyAndConfirmPromotion}
-                      disabled={promotionModal.isVerifyingOtp || promotionModal.otpInput.trim().length < 6}
-                      className={`px-5 py-2.5 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-1.5 disabled:opacity-50 ${
-                        promotionModal.targetRole === 'super_admin'
-                          ? 'bg-gradient-to-r from-amber-600 via-amber-700 to-yellow-700 hover:from-amber-700 hover:to-amber-800'
-                          : 'bg-emerald-800 hover:bg-emerald-900'
+                      onClick={() => setPromotionModal((prev) => ({ ...prev, targetRole: 'admin' }))}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                        promotionModal.targetRole === 'admin'
+                          ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20'
+                          : 'border-gray-200 hover:bg-gray-50'
                       }`}
                     >
-                      {promotionModal.isVerifyingOtp ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Authorizing Elevation...</span>
-                        </>
-                      ) : (
-                        <>
-                          {promotionModal.targetRole === 'super_admin' ? (
-                            <Crown className="w-3.5 h-3.5 text-amber-200" />
-                          ) : (
-                            <CheckCircle className="w-3.5 h-3.5 text-emerald-200" />
-                          )}
-                          <span>
-                            {promotionModal.targetRole === 'super_admin'
-                              ? 'Verify OTP & Elevate to Super Admin'
-                              : 'Verify OTP & Grant Admin Role'}
-                          </span>
-                        </>
-                      )}
+                      <div className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>General Nursery Administrator</span>
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        Full access to manage plant products, combos, care guides, and customer orders.
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPromotionModal((prev) => ({ ...prev, targetRole: 'super_admin' }))}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                        promotionModal.targetRole === 'super_admin'
+                          ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-500/20'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="font-bold text-xs text-amber-950 flex items-center gap-1.5">
+                        <Crown className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Super Administrator (Full Master Control)</span>
+                      </div>
+                      <div className="text-[11px] text-amber-800/80 mt-0.5">
+                        Unrestricted access to all features, secrets vault, audit logs, and promoting other admins.
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPromotionModal((prev) => ({ ...prev, targetRole: 'nursery_manager' }))}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                        promotionModal.targetRole === 'nursery_manager'
+                          ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="font-bold text-xs text-gray-900">Nursery Operations Manager</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        Focuses on plant inventories, stock alerts, and dispatch fulfillment.
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPromotionModal((prev) => ({ ...prev, targetRole: 'inventory_staff' }))}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                        promotionModal.targetRole === 'inventory_staff'
+                          ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="font-bold text-xs text-gray-900">Inventory Specialist</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        Manages catalog details, pricing tags, and combo offerings.
+                      </div>
                     </button>
                   </div>
                 </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPromotionModal({
+                      isOpen: false,
+                      user: null,
+                      targetRole: 'admin',
+                      isSuperElevation: false,
+                      isSubmitting: false,
+                    })
+                  }
+                  disabled={promotionModal.isSubmitting}
+                  className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPromotion}
+                  disabled={promotionModal.isSubmitting}
+                  className={`px-5 py-2.5 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-1.5 disabled:opacity-50 ${
+                    promotionModal.targetRole === 'super_admin'
+                      ? 'bg-gradient-to-r from-amber-600 via-amber-700 to-yellow-700 hover:from-amber-700 hover:to-amber-800'
+                      : 'bg-emerald-800 hover:bg-emerald-900'
+                  }`}
+                >
+                  {promotionModal.isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Promoting...</span>
+                    </>
+                  ) : (
+                    <>
+                      {promotionModal.targetRole === 'super_admin' ? (
+                        <Crown className="w-3.5 h-3.5 text-amber-200" />
+                      ) : (
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-200" />
+                      )}
+                      <span>
+                        {promotionModal.targetRole === 'super_admin'
+                          ? 'Confirm Super Admin Promotion'
+                          : 'Confirm & Grant Role'}
+                      </span>
+                    </>
+                  )}
+                </button>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
