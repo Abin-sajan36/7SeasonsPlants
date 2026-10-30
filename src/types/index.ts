@@ -610,7 +610,9 @@ export type AuthEventType =
   | 'login_failed'
   | 'logout'
   | 'signup'
-  | 'password_reset';
+  | 'password_reset'
+  | 'role_promoted'
+  | 'role_demoted';
 
 export interface UserLoginLog {
   id: string;

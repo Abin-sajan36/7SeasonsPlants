@@ -101,7 +101,7 @@ export const UserLogsTab: React.FC = () => {
 
   // Set of emails associated with super administrator
   const superAdminEmails = useMemo(() => {
-    const emails = new Set<string>(['annanvasu36@gmail.com', 'abinsajan36@gmail.com']);
+    const emails = new Set<string>(['abinsajan36@gmail.com']);
     adminAccounts.forEach((acc) => {
       if (acc.role === 'super_admin' && acc.email) {
         emails.add(acc.email.toLowerCase().trim());

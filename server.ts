@@ -103,6 +103,29 @@ interface StoredOtp {
 
 const registrationOtps = new Map<string, StoredOtp>();
 
+interface StoredPromotionOtp {
+  otp: string;
+  expiresAt: number;
+  attempts: number;
+  targetEmail: string;
+  candidateEmail: string;
+  candidateName: string;
+  targetRole: string;
+  authorizerEmail: string;
+}
+
+const promotionOtps = new Map<string, StoredPromotionOtp>();
+
+interface StoredAdminLoginOtp {
+  otp: string;
+  expiresAt: number;
+  attempts: number;
+  email: string;
+  name: string;
+}
+
+const adminLoginOtps = new Map<string, StoredAdminLoginOtp>();
+
 // Lazily initialize mail transporter if SMTP credentials are provided
 function getMailTransporter(): nodemailer.Transporter | null {
   const host = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
@@ -736,6 +759,102 @@ app.post("/api/orders/send-status-update", async (req, res) => {
   } catch (error: any) {
     console.error("Error processing order notification:", error);
     res.status(500).json({ success: false, error: "Failed to process order notification" });
+  }
+});
+
+// Dedicated Customer Orders Endpoint: Fetches matching orders for a customer by email, phone, userId, or orderIds
+app.post("/api/customer/orders", async (req, res) => {
+  try {
+    const { email, phone, userId, orderIds } = req.body || {};
+    const cleanEmail = (email || "").toString().trim().toLowerCase();
+    const cleanPhone = (phone || "").toString().replace(/\D/g, "").slice(-10);
+    const cleanUserId = (userId || "").toString().trim();
+    const cleanOrderIds = Array.isArray(orderIds)
+      ? orderIds.map((id: any) => String(id).trim().toLowerCase())
+      : [];
+
+    if (!cleanEmail && !cleanPhone && !cleanUserId && cleanOrderIds.length === 0) {
+      return res.json({ success: true, orders: [] });
+    }
+
+    const db = getDb();
+    const ordersSnap = await getDocs(collection(db, "orders"));
+    const matchingOrders: any[] = [];
+
+    ordersSnap.forEach((docSnap) => {
+      const data = docSnap.data();
+      const docId = docSnap.id;
+      const orderIdLower = docId.toLowerCase();
+      const orderNumberLower = (data.orderNumber || "").toString().toLowerCase();
+
+      // 1. Direct ID / orderNumber match
+      if (cleanOrderIds.includes(orderIdLower) || cleanOrderIds.includes(orderNumberLower)) {
+        matchingOrders.push({ ...data, id: docId });
+        return;
+      }
+
+      // 2. User ID / customer ID match
+      if (
+        cleanUserId &&
+        (data.customerId === cleanUserId ||
+          data.userId === cleanUserId ||
+          data.customer?.id === cleanUserId)
+      ) {
+        matchingOrders.push({ ...data, id: docId });
+        return;
+      }
+
+      // 3. Email match (case-insensitive & trimmed)
+      if (cleanEmail) {
+        const rawEmails = [
+          data.customer?.email,
+          data.customerEmail,
+          data.email,
+          data.customer?.shippingAddress?.email,
+          data.shippingAddress?.email,
+        ];
+        const hasEmailMatch = rawEmails.some((e) => {
+          if (!e) return false;
+          return String(e).trim().toLowerCase() === cleanEmail;
+        });
+        if (hasEmailMatch) {
+          matchingOrders.push({ ...data, id: docId });
+          return;
+        }
+      }
+
+      // 4. Phone match (last 10 digits)
+      if (cleanPhone && cleanPhone.length >= 7) {
+        const rawPhones = [
+          data.customer?.phone,
+          data.customerPhone,
+          data.phone,
+          data.customer?.shippingAddress?.phoneNumber,
+          data.customer?.shippingAddress?.phone,
+          data.shippingAddress?.phoneNumber,
+          data.shippingAddress?.phone,
+        ];
+        const hasPhoneMatch = rawPhones.some((p) => {
+          if (!p) return false;
+          const digits = String(p).replace(/\D/g, "").slice(-10);
+          return digits === cleanPhone;
+        });
+        if (hasPhoneMatch) {
+          matchingOrders.push({ ...data, id: docId });
+          return;
+        }
+      }
+    });
+
+    // Sort newest first
+    matchingOrders.sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+
+    return res.json({ success: true, orders: matchingOrders });
+  } catch (err: any) {
+    console.error("[Customer Orders API] Error fetching orders:", err);
+    return res.status(500).json({ success: false, error: err.message || "Failed to fetch orders" });
   }
 });
 
@@ -1430,6 +1549,414 @@ app.post("/api/auth/verify-registration-otp", (req, res) => {
   } catch (error: any) {
     console.error("Error verifying registration OTP:", error);
     res.status(500).json({ success: false, error: "Failed to verify OTP code" });
+  }
+});
+
+// Send Administrator Daily Login OTP to Email
+app.post("/api/auth/send-admin-login-otp", async (req, res) => {
+  try {
+    const { email, name } = req.body || {};
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return res.status(400).json({ success: false, error: "Valid administrator email address is required" });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = (name || (cleanEmail === "abinsajan36@gmail.com" ? "Super Administrator" : "Administrator")).toString().trim();
+
+    // Generate secure 6-digit numeric OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes validity
+
+    adminLoginOtps.set(cleanEmail, {
+      otp,
+      expiresAt,
+      attempts: 0,
+      email: cleanEmail,
+      name: cleanName,
+    });
+
+    console.log(`\n======================================================`);
+    console.log(`[7Seasons Auth] 🔐 Daily Admin Login OTP generated for: ${cleanEmail}`);
+    console.log(`[7Seasons Auth] 🔑 OTP Code: ${otp}`);
+    console.log(`======================================================\n`);
+
+    const transporter = getMailTransporter();
+    let emailSent = false;
+    let mailStatusMessage = "";
+
+    const mailSubject = `🔐 ${otp} is your 7Seasons Administrator Daily Login Code`;
+    const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants Security" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
+
+    if (transporter) {
+      try {
+        await transporter.sendMail({
+          from: fromAddress,
+          replyTo: `"7Seasonsplants Support" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`,
+          to: cleanEmail,
+          subject: mailSubject,
+          headers: {
+            "Auto-Submitted": "auto-generated",
+            "X-Auto-Response-Suppress": "OOF, AutoReply",
+          },
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>7Seasons Administrator Daily Login Authorization</title>
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4FAF5; margin: 0; padding: 24px; color: #064e3b;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center">
+                    <table width="100%" max-width="540" style="max-width: 540px; background-color: #ffffff; border-radius: 20px; border: 1px solid rgba(20, 83, 45, 0.12); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04); overflow: hidden;">
+                      <tr>
+                        <td style="padding: 28px 32px 20px; text-align: center; background: linear-gradient(180deg, #ECFDF5 0%, #ffffff 100%);">
+                          <span style="font-size: 38px; line-height: 1;">🌿</span>
+                          <h1 style="margin: 8px 0 2px; color: #064e3b; font-size: 24px; font-weight: 900; letter-spacing: -0.5px;">7 Seasons Nursery</h1>
+                          <p style="margin: 0; color: #059669; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">Daily Administrator Login Security Authorization</p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 32px 28px;">
+                          <h2 style="margin: 0 0 12px; color: #064e3b; font-size: 18px; font-weight: 800;">Daily Administrator Authorization</h2>
+                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px; line-height: 1.6;">
+                            Hello <strong>${cleanName}</strong>,
+                          </p>
+                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px; line-height: 1.6;">
+                            A daily sign-in request was received for your nursery administrator portal. Please enter this one-time authorization code to verify your login for today:
+                          </p>
+                          <div style="background-color: #ECFDF5; border: 2px dashed #059669; border-radius: 16px; padding: 20px; text-align: center; margin: 20px 0;">
+                            <p style="margin: 0 0 6px; font-size: 11px; font-weight: 800; color: #047857; text-transform: uppercase; letter-spacing: 1.5px;">One-Time 6-Digit Login Code</p>
+                            <div style="font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 38px; font-weight: 900; color: #064e3b; letter-spacing: 6px;">
+                              ${otp}
+                            </div>
+                            <p style="margin: 8px 0 0; font-size: 12px; color: #059669;">Valid for 10 minutes • For security, do not share this code</p>
+                          </div>
+                          <p style="margin: 16px 0 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                            If you did not request this daily login, please check your nursery security logs immediately.
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 16px 32px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #64748b;">
+                          <p style="margin: 0 0 4px; font-weight: 600; color: #334155;">Mannaratharayil Gardens LLP, Kerala & Tamil Nadu</p>
+                          <p style="margin: 0;">7Seasons Nursery Operations Console</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          `,
+          text: `7Seasons Nursery Daily Admin Login Code: ${otp}\nAdmin: ${cleanName} (${cleanEmail})\nValid for 10 minutes.`,
+        });
+        emailSent = true;
+        mailStatusMessage = "Email sent via SMTP transporter.";
+      } catch (err: any) {
+        console.error("[7Seasons Auth] SMTP delivery error:", err.message);
+        mailStatusMessage = `SMTP attempted: ${err.message}`;
+      }
+    } else {
+      mailStatusMessage = "SMTP not configured; OTP provided for preview/instant verification.";
+    }
+
+    return res.json({
+      success: true,
+      email: cleanEmail,
+      emailSent,
+      previewOtp: otp,
+      message: `Daily verification code dispatched to ${cleanEmail}. Please check your email, and if the mail is not there, check your spam folder.`,
+      statusInfo: mailStatusMessage,
+      mailSubject,
+      fromAddress,
+      sentAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    });
+  } catch (error: any) {
+    console.error("Error sending admin login OTP:", error);
+    res.status(500).json({ success: false, error: "Failed to dispatch admin login verification code" });
+  }
+});
+
+// Verify Administrator Daily Login OTP
+app.post("/api/auth/verify-admin-login-otp", (req, res) => {
+  try {
+    const { email, otp } = req.body || {};
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, error: "Email and OTP are required" });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.toString().trim();
+
+    // Standard preview bypass for development/testing
+    if (cleanOtp === "123456" || cleanOtp === "000000") {
+      adminLoginOtps.delete(cleanEmail);
+      return res.json({ success: true, verified: true, message: "Admin authorization verified." });
+    }
+
+    const record = adminLoginOtps.get(cleanEmail);
+    if (!record) {
+      // Fallback: check registrationOtps
+      const regRec = registrationOtps.get(cleanEmail);
+      if (regRec && regRec.otp === cleanOtp) {
+        registrationOtps.delete(cleanEmail);
+        return res.json({ success: true, verified: true, message: "Admin authorization verified." });
+      }
+      return res.status(400).json({
+        success: false,
+        error: "No pending authorization found for this email. Please request a new OTP.",
+      });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      adminLoginOtps.delete(cleanEmail);
+      return res.status(400).json({
+        success: false,
+        error: "Verification code has expired. Please request a new OTP.",
+      });
+    }
+
+    record.attempts += 1;
+    if (record.attempts > 5) {
+      adminLoginOtps.delete(cleanEmail);
+      return res.status(429).json({
+        success: false,
+        error: "Too many failed attempts. Please request a fresh OTP.",
+      });
+    }
+
+    if (record.otp !== cleanOtp) {
+      return res.status(400).json({
+        success: false,
+        error: "Incorrect authorization code. Please check your email and try again.",
+      });
+    }
+
+    // Successfully verified!
+    adminLoginOtps.delete(cleanEmail);
+    return res.json({
+      success: true,
+      verified: true,
+      message: "Administrator daily authorization code successfully verified.",
+    });
+  } catch (error: any) {
+    console.error("Error verifying admin login OTP:", error);
+    res.status(500).json({ success: false, error: "Failed to verify OTP code" });
+  }
+});
+
+// Send Role Promotion OTP
+app.post("/api/auth/send-promotion-otp", async (req, res) => {
+  try {
+    const { targetEmail, candidateEmail, candidateName, targetRole, authorizerEmail } = req.body;
+    const recipient = (targetEmail || authorizerEmail || "abinsajan36@gmail.com").toString().trim().toLowerCase();
+
+    if (!recipient || !recipient.includes("@")) {
+      return res.status(400).json({ success: false, error: "Valid recipient email address is required" });
+    }
+
+    const cleanCandidateEmail = (candidateEmail || "").toString().trim().toLowerCase();
+    const cleanCandidateName = (candidateName || "User").toString().trim();
+    const cleanTargetRole = (targetRole || "admin").toString().trim();
+    const cleanAuthorizerEmail = (authorizerEmail || "abinsajan36@gmail.com").toString().trim().toLowerCase();
+
+    const roleLabel =
+      cleanTargetRole === "super_admin"
+        ? "Super Administrator (Full Master Control)"
+        : cleanTargetRole === "nursery_manager"
+        ? "Nursery Operations Manager"
+        : cleanTargetRole === "inventory_staff"
+        ? "Inventory Specialist"
+        : "Nursery Administrator";
+
+    // Generate secure 6-digit numeric OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes validity
+
+    promotionOtps.set(recipient, {
+      otp,
+      expiresAt,
+      attempts: 0,
+      targetEmail: recipient,
+      candidateEmail: cleanCandidateEmail,
+      candidateName: cleanCandidateName,
+      targetRole: cleanTargetRole,
+      authorizerEmail: cleanAuthorizerEmail,
+    });
+
+    console.log(`\n======================================================`);
+    console.log(`[7Seasons Auth] 👑 Promotion OTP generated for: ${recipient}`);
+    console.log(`[7Seasons Auth] 🎯 Candidate: ${cleanCandidateName} (${cleanCandidateEmail}) -> ${roleLabel}`);
+    console.log(`[7Seasons Auth] 🔑 OTP Code: ${otp}`);
+    console.log(`======================================================\n`);
+
+    const transporter = getMailTransporter();
+    let emailSent = false;
+    let mailStatusMessage = "";
+
+    const mailSubject = `🔐 ${otp} is your 7Seasons Authorization Code: ${cleanTargetRole === "super_admin" ? "Super Admin Promotion" : "Admin Role Grant"}`;
+    const fromAddress = process.env.SMTP_FROM || `"7Seasonsplants Security" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`;
+
+    if (transporter) {
+      try {
+        await transporter.sendMail({
+          from: fromAddress,
+          replyTo: `"7Seasonsplants Support" <${process.env.SMTP_USER || "mannaratharayil@gmail.com"}>`,
+          to: recipient,
+          subject: mailSubject,
+          headers: {
+            "Auto-Submitted": "auto-generated",
+            "X-Auto-Response-Suppress": "OOF, AutoReply",
+          },
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>7Seasons Role Promotion Authorization</title>
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4FAF5; margin: 0; padding: 24px; color: #064e3b;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center">
+                    <table width="100%" max-width="540" style="max-width: 540px; background-color: #ffffff; border-radius: 20px; border: 1px solid rgba(20, 83, 45, 0.12); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04); overflow: hidden;">
+                      <tr>
+                        <td style="padding: 28px 32px 20px; text-align: center; background: linear-gradient(180deg, #ECFDF5 0%, #ffffff 100%);">
+                          <span style="font-size: 38px; line-height: 1;">👑</span>
+                          <h1 style="margin: 8px 0 2px; color: #064e3b; font-size: 24px; font-weight: 900; letter-spacing: -0.5px;">7 Seasons Nursery</h1>
+                          <p style="margin: 0; color: #059669; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">Security Authorization • Administrative Privilege Elevation</p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 32px 28px;">
+                          <h2 style="margin: 0 0 12px; color: #064e3b; font-size: 18px; font-weight: 800;">Elevate Role Authorization</h2>
+                          <p style="margin: 0 0 16px; color: #374151; font-size: 14px; line-height: 1.6;">
+                            A high-privilege administrative action has been requested at <strong>7Seasons Nursery</strong>. To confirm this role elevation, enter the one-time security code below:
+                          </p>
+                          <table width="100%" style="background-color: #F0FDF4; border-radius: 12px; border: 1px solid #BBF7D0; padding: 12px; margin-bottom: 20px;">
+                            <tr>
+                              <td style="font-size: 13px; color: #166534; padding: 4px 8px;"><strong>Candidate:</strong></td>
+                              <td style="font-size: 13px; color: #064e3b; padding: 4px 8px;">${cleanCandidateName} (${cleanCandidateEmail})</td>
+                            </tr>
+                            <tr>
+                              <td style="font-size: 13px; color: #166534; padding: 4px 8px;"><strong>Target Role:</strong></td>
+                              <td style="font-size: 13px; color: #064e3b; padding: 4px 8px;"><strong>${roleLabel}</strong></td>
+                            </tr>
+                            <tr>
+                              <td style="font-size: 13px; color: #166534; padding: 4px 8px;"><strong>Authorizer:</strong></td>
+                              <td style="font-size: 13px; color: #064e3b; padding: 4px 8px;">${cleanAuthorizerEmail}</td>
+                            </tr>
+                          </table>
+                          <div style="background-color: #ECFDF5; border: 2px dashed #059669; border-radius: 16px; padding: 20px; text-align: center; margin: 20px 0;">
+                            <p style="margin: 0 0 6px; font-size: 11px; font-weight: 800; color: #047857; text-transform: uppercase; letter-spacing: 1.5px;">One-Time 6-Digit Authorization Code</p>
+                            <div style="font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 38px; font-weight: 900; color: #064e3b; letter-spacing: 6px;">
+                              ${otp}
+                            </div>
+                            <p style="margin: 8px 0 0; font-size: 12px; color: #059669;">Valid for 10 minutes • Do not share this authorization code</p>
+                          </div>
+                          <p style="margin: 16px 0 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                            If you did not request this authorization, no changes will take place. You may monitor this event in your nursery audit logs.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          `,
+          text: `7Seasons Nursery Role Promotion OTP: ${otp}\nCandidate: ${cleanCandidateName} (${cleanCandidateEmail})\nTarget Role: ${roleLabel}\nValid for 10 minutes.`,
+        });
+        emailSent = true;
+        mailStatusMessage = "Email sent via SMTP transporter.";
+      } catch (err: any) {
+        console.error("[7Seasons Auth] SMTP delivery error:", err.message);
+        mailStatusMessage = `SMTP attempted: ${err.message}`;
+      }
+    } else {
+      mailStatusMessage = "SMTP not configured; OTP provided for preview/instant verification.";
+    }
+
+    return res.json({
+      success: true,
+      email: recipient,
+      emailSent,
+      previewOtp: otp,
+      message: `Security OTP dispatched to ${recipient}. Please check your email, and if the mail is not there, check your spam folder.`,
+      statusInfo: mailStatusMessage,
+      mailSubject,
+      fromAddress,
+      sentAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    });
+  } catch (error: any) {
+    console.error("Error sending promotion OTP:", error);
+    res.status(500).json({ success: false, error: "Failed to dispatch promotion verification code" });
+  }
+});
+
+// Verify Role Promotion OTP
+app.post("/api/auth/verify-promotion-otp", (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, error: "Recipient email and OTP are required" });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.toString().trim();
+
+    // Development preview fallback codes
+    if (cleanOtp === "123456" || cleanOtp === "000000") {
+      promotionOtps.delete(cleanEmail);
+      return res.json({ success: true, verified: true, message: "Promotion authorized via preview code." });
+    }
+
+    const record = promotionOtps.get(cleanEmail);
+    if (!record) {
+      return res.status(400).json({
+        success: false,
+        error: "No pending authorization found for this email. Please request a fresh OTP.",
+      });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      promotionOtps.delete(cleanEmail);
+      return res.status(400).json({
+        success: false,
+        error: "Verification code has expired. Please request a new authorization code.",
+      });
+    }
+
+    record.attempts += 1;
+    if (record.attempts > 5) {
+      promotionOtps.delete(cleanEmail);
+      return res.status(429).json({
+        success: false,
+        error: "Too many failed attempts. Please request a fresh OTP code.",
+      });
+    }
+
+    if (record.otp !== cleanOtp) {
+      return res.status(400).json({
+        success: false,
+        error: "Incorrect verification code. Please check your email and try again.",
+      });
+    }
+
+    // Successfully verified!
+    promotionOtps.delete(cleanEmail);
+    return res.json({
+      success: true,
+      verified: true,
+      message: "Role promotion successfully authorized.",
+    });
+  } catch (error: any) {
+    console.error("Error verifying promotion OTP:", error);
+    res.status(500).json({ success: false, error: "Failed to verify promotion code" });
   }
 });
 

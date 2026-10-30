@@ -91,7 +91,7 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
   const companyEmail = storeSettings?.email || 'mannaratharayil@gmail.com';
 
   const superAdminEmails = useMemo(() => {
-    const set = new Set<string>(['annanvasu36@gmail.com', 'abinsajan36@gmail.com']);
+    const set = new Set<string>(['abinsajan36@gmail.com']);
     adminAccounts.forEach((acc) => {
       if (acc.role === 'super_admin' && acc.email) {
         set.add(acc.email.toLowerCase().trim());

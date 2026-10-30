@@ -75,7 +75,40 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
     toggleWishlist,
     addToast,
     addToCart,
+    refreshCustomerOrders,
   } = useStore();
+
+  const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
+
+  // Automatically refresh customer orders on page load / when logged in
+  useEffect(() => {
+    if (currentUser?.email) {
+      refreshCustomerOrders(currentUser).catch(() => {});
+    }
+  }, [currentUser?.email, currentUser?.id]);
+
+  const handleManualOrderRefresh = async () => {
+    if (!currentUser) return;
+    setIsRefreshingOrders(true);
+    try {
+      const fetched = await refreshCustomerOrders(currentUser);
+      addToast({
+        type: 'success',
+        title: 'Orders Synchronized 📦',
+        message: fetched.length > 0
+          ? `Found ${fetched.length} order(s) for your account.`
+          : 'Your order history is up to date.',
+      });
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Sync Notice',
+        message: err.message || 'Could not synchronize orders.',
+      });
+    } finally {
+      setIsRefreshingOrders(false);
+    }
+  };
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>(
     initialParam === 'register' ? 'register' : 'login'
@@ -377,7 +410,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
       if (success) {
         setEmailInput('');
         setPasswordInput('');
-        if (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'annanvasu36@gmail.com' || cleanEmail === 'admin@7seasons.com') {
+        if (cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'admin@7seasons.com') {
           onNavigate('admin');
         }
       }
@@ -1475,6 +1508,31 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
         {/* TAB 1: ORDER HISTORY */}
         {activeTab === 'orders' && (
           <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-emerald-900/10 shadow-2xs">
+              <div>
+                <h3 className="text-sm font-black text-emerald-950 flex items-center gap-2">
+                  <span>My Botanical Orders</span>
+                  <span className="text-[11px] bg-emerald-50 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    {customerOrders.length} {customerOrders.length === 1 ? 'Order' : 'Orders'}
+                  </span>
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Tracking dispatches, live transit updates, and receipts for {currentUser.email}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleManualOrderRefresh}
+                disabled={isRefreshingOrders}
+                className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold transition-all cursor-pointer border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto disabled:opacity-60 shadow-2xs"
+                title="Synchronize and fetch latest orders from nursery"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${isRefreshingOrders ? 'animate-spin text-emerald-600' : ''}`} />
+                <span>{isRefreshingOrders ? 'Syncing Orders...' : 'Sync Orders'}</span>
+              </button>
+            </div>
+
             {customerOrders.length === 0 ? (
               <div className="bg-white rounded-3xl p-12 text-center border border-emerald-900/10 space-y-3">
                 <div className="w-16 h-16 bg-emerald-50 text-emerald-700 rounded-full flex items-center justify-center text-3xl mx-auto border border-emerald-100">
@@ -1484,7 +1542,15 @@ export const AccountPage: React.FC<AccountPageProps> = ({ initialParam, onNaviga
                 <p className="text-xs text-gray-600 max-w-sm mx-auto">
                   You haven't ordered any plant combos under <strong className="text-emerald-950">{currentUser.email}</strong>. Browse our curated botanical combos!
                 </p>
-                <div className="pt-2 flex justify-center">
+                <div className="pt-2 flex flex-wrap justify-center gap-2">
+                  <button
+                    onClick={handleManualOrderRefresh}
+                    disabled={isRefreshingOrders}
+                    className="px-5 py-2.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-full text-xs font-bold hover:bg-emerald-100 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${isRefreshingOrders ? 'animate-spin' : ''}`} />
+                    <span>Check Order Status</span>
+                  </button>
                   <button
                     onClick={() => onNavigate('combos')}
                     className="px-6 py-2.5 bg-gradient-to-r from-emerald-700 to-green-600 text-white rounded-full text-xs font-bold hover:from-emerald-800 hover:to-green-700 transition-all cursor-pointer shadow-sm"

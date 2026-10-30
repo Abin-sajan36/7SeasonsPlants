@@ -1645,16 +1645,6 @@ export const initialAdminAccounts: AdminAccount[] = [
     createdAt: new Date().toISOString(),
   },
   {
-    id: 'adm-02',
-    name: 'Super Administrator',
-    email: 'annanvasu36@gmail.com',
-    role: 'super_admin',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    phone: '08848276403',
-    lastLogin: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-  },
-  {
     id: 'adm-03',
     name: '7Seasons Operations Admin',
     email: 'admin@7seasons.com',
