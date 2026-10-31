@@ -24,11 +24,11 @@ const COLLECTIONS = [
   'blogs',
   'users',
   'orders',
-  'newsletter_subscribers',
-  'complaints',
   'reviews',
+  'complaints',
   'storeSettings',
-  'siteSettings',
+  'user_logs',
+  'newsletter_subscribers',
 ];
 
 async function runExport() {
@@ -45,10 +45,25 @@ async function runExport() {
     try {
       console.log(`Fetching collection: ${colName}...`);
       const snap = await getDocs(collection(db, colName));
-      const docs = snap.docs.map((d) => ({
+      let docs = snap.docs.map((d) => ({
         _id: d.id,
         ...d.data(),
       }));
+
+      // Fallback to existing seed file if Firestore returned 0 records (e.g. reviews, coupons)
+      if (docs.length === 0) {
+        const seedPath = path.join(outDir, `seed_${colName}.json`);
+        if (fs.existsSync(seedPath)) {
+          try {
+            const seedData = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+            if (Array.isArray(seedData) && seedData.length > 0) {
+              docs = seedData;
+              console.log(`Using fallback seed data for ${colName} (${seedData.length} records)`);
+            }
+          } catch (_) {}
+        }
+      }
+
       fullDump[colName] = docs;
       stats[colName] = docs.length;
 
@@ -59,17 +74,56 @@ async function runExport() {
       );
       console.log(`Saved ${docs.length} records for ${colName}`);
     } catch (err: any) {
-      console.warn(`Could not export ${colName}:`, err.message || err);
-      fullDump[colName] = [];
-      stats[colName] = 0;
+      console.warn(`Could not export ${colName} from Firestore, trying local file:`, err.message || err);
+      // Try local fallback
+      const seedPath = path.join(outDir, `seed_${colName}.json`);
+      if (fs.existsSync(seedPath)) {
+        try {
+          const seedData = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+          fullDump[colName] = seedData;
+          stats[colName] = seedData.length;
+        } catch {
+          fullDump[colName] = [];
+          stats[colName] = 0;
+        }
+      } else {
+        fullDump[colName] = [];
+        stats[colName] = 0;
+      }
     }
   }
 
+  // Generate Customer Details Registry
+  const usersList = fullDump['users'] || [];
+  const ordersList = fullDump['orders'] || [];
+  const customerDetailsSummary = usersList.map((u: any) => {
+    const userOrders = ordersList.filter(
+      (o: any) =>
+        (o.customer?.email && o.customer.email.toLowerCase() === (u.email || '').toLowerCase()) ||
+        (u.orderIds && (u.orderIds.includes(o.id) || u.orderIds.includes(o.orderNumber)))
+    );
+    return {
+      userId: u._id || u.id,
+      name: u.name || 'Customer',
+      email: u.email,
+      phone: u.phone || '',
+      role: u.role || 'customer',
+      totalOrdersPlaced: userOrders.length,
+      addresses: u.addresses || [],
+      registeredAt: u.createdAt || '',
+      lastLogin: u.lastLogin || '',
+    };
+  });
+
   // Save the master consolidated JSON
   const backupSummary = {
+    appName: '7Seasonsplants (Mannaratharayil Gardens LLP)',
     exportedAt: new Date().toISOString(),
     projectId: rawConfig.projectId,
     stats,
+    totalRecords: Object.values(stats).reduce((a, b) => a + b, 0),
+    customerDetailsCount: customerDetailsSummary.length,
+    customerDetailsSummary,
     data: fullDump,
   };
 

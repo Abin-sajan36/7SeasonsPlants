@@ -682,38 +682,61 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.error('Failed to parse saved admin:', e);
       }
     }
+    // Fallback: check if currentUser in localStorage is any admin role
+    const savedUserStr = localStorage.getItem(`${STORAGE_KEY}_user`);
+    if (savedUserStr && savedUserStr !== 'null' && savedUserStr !== 'undefined') {
+      try {
+        const u = JSON.parse(savedUserStr);
+        const cleanEmail = u.email?.toLowerCase().trim();
+        if (cleanEmail === 'annanvasu36@gmail.com') return null;
+        const isSuper = u.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com';
+        const isAnyAdmin = isSuper || u.role === 'admin' || u.role === 'nursery_manager' || u.role === 'inventory_staff' || cleanEmail === 'admin@7seasons.com';
+        if (u && isAnyAdmin) {
+          return {
+            id: `adm-${u.id}`,
+            name: u.name || 'Nursery Admin',
+            email: u.email,
+            role: isSuper ? 'super_admin' : (u.role || 'admin'),
+            avatar: u.profileImage,
+            phone: u.phone,
+            createdAt: u.createdAt || new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
+            sourceUserAccountId: u.id,
+          };
+        }
+      } catch {}
+    }
     return null;
   });
 
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     const sessionAuth = sessionStorage.getItem(`${STORAGE_KEY}_admin_auth`);
     const localAuth = localStorage.getItem(`${STORAGE_KEY}_admin_auth`);
+    if (sessionAuth === 'true' || localAuth === 'true') {
+      return true;
+    }
+    // Check if current user is an admin
+    const savedUserStr = localStorage.getItem(`${STORAGE_KEY}_user`);
+    if (savedUserStr && savedUserStr !== 'null' && savedUserStr !== 'undefined') {
+      try {
+        const u = JSON.parse(savedUserStr);
+        const cleanEmail = u.email?.toLowerCase().trim();
+        if (cleanEmail === 'annanvasu36@gmail.com') return false;
+        const isAnyAdmin = u.role === 'admin' || u.role === 'super_admin' || u.role === 'nursery_manager' || u.role === 'inventory_staff' || cleanEmail === 'abinsajan36@gmail.com' || cleanEmail === 'admin@7seasons.com';
+        if (isAnyAdmin) {
+          return true;
+        }
+      } catch {}
+    }
+    // Check if saved admin exists
     const saved = sessionStorage.getItem(`${STORAGE_KEY}_current_admin`) || localStorage.getItem(`${STORAGE_KEY}_current_admin`);
-    
-    let adminEmail = '';
     if (saved && saved !== 'null' && saved !== 'undefined') {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.email) {
-          adminEmail = parsed.email.trim().toLowerCase();
+        if (parsed && parsed.email && parsed.email.toLowerCase() !== 'annanvasu36@gmail.com') {
+          return true;
         }
-      } catch {
-        // ignore
-      }
-    }
-
-    if (sessionAuth === 'true' || localAuth === 'true' || !!adminEmail) {
-      if (adminEmail) {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const lastOtpDate = localStorage.getItem(`7seasons_admin_otp_date_${adminEmail}`);
-        if (!lastOtpDate || lastOtpDate !== todayStr) {
-          // Admin OTP expired across days; require daily re-verification
-          sessionStorage.removeItem(`${STORAGE_KEY}_admin_auth`);
-          localStorage.removeItem(`${STORAGE_KEY}_admin_auth`);
-          return false;
-        }
-      }
-      return (sessionAuth === 'true' || localAuth === 'true');
+      } catch {}
     }
     return false;
   });
@@ -1457,6 +1480,53 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
     return isSuperByAdmin || isSuperByUser;
   }, [currentAdmin, currentUser]);
+
+  // Automatically sync admin state with any logged in administrator
+  useEffect(() => {
+    if (currentUser) {
+      const email = currentUser.email?.toLowerCase().trim();
+      if (!email || email === 'annanvasu36@gmail.com') return;
+
+      const matchedAdmin = adminAccounts.find((a) => a.email.toLowerCase() === email);
+      const isSuper = currentUser.role === 'super_admin' || email === 'abinsajan36@gmail.com' || matchedAdmin?.role === 'super_admin';
+      const role = isSuper
+        ? 'super_admin'
+        : (matchedAdmin?.role || (currentUser.role as AdminRole) || 'admin');
+
+      const userRoleStr = (currentUser.role as string) || '';
+      const isAnyAdmin = Boolean(
+        isSuper ||
+        userRoleStr === 'admin' ||
+        userRoleStr === 'nursery_manager' ||
+        userRoleStr === 'inventory_staff' ||
+        email === 'admin@7seasons.com' ||
+        Boolean(matchedAdmin)
+      );
+
+      if (isAnyAdmin) {
+        setIsAdminAuthenticated(true);
+        sessionStorage.setItem(`${STORAGE_KEY}_admin_auth`, 'true');
+        safeSetItem(`${STORAGE_KEY}_admin_auth`, 'true');
+
+        if (!currentAdmin || currentAdmin.email.toLowerCase() !== email) {
+          const adm: AdminAccount = {
+            id: matchedAdmin?.id || `adm-${currentUser.id}`,
+            name: matchedAdmin?.name || currentUser.name || 'Nursery Admin',
+            email: currentUser.email,
+            role: role as AdminRole,
+            avatar: matchedAdmin?.avatar || currentUser.profileImage,
+            phone: matchedAdmin?.phone || currentUser.phone,
+            createdAt: matchedAdmin?.createdAt || currentUser.createdAt || new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
+            sourceUserAccountId: currentUser.id,
+          };
+          setCurrentAdmin(adm);
+          sessionStorage.setItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
+          safeSetItem(`${STORAGE_KEY}_current_admin`, JSON.stringify(adm));
+        }
+      }
+    }
+  }, [currentUser, currentAdmin, adminAccounts]);
 
   // Real-time synchronization of User Activity & Login Logs from Firestore (Super Admin audit)
   useEffect(() => {
@@ -2741,18 +2811,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       const fullUser = { ...userData, id: user.uid };
-      const isAdmin = userData.role === 'admin' || isSuper;
+      const cleanGoogleEmail = (userData.email || '').toLowerCase().trim();
+      const isBarred = cleanGoogleEmail === 'annanvasu36@gmail.com';
+      const matchedAdminAcc = !isBarred ? adminAccounts.find((a) => a.email.toLowerCase() === cleanGoogleEmail) : undefined;
+      const isSuperFinal = !isBarred && (isSuper || matchedAdminAcc?.role === 'super_admin' || userData.role === 'super_admin');
+      const userRoleStr = (userData.role as string) || '';
+      const isAdmin = !isBarred && (
+        isSuperFinal ||
+        userRoleStr === 'admin' ||
+        userRoleStr === 'nursery_manager' ||
+        userRoleStr === 'inventory_staff' ||
+        Boolean(matchedAdminAcc)
+      );
 
       setIsAdminAuthenticated(isAdmin);
       if (isAdmin) {
         const adm: AdminAccount = {
-          id: `adm-${user.uid}`,
-          name: userData.name,
+          id: matchedAdminAcc?.id || `adm-${user.uid}`,
+          name: matchedAdminAcc?.name || userData.name,
           email: userData.email,
-          role: isSuper ? 'super_admin' : 'admin',
-          avatar: userData.profileImage,
-          phone: userData.phone,
-          createdAt: userData.createdAt,
+          role: isSuperFinal ? 'super_admin' : (matchedAdminAcc?.role || (userData.role as AdminRole) || 'admin'),
+          avatar: matchedAdminAcc?.avatar || userData.profileImage,
+          phone: matchedAdminAcc?.phone || userData.phone,
+          createdAt: matchedAdminAcc?.createdAt || userData.createdAt,
           lastLogin: new Date().toISOString(),
           sourceUserAccountId: user.uid,
         };
@@ -2973,17 +3054,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       setDoc(doc(db, 'users', resolvedUser.id), { lastLogin: new Date().toISOString() }, { merge: true }).catch(console.warn);
 
-      if (resolvedUser.role === 'admin' || resolvedUser.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com') {
+      const matchedAdminAcc = cleanEmail !== 'annanvasu36@gmail.com' ? adminAccounts.find((a) => a.email.toLowerCase() === cleanEmail) : undefined;
+      const isSuper = cleanEmail !== 'annanvasu36@gmail.com' && (resolvedUser.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || matchedAdminAcc?.role === 'super_admin');
+      const userRoleStr = (resolvedUser.role as string) || '';
+      const isAnyAdmin = cleanEmail !== 'annanvasu36@gmail.com' && (
+        isSuper ||
+        userRoleStr === 'admin' ||
+        userRoleStr === 'nursery_manager' ||
+        userRoleStr === 'inventory_staff' ||
+        cleanEmail === 'admin@7seasons.com' ||
+        Boolean(matchedAdminAcc)
+      );
+
+      if (isAnyAdmin) {
         setIsAdminAuthenticated(true);
-        const isSuper = resolvedUser.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com';
         const admAcc: AdminAccount = {
-          id: `adm-${resolvedUser.id}`,
-          name: resolvedUser.name,
+          id: matchedAdminAcc?.id || `adm-${resolvedUser.id}`,
+          name: matchedAdminAcc?.name || resolvedUser.name,
           email: resolvedUser.email,
-          role: isSuper ? 'super_admin' : 'admin',
-          avatar: resolvedUser.profileImage,
-          phone: resolvedUser.phone,
-          createdAt: resolvedUser.createdAt,
+          role: isSuper ? 'super_admin' : (matchedAdminAcc?.role || (resolvedUser.role as AdminRole) || 'admin'),
+          avatar: matchedAdminAcc?.avatar || resolvedUser.profileImage,
+          phone: matchedAdminAcc?.phone || resolvedUser.phone,
+          createdAt: matchedAdminAcc?.createdAt || resolvedUser.createdAt,
           sourceUserAccountId: resolvedUser.id,
           lastLogin: new Date().toISOString(),
         };
@@ -3001,7 +3093,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addToast({
         type: 'success',
         title: 'Welcome Back! 🌿',
-        message: `Signed in as ${resolvedUser.name}${resolvedUser.role === 'admin' ? ' (Nursery Administrator)' : ''}`,
+        message: `Signed in as ${resolvedUser.name}${isAnyAdmin ? ' (Nursery Administrator)' : ''}`,
       });
       return true;
     }
@@ -3017,18 +3109,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setDoc(doc(db, 'users', fsUser.id), { role: 'customer' }, { merge: true }).catch(console.warn);
         }
         if (fsUser.password && fsUser.password === cleanPass) {
-          const isSuper = fsUser.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com';
-          const isAdmin = fsUser.role === 'admin' || isSuper;
-          setIsAdminAuthenticated(isAdmin);
-          if (isAdmin) {
+          const matchedAdminAcc = cleanEmail !== 'annanvasu36@gmail.com' ? adminAccounts.find((a) => a.email.toLowerCase() === cleanEmail) : undefined;
+          const isSuper = cleanEmail !== 'annanvasu36@gmail.com' && (fsUser.role === 'super_admin' || cleanEmail === 'abinsajan36@gmail.com' || matchedAdminAcc?.role === 'super_admin');
+          const fsRoleStr = (fsUser.role as string) || '';
+          const isAnyAdmin = cleanEmail !== 'annanvasu36@gmail.com' && (
+            isSuper ||
+            fsRoleStr === 'admin' ||
+            fsRoleStr === 'nursery_manager' ||
+            fsRoleStr === 'inventory_staff' ||
+            cleanEmail === 'admin@7seasons.com' ||
+            Boolean(matchedAdminAcc)
+          );
+
+          setIsAdminAuthenticated(isAnyAdmin);
+          if (isAnyAdmin) {
             const admAcc: AdminAccount = {
-              id: `adm-${fsUser.id}`,
-              name: fsUser.name,
+              id: matchedAdminAcc?.id || `adm-${fsUser.id}`,
+              name: matchedAdminAcc?.name || fsUser.name,
               email: fsUser.email,
-              role: isSuper ? 'super_admin' : 'admin',
-              avatar: fsUser.profileImage,
-              phone: fsUser.phone,
-              createdAt: fsUser.createdAt,
+              role: isSuper ? 'super_admin' : (matchedAdminAcc?.role || (fsUser.role as AdminRole) || 'admin'),
+              avatar: matchedAdminAcc?.avatar || fsUser.profileImage,
+              phone: matchedAdminAcc?.phone || fsUser.phone,
+              createdAt: matchedAdminAcc?.createdAt || fsUser.createdAt,
               sourceUserAccountId: fsUser.id,
               lastLogin: new Date().toISOString(),
             };

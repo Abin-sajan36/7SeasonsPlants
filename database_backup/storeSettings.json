@@ -1,0 +1,164 @@
+[
+  {
+    "_id": "global",
+    "enabledCouriersByState": {
+      "Tamil Nadu": {
+        "dtdc": false,
+        "india-post": false,
+        "speed-post": false,
+        "professional-courier": true
+      },
+      "Kerala": {
+        "dtdc": true,
+        "india-post": false,
+        "professional-courier": false,
+        "speed-post": false
+      },
+      "Karnataka": {
+        "speed-post": false,
+        "professional-courier": true,
+        "india-post": false,
+        "dtdc": false
+      }
+    },
+    "address": "Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India",
+    "freeShippingThreshold": 899,
+    "supportedStates": [
+      "Kerala",
+      "Tamil Nadu",
+      "Karnataka"
+    ],
+    "isConfiguredByAdmin": true,
+    "deliveryCharge": 80,
+    "razorpayEnabled": true,
+    "trustBenefits": [
+      {
+        "iconName": "Leaf",
+        "color": "emerald",
+        "description": "Every plant is carefully sorted and graded, so only healthy, quality plants are selected for your order.",
+        "id": "benefit-1",
+        "title": "Carefully Selected, Quality Checked"
+      },
+      {
+        "description": "We dispatch orders every Monday, Tuesday and Wednesday, with a daily limit of 300 parcels.",
+        "title": "Dispatch Schedule & Daily Limit",
+        "id": "benefit-2",
+        "iconName": "Truck",
+        "color": "amber"
+      },
+      {
+        "description": "If your plants arrive damaged, we will replace them free of charge; customers only need to cover the courier charges for the replacement.",
+        "color": "rose",
+        "id": "benefit-3",
+        "title": "Replacement Policy",
+        "iconName": "Shield"
+      },
+      {
+        "iconName": "Truck",
+        "color": "cyan",
+        "id": "benefit-4",
+        "title": "Kerala, Tamil Nadu & Karnataka Shipping",
+        "description": "Direct dispatch to all PIN codes across Kerala, Tamil Nadu, and Karnataka in 2-4 business days."
+      },
+      {
+        "iconName": "Box",
+        "title": "Home Delivery",
+        "id": "benefit-5",
+        "description": "Please select Speed Post at checkout for home delivery.",
+        "color": "green"
+      }
+    ],
+    "couriersWithPer100gRate": [
+      "india-post"
+    ],
+    "announcementLink": "/combos",
+    "tagline": "Vibrant Plants & Curated Green Combos",
+    "speedPostTariffTable": [],
+    "email": "mannaratharayil@gmail.com",
+    "phone": "08848276403",
+    "razorpayKeyId": "",
+    "useParcelTariffTable": false,
+    "menuVisibility": {
+      "contact": true,
+      "plantCare": true,
+      "cart": true,
+      "home": true,
+      "blog": true,
+      "deals": false,
+      "bestSellers": false,
+      "trackOrder": true,
+      "wishlist": true,
+      "plants": true,
+      "newArrivals": false,
+      "combos": true
+    },
+    "freeDeliveryThreshold": 899,
+    "whatsappNumber": "+91 88482 76403",
+    "courierRates": {
+      "dtdc": {
+        "Karnataka": 95,
+        "Kerala": 60,
+        "Tamil Nadu": 85
+      },
+      "st-courier": {
+        "Tamil Nadu": 70,
+        "Kerala": 55,
+        "Karnataka": 80
+      },
+      "speed-post": {
+        "Tamil Nadu": 75,
+        "Karnataka": 85,
+        "Kerala": 70
+      },
+      "professional-courier": {
+        "Karnataka": 70,
+        "Tamil Nadu": 70,
+        "Kerala": 65
+      },
+      "india-post": {
+        "Karnataka": 75,
+        "Tamil Nadu": 75,
+        "Kerala": 60
+      }
+    },
+    "announcementBarText": "For home delivery choose Speed Post or India Post.",
+    "instagram": "@7seasonsplants",
+    "defaultWeightSlabGrams": 1000,
+    "minBillableWeightGrams": 1000,
+    "courierWeightSlabs": {
+      "dtdc": 1000,
+      "india-post": 1000,
+      "speed-post": 1000,
+      "professional-courier": 1000
+    },
+    "indiaPostTariffTable": [],
+    "comboDispatchDays": [
+      "Sunday"
+    ],
+    "whatsapp": "+91 88482 76403",
+    "comboDispatchCutoffHour": 12,
+    "facebook": "https://www.facebook.com/7seasonsplants",
+    "announcementBarActive": false,
+    "parentNursery": "7Seasons By Mannaratharayil Gardens LLP",
+    "updatedAt": "2026-10-30T15:44:11.358Z",
+    "announcementText": "For home delivery choose Speed Post or India Post.",
+    "businessName": "7Seasonsplants",
+    "freeDeliveryEnabled": false,
+    "supportEmail": "mannaratharayil@gmail.com"
+  },
+  {
+    "_id": "secrets",
+    "requesterRole": "super_admin",
+    "smtpHost": "smtp.gmail.com",
+    "smtpUser": "mannaratharayil@gmail.com",
+    "smtpPass": "exyu mdov exwb ofej",
+    "geminiApiKey": "",
+    "razorpayKeyId": "rzp_live_TfqZmXLVijODvH",
+    "razorpayWebhookSecret": "",
+    "smtpPort": "587",
+    "smtpFrom": "\"7Seasonsplants\" <mannaratharayil@gmail.com>",
+    "razorpayKeySecret": "Kbc2cWwsxpsT2ilMVDAoysmd",
+    "updatedAt": "2026-10-01T07:53:01.066Z",
+    "requesterEmail": "abinsajan36@gmail.com"
+  }
+]

@@ -249,7 +249,15 @@ app.get("/api/backup/download", (req, res) => {
     return res.status(404).json({ error: "Backup archive not found" });
   }
   const dateStr = new Date().toISOString().split("T")[0];
-  res.download(zipPath, `7seasonsplants-full-site-backup-${dateStr}.zip`);
+  const filename = `7seasonsplants-full-site-backup-${dateStr}.zip`;
+  const stat = fs.statSync(zipPath);
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Length", stat.size);
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  const stream = fs.createReadStream(zipPath);
+  stream.pipe(res);
 });
 
 app.get("/api/backup/download-tar", (req, res) => {
@@ -258,7 +266,15 @@ app.get("/api/backup/download-tar", (req, res) => {
     return res.status(404).json({ error: "Backup archive not found" });
   }
   const dateStr = new Date().toISOString().split("T")[0];
-  res.download(tarPath, `7seasonsplants-full-site-backup-${dateStr}.tar.gz`);
+  const filename = `7seasonsplants-full-site-backup-${dateStr}.tar.gz`;
+  const stat = fs.statSync(tarPath);
+
+  res.setHeader("Content-Type", "application/gzip");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Length", stat.size);
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  const stream = fs.createReadStream(tarPath);
+  stream.pipe(res);
 });
 
 app.get("/api/backup/database-json", (req, res) => {
@@ -267,7 +283,15 @@ app.get("/api/backup/database-json", (req, res) => {
     return res.status(404).json({ error: "Database dump not found" });
   }
   const dateStr = new Date().toISOString().split("T")[0];
-  res.download(dbDumpPath, `7seasonsplants-firestore-dump-${dateStr}.json`);
+  const filename = `7seasonsplants-firestore-dump-${dateStr}.json`;
+  const stat = fs.statSync(dbDumpPath);
+
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Length", stat.size);
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  const stream = fs.createReadStream(dbDumpPath);
+  stream.pipe(res);
 });
 
 app.get("/api/backup/info", (req, res) => {
@@ -283,6 +307,14 @@ app.get("/api/backup/info", (req, res) => {
 
 app.post("/api/backup/generate", (req, res) => {
   try {
+    console.log("[Backup] Exporting live Firestore database before creating archive...");
+    try {
+      execSync("npx tsx scripts/export_database.ts", { stdio: "inherit", timeout: 30000 });
+    } catch (exportErr: any) {
+      console.warn("[Backup] Live export notice:", exportErr.message);
+    }
+
+    console.log("[Backup] Packing source code and database dumps into ZIP/TAR...");
     execSync("python3 scripts/create_backup_archive.py", { stdio: "inherit" });
     const manifestPath = path.join(process.cwd(), "public", "backup", "backup-manifest.json");
     if (fs.existsSync(manifestPath)) {

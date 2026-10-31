@@ -73,12 +73,11 @@ import { BlogsManagementTab } from '../components/admin/BlogsManagementTab';
 import { SecretsVaultTab } from '../components/admin/SecretsVaultTab';
 import { ReelsManagementTab } from '../components/admin/ReelsManagementTab';
 import { BannersManagementTab } from '../components/admin/BannersManagementTab';
-import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus, StoreSettings, COURIER_SERVICES, isCourierEnabledForState } from '../types';
+import { Product, ComboItem, PlantCombo, AdminAccount, Order, OrderStatus, StoreSettings, COURIER_SERVICES, isCourierEnabledForState, AdminRole } from '../types';
 import { initialCourierRates, initialEnabledCouriersByState } from '../data/initialData';
 import { ComboCustomizerModal } from '../components/admin/ComboCustomizerModal';
 import { ComboCategoryManagerModal } from '../components/admin/ComboCategoryManagerModal';
 import { ImageUploadPicker } from '../components/admin/ImageUploadPicker';
-import { AdminLoginGate } from '../components/admin/AdminLoginGate';
 import { BackupManagementCard } from '../components/admin/BackupManagementCard';
 import { OnlineOrderImportModal } from '../components/admin/OnlineOrderImportModal';
 import { SelectiveSiteResetModal } from '../components/admin/SelectiveSiteResetModal';
@@ -100,8 +99,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     reviews,
     orders,
     storeSettings,
+    currentUser,
     currentAdmin,
     adminAccounts,
+    openAuthModal,
     isAdminAuthenticated,
     isCurrentSuperAdmin,
     adminMasterPassword,
@@ -1545,11 +1546,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     }
   };
 
-  // If user is not authenticated as admin, render Login Gate Wall
-  if (!isAdminAuthenticated || !currentAdmin) {
-    return <AdminLoginGate onNavigate={onNavigate} />;
-  }
-
   const handleDeleteCombo = (combo: PlantCombo) => {
     setDeleteModal({
       isOpen: true,
@@ -1613,9 +1609,106 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
     }
   };
 
+  const userEmail = currentUser?.email?.toLowerCase().trim() || '';
+  const isEmailBarred = userEmail === 'annanvasu36@gmail.com';
+
+  const matchedAdminAccount = !isEmailBarred
+    ? adminAccounts.find((a) => a.email.toLowerCase() === userEmail)
+    : undefined;
+
+  const isSuperAdminEmail = userEmail === 'abinsajan36@gmail.com';
+  const isCurrentUserAdmin = Boolean(
+    currentUser &&
+    !isEmailBarred &&
+    (
+      currentUser.role === 'admin' ||
+      currentUser.role === 'super_admin' ||
+      (currentUser.role as string) === 'nursery_manager' ||
+      (currentUser.role as string) === 'inventory_staff' ||
+      isSuperAdminEmail ||
+      userEmail === 'admin@7seasons.com' ||
+      Boolean(matchedAdminAccount)
+    )
+  );
+
+  const activeAdminProfile = currentAdmin || (isCurrentUserAdmin && currentUser ? {
+    id: matchedAdminAccount?.id || `adm-${currentUser.id}`,
+    name: matchedAdminAccount?.name || currentUser.name || 'Nursery Admin',
+    email: currentUser.email,
+    role: (currentUser.role === 'super_admin' || isSuperAdminEmail || matchedAdminAccount?.role === 'super_admin')
+      ? ('super_admin' as const)
+      : (matchedAdminAccount?.role || (currentUser.role as AdminRole) || 'admin'),
+    avatar: matchedAdminAccount?.avatar || currentUser.profileImage,
+    phone: matchedAdminAccount?.phone || currentUser.phone,
+    createdAt: matchedAdminAccount?.createdAt || currentUser.createdAt || new Date().toISOString(),
+    lastLogin: new Date().toISOString(),
+    sourceUserAccountId: currentUser.id,
+  } : null);
+
+  const isAuthorized = Boolean(
+    isCurrentSuperAdmin ||
+    isAdminAuthenticated ||
+    isCurrentUserAdmin ||
+    activeAdminProfile
+  );
+
   // RESTRICTED ACCESS GATE: Only authenticated administrators can view and manage this portal
-  if (!isAdminAuthenticated || !currentAdmin) {
-    return <AdminLoginGate onNavigate={onNavigate} />;
+  if (!isAuthorized || !activeAdminProfile) {
+    if (currentUser) {
+      return (
+        <div className="min-h-screen bg-[#F4FAF5] flex flex-col justify-center items-center py-10 px-4">
+          <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-gray-200 shadow-xl text-center space-y-4">
+            <div className="p-3 bg-amber-50 text-amber-700 rounded-full w-14 h-14 mx-auto flex items-center justify-center">
+              <Lock className="w-7 h-7" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">Administrator Access Restricted</h2>
+            <p className="text-xs text-gray-600">
+              You are signed in as <strong>{currentUser.email}</strong>, which does not have administrator privileges.
+            </p>
+            <button
+              onClick={() => onNavigate('home')}
+              className="px-6 py-2.5 bg-emerald-800 text-white rounded-xl text-xs font-bold hover:bg-emerald-900 transition-colors cursor-pointer"
+            >
+              Back to Storefront
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-[#F4FAF5] flex flex-col justify-center items-center py-10 px-4 font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-gray-200/90 shadow-xl text-center space-y-6">
+          <div className="p-4 bg-emerald-50 text-emerald-800 rounded-2xl w-16 h-16 mx-auto flex items-center justify-center border border-emerald-100 shadow-xs">
+            <ShieldCheck className="w-8 h-8 text-emerald-700" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-emerald-950 tracking-tight">
+              Administrator Access
+            </h2>
+            <p className="text-xs text-gray-600 leading-relaxed max-w-sm mx-auto">
+              Please sign in with your authorized administrator account to open the Mannaratharayil Gardens LLP operations portal.
+            </p>
+          </div>
+          <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              onClick={() => openAuthModal('Please sign in with your administrator account.')}
+              className="w-full py-3.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Lock className="w-4 h-4" />
+              <span>Sign In with Admin Account</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('home')}
+              className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+            >
+              ← Back to Storefront
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -1638,20 +1731,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
           <div className="flex flex-wrap items-center gap-3 bg-white/10 backdrop-blur-xs p-3 rounded-2xl border border-white/15 shrink-0">
             <img
               src={
-                currentAdmin.avatar ||
+                activeAdminProfile.avatar ||
                 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80'
               }
-              alt={currentAdmin.name}
+              alt={activeAdminProfile.name}
               className="w-10 h-10 rounded-full object-cover border-2 border-emerald-400/60 shrink-0"
             />
             <div className="text-left pr-2">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-white">{currentAdmin.name}</span>
+                <span className="text-xs font-bold text-white">{activeAdminProfile.name}</span>
                 <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-400 text-emerald-950">
-                  {currentAdmin.role === 'super_admin' ? 'Super Admin' : 'Manager'}
+                  {activeAdminProfile.role === 'super_admin' ? 'Super Admin' : 'Manager'}
                 </span>
               </div>
-              <p className="text-[11px] text-[#A7F3D0]/80">{currentAdmin.email}</p>
+              <p className="text-[11px] text-[#A7F3D0]/80">{activeAdminProfile.email}</p>
             </div>
 
             <div className="flex items-center gap-2 pl-2 border-l border-white/20">
@@ -3275,17 +3368,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                 <div className="flex items-center gap-3 pt-1">
                   <img
                     src={
-                      currentAdmin.avatar ||
+                      activeAdminProfile?.avatar ||
                       'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80'
                     }
-                    alt={currentAdmin.name}
+                    alt={activeAdminProfile?.name || 'Administrator'}
                     className="w-12 h-12 rounded-2xl object-cover border border-emerald-200 shrink-0"
                   />
                   <div>
-                    <h4 className="font-bold text-emerald-950 text-sm leading-tight">{currentAdmin.name}</h4>
-                    <p className="text-xs text-gray-500">{currentAdmin.email}</p>
+                    <h4 className="font-bold text-emerald-950 text-sm leading-tight">{activeAdminProfile?.name || 'Administrator'}</h4>
+                    <p className="text-xs text-gray-500">{activeAdminProfile?.email || ''}</p>
                     <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-800 text-white mt-1">
-                      {currentAdmin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                      {activeAdminProfile?.role === 'super_admin' ? 'Super Admin' : 'Admin'}
                     </span>
                   </div>
                 </div>
@@ -3378,7 +3471,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                   </thead>
                   <tbody className="divide-y divide-gray-100 font-medium">
                     {adminAccounts.map((adm) => {
-                      const isCurrent = currentAdmin.id === adm.id || currentAdmin.email.toLowerCase() === adm.email.toLowerCase();
+                      const isCurrent = (activeAdminProfile?.id === adm.id) || (activeAdminProfile?.email.toLowerCase() === adm.email.toLowerCase());
                       return (
                         <tr key={adm.id} className="hover:bg-emerald-50/40 transition-colors">
                           <td className="py-3.5 px-4 flex items-center gap-3">
