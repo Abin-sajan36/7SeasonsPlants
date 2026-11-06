@@ -546,11 +546,45 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
       }
     }
 
+    // Assemble planned order payload before launching Razorpay to safeguard against tab reload/intent switches
+    const plannedOrderPayload = {
+      customer: {
+        name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        shippingAddress,
+      },
+      items: orderItems,
+      subtotal: cartSubtotal,
+      discount: cartDiscount,
+      couponCode: appliedCoupon?.code,
+      deliveryFee: checkoutDeliveryFee,
+      total: checkoutTotal,
+      paymentStatus: 'paid' as const,
+      paymentMethod: 'razorpay' as const,
+      orderStatus: 'Order Placed' as const,
+      courierPartner: selectedCourier.displayName,
+      estimatedDelivery: comboDispatchEstimate
+        ? `${comboDispatchEstimate.estimatedDeliveryFormatted} (${selectedCourier.displayName})`
+        : selectedCourier.deliveryTime,
+      estimatedDispatchDate: comboDispatchEstimate
+        ? comboDispatchEstimate.nextDispatchFormatted
+        : undefined,
+      notes: formData.notes
+        ? `${formData.notes} | Preferred Courier: ${selectedCourier.displayName} (₹${getDeliveryChargePerKg(selectedCourier.id, formData.state)}/kg) | Razorpay Verified`
+        : `Preferred Courier: ${selectedCourier.displayName} (₹${getDeliveryChargePerKg(selectedCourier.id, formData.state)}/kg) | Razorpay Verified`,
+    };
+
+    try {
+      localStorage.setItem('7seasons_pending_order_recovery', JSON.stringify(plannedOrderPayload));
+    } catch (_) {}
+
     // Launch official Razorpay Standard Web Checkout Modal
     await startRazorpayCheckout({
       amountInPaise: Math.round(checkoutTotal * 100),
       currency: 'INR',
       receipt: `rcpt_${Date.now()}`,
+      orderPayload: plannedOrderPayload,
       prefill: {
         name: formData.fullName,
         email: formData.email,
@@ -568,34 +602,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
       onSuccess: async (verifyResult, paymentPayload) => {
         try {
           const createdOrder = await createOrder({
-            customer: {
-              name: formData.fullName,
-              email: formData.email,
-              phone: formData.phone,
-              shippingAddress,
-            },
-            items: orderItems,
-            subtotal: cartSubtotal,
-            discount: cartDiscount,
-            couponCode: appliedCoupon?.code,
-            deliveryFee: checkoutDeliveryFee,
-            total: checkoutTotal,
-            paymentStatus: 'paid',
-            paymentMethod: 'razorpay',
+            ...plannedOrderPayload,
             razorpayOrderId: paymentPayload.razorpay_order_id,
             razorpayPaymentId: paymentPayload.razorpay_payment_id,
-            orderStatus: 'Order Placed',
-            courierPartner: selectedCourier.displayName,
-            estimatedDelivery: comboDispatchEstimate
-              ? `${comboDispatchEstimate.estimatedDeliveryFormatted} (${selectedCourier.displayName})`
-              : selectedCourier.deliveryTime,
-            estimatedDispatchDate: comboDispatchEstimate
-              ? comboDispatchEstimate.nextDispatchFormatted
-              : undefined,
-            notes: formData.notes
-              ? `${formData.notes} | Preferred Courier: ${selectedCourier.displayName} (₹${getDeliveryChargePerKg(selectedCourier.id, formData.state)}/kg) | Razorpay Verified`
-              : `Preferred Courier: ${selectedCourier.displayName} (₹${getDeliveryChargePerKg(selectedCourier.id, formData.state)}/kg) | Razorpay Verified`,
           });
+
+          try {
+            localStorage.removeItem('7seasons_pending_order_recovery');
+          } catch (_) {}
 
           addToast({
             title: 'Payment Successful! 🌿',
@@ -615,6 +629,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         }
       },
       onError: (errorMessage) => {
+        try {
+          localStorage.removeItem('7seasons_pending_order_recovery');
+        } catch (_) {}
         setIsProcessing(false);
         setFormError(errorMessage);
         addToast({
@@ -625,6 +642,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         });
       },
       onDismiss: () => {
+        try {
+          localStorage.removeItem('7seasons_pending_order_recovery');
+        } catch (_) {}
         setIsProcessing(false);
         addToast({
           title: 'Checkout Cancelled',

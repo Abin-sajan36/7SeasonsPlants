@@ -1,0 +1,28 @@
+[
+  {
+    "id": "banner-hero-1",
+    "title": "Bring Nature Home with 7Seasons",
+    "subtitle": "Thoughtfully curated tropical plant combos and botanical collections, delivered to your doorstep across Kerala, Tamil Nadu & Karnataka.",
+    "badge": "FRESH FROM MANNARATHARAYIL GARDENS LLP",
+    "ctaText": "Explore Plant Combos",
+    "ctaLink": "/combos",
+    "secondaryCtaText": "Today’s Flash Deals",
+    "secondaryCtaLink": "/#deals",
+    "imageUrl": "/banners/banner-hero-1.webp",
+    "displayOrder": 1,
+    "isActive": true
+  },
+  {
+    "id": "banner-hero-2",
+    "title": "Curated Plant Combos for Every Living Space",
+    "subtitle": "Hand-paired botanical bundles with free planters, organic fertilizer, and savings up to 35%.",
+    "badge": "POPULAR CHOICE",
+    "ctaText": "View All Combos",
+    "ctaLink": "/combos",
+    "secondaryCtaText": "Plant Care Guides",
+    "secondaryCtaLink": "/plant-care",
+    "imageUrl": "/banners/banner-hero-2.webp",
+    "displayOrder": 2,
+    "isActive": true
+  }
+]

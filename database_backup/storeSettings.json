@@ -1,164 +1,164 @@
 [
   {
     "_id": "global",
-    "enabledCouriersByState": {
-      "Tamil Nadu": {
-        "dtdc": false,
-        "india-post": false,
-        "speed-post": false,
-        "professional-courier": true
-      },
-      "Kerala": {
-        "dtdc": true,
-        "india-post": false,
-        "professional-courier": false,
-        "speed-post": false
-      },
-      "Karnataka": {
-        "speed-post": false,
-        "professional-courier": true,
-        "india-post": false,
-        "dtdc": false
-      }
-    },
-    "address": "Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India",
-    "freeShippingThreshold": 899,
-    "supportedStates": [
-      "Kerala",
-      "Tamil Nadu",
-      "Karnataka"
-    ],
-    "isConfiguredByAdmin": true,
-    "deliveryCharge": 80,
-    "razorpayEnabled": true,
-    "trustBenefits": [
-      {
-        "iconName": "Leaf",
-        "color": "emerald",
-        "description": "Every plant is carefully sorted and graded, so only healthy, quality plants are selected for your order.",
-        "id": "benefit-1",
-        "title": "Carefully Selected, Quality Checked"
-      },
-      {
-        "description": "We dispatch orders every Monday, Tuesday and Wednesday, with a daily limit of 300 parcels.",
-        "title": "Dispatch Schedule & Daily Limit",
-        "id": "benefit-2",
-        "iconName": "Truck",
-        "color": "amber"
-      },
-      {
-        "description": "If your plants arrive damaged, we will replace them free of charge; customers only need to cover the courier charges for the replacement.",
-        "color": "rose",
-        "id": "benefit-3",
-        "title": "Replacement Policy",
-        "iconName": "Shield"
-      },
-      {
-        "iconName": "Truck",
-        "color": "cyan",
-        "id": "benefit-4",
-        "title": "Kerala, Tamil Nadu & Karnataka Shipping",
-        "description": "Direct dispatch to all PIN codes across Kerala, Tamil Nadu, and Karnataka in 2-4 business days."
-      },
-      {
-        "iconName": "Box",
-        "title": "Home Delivery",
-        "id": "benefit-5",
-        "description": "Please select Speed Post at checkout for home delivery.",
-        "color": "green"
-      }
-    ],
-    "couriersWithPer100gRate": [
-      "india-post"
-    ],
-    "announcementLink": "/combos",
     "tagline": "Vibrant Plants & Curated Green Combos",
-    "speedPostTariffTable": [],
-    "email": "mannaratharayil@gmail.com",
-    "phone": "08848276403",
-    "razorpayKeyId": "",
-    "useParcelTariffTable": false,
+    "indiaPostTariffTable": [],
+    "freeDeliveryEnabled": false,
+    "comboDispatchDays": [
+      "Sunday"
+    ],
+    "whatsappNumber": "+91 88482 76403",
+    "razorpayEnabled": true,
+    "businessName": "7Seasonsplants",
+    "comboDispatchCutoffHour": 12,
+    "instagram": "@7seasonsplants",
     "menuVisibility": {
-      "contact": true,
-      "plantCare": true,
-      "cart": true,
-      "home": true,
       "blog": true,
+      "plants": true,
+      "contact": true,
+      "trackOrder": true,
+      "home": true,
+      "cart": true,
       "deals": false,
       "bestSellers": false,
-      "trackOrder": true,
-      "wishlist": true,
-      "plants": true,
       "newArrivals": false,
-      "combos": true
+      "combos": true,
+      "plantCare": true,
+      "wishlist": true
     },
-    "freeDeliveryThreshold": 899,
-    "whatsappNumber": "+91 88482 76403",
     "courierRates": {
-      "dtdc": {
-        "Karnataka": 95,
-        "Kerala": 60,
-        "Tamil Nadu": 85
-      },
-      "st-courier": {
-        "Tamil Nadu": 70,
-        "Kerala": 55,
-        "Karnataka": 80
-      },
       "speed-post": {
+        "Kerala": 70,
         "Tamil Nadu": 75,
-        "Karnataka": 85,
-        "Kerala": 70
+        "Karnataka": 85
       },
       "professional-courier": {
         "Karnataka": 70,
         "Tamil Nadu": 70,
         "Kerala": 65
       },
+      "st-courier": {
+        "Kerala": 55,
+        "Tamil Nadu": 70,
+        "Karnataka": 80
+      },
       "india-post": {
         "Karnataka": 75,
         "Tamil Nadu": 75,
         "Kerala": 60
+      },
+      "dtdc": {
+        "Kerala": 60,
+        "Tamil Nadu": 85,
+        "Karnataka": 95
       }
     },
+    "speedPostTariffTable": [],
+    "announcementLink": "/combos",
+    "announcementText": "For home delivery choose Speed Post or India Post.",
+    "address": "Mannaratharayil Gardens LLP, Calicut-Palakkad Highway, Kerala, India",
+    "freeShippingThreshold": 899,
+    "updatedAt": "2026-10-30T15:44:11.358Z",
+    "facebook": "https://www.facebook.com/7seasonsplants",
+    "email": "mannaratharayil@gmail.com",
+    "couriersWithPer100gRate": [
+      "india-post"
+    ],
     "announcementBarText": "For home delivery choose Speed Post or India Post.",
-    "instagram": "@7seasonsplants",
-    "defaultWeightSlabGrams": 1000,
-    "minBillableWeightGrams": 1000,
+    "useParcelTariffTable": false,
     "courierWeightSlabs": {
-      "dtdc": 1000,
       "india-post": 1000,
       "speed-post": 1000,
+      "dtdc": 1000,
       "professional-courier": 1000
     },
-    "indiaPostTariffTable": [],
-    "comboDispatchDays": [
-      "Sunday"
-    ],
-    "whatsapp": "+91 88482 76403",
-    "comboDispatchCutoffHour": 12,
-    "facebook": "https://www.facebook.com/7seasonsplants",
-    "announcementBarActive": false,
+    "minBillableWeightGrams": 1000,
+    "defaultWeightSlabGrams": 1000,
     "parentNursery": "7Seasons By Mannaratharayil Gardens LLP",
-    "updatedAt": "2026-10-30T15:44:11.358Z",
-    "announcementText": "For home delivery choose Speed Post or India Post.",
-    "businessName": "7Seasonsplants",
-    "freeDeliveryEnabled": false,
-    "supportEmail": "mannaratharayil@gmail.com"
+    "supportedStates": [
+      "Kerala",
+      "Tamil Nadu",
+      "Karnataka"
+    ],
+    "freeDeliveryThreshold": 899,
+    "enabledCouriersByState": {
+      "Karnataka": {
+        "india-post": false,
+        "professional-courier": true,
+        "dtdc": false,
+        "speed-post": false
+      },
+      "Tamil Nadu": {
+        "speed-post": false,
+        "professional-courier": true,
+        "india-post": false,
+        "dtdc": false
+      },
+      "Kerala": {
+        "india-post": false,
+        "dtdc": true,
+        "professional-courier": false,
+        "speed-post": false
+      }
+    },
+    "deliveryCharge": 80,
+    "isConfiguredByAdmin": true,
+    "whatsapp": "+91 88482 76403",
+    "trustBenefits": [
+      {
+        "iconName": "Leaf",
+        "id": "benefit-1",
+        "title": "Carefully Selected, Quality Checked",
+        "color": "emerald",
+        "description": "Every plant is carefully sorted and graded, so only healthy, quality plants are selected for your order."
+      },
+      {
+        "color": "amber",
+        "title": "Dispatch Schedule & Daily Limit",
+        "id": "benefit-2",
+        "iconName": "Truck",
+        "description": "We dispatch orders every Monday, Tuesday and Wednesday, with a daily limit of 300 parcels."
+      },
+      {
+        "description": "If your plants arrive damaged, we will replace them free of charge; customers only need to cover the courier charges for the replacement.",
+        "iconName": "Shield",
+        "id": "benefit-3",
+        "title": "Replacement Policy",
+        "color": "rose"
+      },
+      {
+        "description": "Direct dispatch to all PIN codes across Kerala, Tamil Nadu, and Karnataka in 2-4 business days.",
+        "id": "benefit-4",
+        "iconName": "Truck",
+        "color": "cyan",
+        "title": "Kerala, Tamil Nadu & Karnataka Shipping"
+      },
+      {
+        "iconName": "Box",
+        "id": "benefit-5",
+        "color": "green",
+        "title": "Home Delivery",
+        "description": "Please select Speed Post at checkout for home delivery."
+      }
+    ],
+    "razorpayKeyId": "",
+    "supportEmail": "mannaratharayil@gmail.com",
+    "phone": "08848276403",
+    "announcementBarActive": false
   },
   {
     "_id": "secrets",
-    "requesterRole": "super_admin",
-    "smtpHost": "smtp.gmail.com",
-    "smtpUser": "mannaratharayil@gmail.com",
-    "smtpPass": "exyu mdov exwb ofej",
-    "geminiApiKey": "",
-    "razorpayKeyId": "rzp_live_TfqZmXLVijODvH",
-    "razorpayWebhookSecret": "",
-    "smtpPort": "587",
-    "smtpFrom": "\"7Seasonsplants\" <mannaratharayil@gmail.com>",
+    "requesterEmail": "abinsajan36@gmail.com",
     "razorpayKeySecret": "Kbc2cWwsxpsT2ilMVDAoysmd",
+    "smtpPass": "exyu mdov exwb ofej",
     "updatedAt": "2026-10-01T07:53:01.066Z",
-    "requesterEmail": "abinsajan36@gmail.com"
+    "razorpayWebhookSecret": "",
+    "razorpayKeyId": "rzp_live_TfqZmXLVijODvH",
+    "requesterRole": "super_admin",
+    "geminiApiKey": "",
+    "smtpHost": "smtp.gmail.com",
+    "smtpFrom": "\"7Seasonsplants\" <mannaratharayil@gmail.com>",
+    "smtpPort": "587",
+    "smtpUser": "mannaratharayil@gmail.com"
   }
 ]

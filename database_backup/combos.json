@@ -1,44 +1,37 @@
 [
   {
     "_id": "combo-1791291549025",
+    "sku": "7S-CMB-2932",
+    "id": "combo-1791291549025",
+    "category": "Flowering & Ornamental",
+    "careSummary": "",
+    "reviewCount": 18,
+    "benefits": [
+      "High air purification",
+      "Specialized safe packing"
+    ],
+    "weight": 0.8,
+    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
+    "items": [
+      {
+        "itemType": "plant",
+        "productId": "item-1791291528930",
+        "priceShare": 30,
+        "image": "/uploads/combo-item-hibiscus-dwarf-10-1.jpg",
+        "quantity": 10,
+        "productName": "Hibiscus Dwarf"
+      }
+    ],
+    "savings": 20,
+    "stock": 92,
+    "createdAt": "2026-10-06T12:59:09.025Z",
+    "price": 279,
     "tags": [
       "combo",
       "bundle",
       "nursery",
       "kerala"
     ],
-    "items": [
-      {
-        "productId": "item-1791291528930",
-        "itemType": "plant",
-        "quantity": 10,
-        "priceShare": 30,
-        "productName": "Hibiscus Dwarf",
-        "image": "/uploads/combo-item-hibiscus-dwarf-10-1.jpg"
-      }
-    ],
-    "savings": 20,
-    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
-    "price": 279,
-    "createdAt": "2026-10-06T12:59:09.025Z",
-    "benefits": [
-      "High air purification",
-      "Specialized safe packing"
-    ],
-    "reviewCount": 18,
-    "originalPrice": 299,
-    "name": "Hibiscus Dwarf (10)",
-    "isFeatured": true,
-    "id": "combo-1791291549025",
-    "careSummary": "",
-    "sellableStates": [
-      "Kerala",
-      "Tamil Nadu",
-      "Karnataka"
-    ],
-    "category": "Flowering & Ornamental",
-    "stock": 94,
-    "status": "published",
     "images": [
       "/uploads/combo-hibiscus-dwarf-10-1-549025.webp",
       "/uploads/combo-hibiscus-dwarf-10-2-549025.webp",
@@ -46,139 +39,158 @@
       "/uploads/combo-hibiscus-dwarf-10-4-549025.webp",
       "/uploads/combo-hibiscus-dwarf-10-5-549025.webp"
     ],
-    "shortDescription": "Compact hybrid hibiscus with stunning blooms in 7–8 vibrant colours.",
+    "status": "published",
     "slug": "hibiscus-dwarf-10",
-    "description": "Dwarf Hybrid Hibiscus is a compact-growing hibiscus variety known for its large, vibrant flowers and beautiful range of colours. These plants are grown and cared for in our own nursery and supplied as healthy young plants in net pots.\n\nThe combo includes a colourful mix of approximately 7–8 shades. Its naturally dwarf and bushy growth makes it a great choice for pots, balconies, terraces and home gardens.\n\nCare Tips:\n• Keep in a bright location with good sunlight.\n• Water regularly, but avoid waterlogging.\n• Transplant from the net pot into a larger pot or grow bag as the plant develops.\n• Use well-draining, nutrient-rich potting media.\n• Regular feeding and light pruning encourage healthy, bushy growth and flowering.",
-    "maxImages": 5,
-    "discountPercentage": 7,
-    "weight": 0.8,
+    "isFeatured": true,
     "rating": 4.9,
-    "sku": "7S-CMB-2932"
+    "description": "Dwarf Hybrid Hibiscus is a compact-growing hibiscus variety known for its large, vibrant flowers and beautiful range of colours. These plants are grown and cared for in our own nursery and supplied as healthy young plants in net pots.\n\nThe combo includes a colourful mix of approximately 7–8 shades. Its naturally dwarf and bushy growth makes it a great choice for pots, balconies, terraces and home gardens.\n\nCare Tips:\n• Keep in a bright location with good sunlight.\n• Water regularly, but avoid waterlogging.\n• Transplant from the net pot into a larger pot or grow bag as the plant develops.\n• Use well-draining, nutrient-rich potting media.\n• Regular feeding and light pruning encourage healthy, bushy growth and flowering.",
+    "shortDescription": "Compact hybrid hibiscus with stunning blooms in 7–8 vibrant colours.",
+    "maxImages": 5,
+    "originalPrice": 299,
+    "discountPercentage": 7,
+    "name": "Hibiscus Dwarf (10)",
+    "sellableStates": [
+      "Kerala",
+      "Tamil Nadu",
+      "Karnataka"
+    ]
   },
   {
     "_id": "combo-1791809785485",
-    "items": [
-      {
-        "image": "/uploads/combo-item-golden-china-doll-4-1.jpg",
-        "priceShare": 100,
-        "productId": "item-1791809369586",
-        "quantity": 4,
-        "productName": "Golden China Doll",
-        "itemType": "plant",
-        "notes": "Golden Machera"
-      }
+    "benefits": [
+      "Packed in specialized 5-ply ventilated protective carton"
     ],
-    "price": 259,
+    "category": "Foilage",
+    "createdAt": "2026-10-12T12:56:25.485Z",
+    "savings": 90,
+    "shortDescription": "Golden China Doll is an attractive foliage plant with delicate, golden-green leaves that add a bright, fresh touch to balconies, patios, and gardens. It grows best in bright light with gentle morning sunlight and well-drained soil.",
+    "name": "Golden China Doll (4)",
+    "weight": 0.4,
     "tags": [
       "combo",
       "bundle",
       "nursery",
       "kerala"
     ],
-    "originalPrice": 349,
-    "maxImages": 5,
-    "isFeatured": true,
-    "reviewCount": 18,
-    "category": "Foilage",
-    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
-    "careSummary": "Keep in bright light with gentle morning sun; avoid harsh afternoon sunlight. Water when the top layer of soil feels dry, and use a well-draining potting mix. Feed lightly once a month and trim occasionally for bushier growth.",
-    "createdAt": "2026-10-12T12:56:25.485Z",
-    "name": "Golden China Doll (4)",
-    "sellableStates": [
-      "Kerala",
-      "Tamil Nadu",
-      "Karnataka"
+    "items": [
+      {
+        "productId": "item-1791809369586",
+        "notes": "Golden Machera",
+        "itemType": "plant",
+        "image": "/uploads/combo-item-golden-china-doll-4-1.jpg",
+        "productName": "Golden China Doll",
+        "priceShare": 100,
+        "quantity": 4
+      }
     ],
-    "shortDescription": "Golden China Doll is an attractive foliage plant with delicate, golden-green leaves that add a bright, fresh touch to balconies, patios, and gardens. It grows best in bright light with gentle morning sunlight and well-drained soil.",
-    "savings": 90,
-    "discountPercentage": 26,
-    "sku": "7S-CMB-1423",
+    "maxImages": 5,
+    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
     "slug": "golden-china-doll-4",
-    "status": "published",
     "description": "",
     "stock": 96,
+    "careSummary": "Keep in bright light with gentle morning sun; avoid harsh afternoon sunlight. Water when the top layer of soil feels dry, and use a well-draining potting mix. Feed lightly once a month and trim occasionally for bushier growth.",
+    "discountPercentage": 26,
+    "id": "combo-1791809785485",
     "images": [
       "/uploads/combo-golden-china-doll-4-1-785485.webp",
       "/uploads/combo-golden-china-doll-4-2-785485.webp",
       "/uploads/combo-golden-china-doll-4-3-785485.webp"
     ],
-    "rating": 4.9,
-    "id": "combo-1791809785485",
-    "benefits": [
-      "Packed in specialized 5-ply ventilated protective carton"
-    ],
-    "weight": 0.4
-  },
-  {
-    "_id": "combo-1791810177823",
-    "savings": 50,
+    "reviewCount": 18,
+    "price": 259,
+    "status": "published",
+    "sku": "7S-CMB-1423",
     "sellableStates": [
       "Kerala",
       "Tamil Nadu",
       "Karnataka"
     ],
-    "originalPrice": 299,
-    "description": "",
-    "category": "Foilage",
-    "name": "Green Chinadoll (10)",
-    "sku": "7S-CMB-3358",
     "rating": 4.9,
-    "weight": 0.8,
-    "isFeatured": true,
-    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
-    "createdAt": "2026-10-12T13:02:57.823Z",
-    "slug": "green-chinadoll-10",
+    "originalPrice": 349,
+    "isFeatured": true
+  },
+  {
+    "_id": "combo-1791810177823",
+    "category": "Foilage",
     "shortDescription": "Green China Doll is a beautiful foliage plant with delicate, glossy green leaves and a lush, bushy appearance—perfect for adding a fresh touch to bright indoor spaces, balconies, and patios.",
+    "stock": 95,
+    "originalPrice": 299,
+    "benefits": [
+      "Packed in specialized 5-ply ventilated protective carton"
+    ],
+    "rating": 4.9,
+    "discountPercentage": 17,
+    "items": [
+      {
+        "productId": "item-1791810173117",
+        "itemType": "plant",
+        "image": "/uploads/combo-item-green-chinadoll-10-1.jpg",
+        "priceShare": 30,
+        "quantity": 10,
+        "notes": "Green Machera",
+        "productName": "China Doll Green"
+      }
+    ],
     "images": [
       "/uploads/combo-green-chinadoll-10-1-177823.webp",
       "/uploads/combo-green-chinadoll-10-2-177823.webp",
       "/uploads/combo-green-chinadoll-10-3-177823.webp"
     ],
-    "discountPercentage": 17,
+    "reviewCount": 18,
     "careSummary": "Green China Doll care: Place in bright, indirect light or gentle morning sun. Water when the top layer of soil feels dry, avoiding waterlogging. Use well-draining soil, feed lightly monthly during active growth, and trim for a bushy shape.",
+    "id": "combo-1791810177823",
     "status": "published",
-    "stock": 95,
-    "price": 249,
-    "benefits": [
-      "Packed in specialized 5-ply ventilated protective carton"
+    "slug": "green-chinadoll-10",
+    "sellableStates": [
+      "Kerala",
+      "Tamil Nadu",
+      "Karnataka"
     ],
-    "items": [
-      {
-        "notes": "Green Machera",
-        "productName": "China Doll Green",
-        "priceShare": 30,
-        "itemType": "plant",
-        "image": "/uploads/combo-item-green-chinadoll-10-1.jpg",
-        "quantity": 10,
-        "productId": "item-1791810173117"
-      }
-    ],
+    "maxImages": 5,
+    "sku": "7S-CMB-3358",
     "tags": [
       "combo",
       "bundle",
       "nursery",
       "kerala"
     ],
-    "reviewCount": 18,
-    "id": "combo-1791810177823",
-    "maxImages": 5
+    "description": "",
+    "name": "Green Chinadoll (10)",
+    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
+    "weight": 0.8,
+    "price": 249,
+    "isFeatured": true,
+    "savings": 50,
+    "createdAt": "2026-10-12T13:02:57.823Z"
   },
   {
     "_id": "combo-1791810576909",
-    "sku": "7S-CMB-3359",
-    "stock": 96,
-    "createdAt": "2026-10-12T13:09:36.909Z",
-    "description": "",
-    "discountPercentage": 7,
+    "discountPercentage": 9,
+    "careSummary": "Chinese Balsam (Impatiens) care: Keep in bright shade or gentle morning sunlight, avoiding harsh afternoon sun. Water regularly to keep the soil moist without waterlogging. Use well-draining soil, feed lightly during active growth, and pinch the tips for bushier growth.",
+    "reviewCount": 18,
     "sellableStates": [
       "Kerala",
       "Tamil Nadu",
       "Karnataka"
     ],
-    "isFeatured": true,
-    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
-    "id": "combo-1791810576909",
+    "rating": 4.9,
+    "maxImages": 5,
+    "items": [
+      {
+        "priceShare": 30,
+        "notes": "New Guinea Impatience",
+        "image": "/uploads/combo-item-chinese-balsam-10-1.jpg",
+        "itemType": "plant",
+        "productId": "item-1791810276728",
+        "productName": "Chinese Balsam",
+        "quantity": 10
+      }
+    ],
     "status": "published",
+    "originalPrice": 329,
+    "createdAt": "2026-10-12T13:09:36.909Z",
+    "id": "combo-1791810576909",
+    "stock": 48,
     "images": [
       "/uploads/combo-chinese-balsam-10-1-576909.webp",
       "/uploads/combo-chinese-balsam-10-2-576909.webp",
@@ -186,64 +198,75 @@
       "/uploads/combo-chinese-balsam-10-4-576909.webp",
       "/uploads/combo-chinese-balsam-10-5-576909.webp"
     ],
-    "category": "Flowering & Ornamental",
+    "onePerAccount": false,
+    "savings": 30,
+    "price": 299,
+    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
     "tags": [
       "combo",
       "bundle",
       "nursery",
       "kerala"
     ],
-    "rating": 4.9,
-    "weight": 0.8,
-    "careSummary": "Chinese Balsam (Impatiens) care: Keep in bright shade or gentle morning sunlight, avoiding harsh afternoon sun. Water regularly to keep the soil moist without waterlogging. Use well-draining soil, feed lightly during active growth, and pinch the tips for bushier growth.",
-    "savings": 20,
     "slug": "chinese-balsam-10",
-    "originalPrice": 299,
-    "reviewCount": 18,
-    "maxImages": 5,
-    "items": [
-      {
-        "priceShare": 30,
-        "image": "/uploads/combo-item-chinese-balsam-10-1.jpg",
-        "productName": "Chinese Balsam",
-        "itemType": "plant",
-        "quantity": 10,
-        "productId": "item-1791810276728",
-        "notes": "New Guinea Impatience"
-      }
-    ],
-    "shortDescription": "Chinese Balsam (Impatiens) adds vibrant colour to shaded balconies and gardens. Each combo includes 7–8 colours, selected from our collection of around 15 colours. The colour mix varies depending on availability at the time of dispatch.",
-    "price": 279,
     "benefits": [
       "Packed in specialized 5-ply ventilated protective carton"
     ],
-    "name": "Chinese Balsam (10)"
+    "shortDescription": "Chinese Balsam (Impatiens) adds vibrant colour to shaded balconies and gardens. Each combo includes 7–8 colours, selected from our collection of around 15 colours. The colour mix varies depending on availability at the time of dispatch.",
+    "sku": "7S-CMB-3359",
+    "weight": 0.8,
+    "category": "Flowering & Ornamental",
+    "description": "",
+    "isFeatured": true,
+    "name": "Chinese Balsam 10 Colour Combo"
   },
   {
     "_id": "combo-1791811081714",
-    "careSummary": "Calathea Red/Copper care: Grow in partial shade or bright, indirect light, avoiding harsh afternoon sun. Keep the soil evenly moist without waterlogging. Use well-draining soil, feed lightly during active growth, and remove dry or damaged leaves.",
-    "id": "combo-1791811081714",
+    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
+    "category": "Landscape",
+    "description": "",
+    "benefits": [
+      "Filters household toxins & boosts indoor oxygen",
+      "Packed in specialized 5-ply ventilated protective carton"
+    ],
+    "maxImages": 5,
+    "name": "Calathea Red (10)",
+    "savings": 149,
     "tags": [
       "combo",
       "bundle",
       "nursery",
       "kerala"
     ],
-    "stock": 95,
-    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
-    "discountPercentage": 21,
-    "description": "",
+    "weight": 3.5,
+    "slug": "calathea-red-10",
     "createdAt": "2026-10-12T13:18:01.714Z",
+    "price": 550,
+    "shortDescription": "Calathea Red/Copper is an attractive foliage plant that adds rich colour and a lush tropical feel to landscaping. Ideal for shaded borders, garden beds, and grouped planting.",
+    "stock": 94,
+    "id": "combo-1791811081714",
+    "isFeatured": true,
+    "items": [
+      {
+        "productId": "item-1791811078201",
+        "priceShare": 100,
+        "quantity": 10,
+        "productName": "Calathea Red/ Copper",
+        "itemType": "plant",
+        "image": "/uploads/combo-item-calathea-red-10-1.jpg"
+      }
+    ],
+    "discountPercentage": 21,
+    "originalPrice": 699,
     "sellableStates": [
       "Kerala",
       "Tamil Nadu",
       "Karnataka"
     ],
-    "category": "Landscape",
     "rating": 4.9,
-    "weight": 3.5,
-    "savings": 149,
-    "name": "Calathea Red (10)",
+    "sku": "7S-CMB-7742",
+    "status": "published",
+    "reviewCount": 18,
     "images": [
       "/uploads/combo-calathea-red-10-1-081714.webp",
       "/uploads/combo-calathea-red-10-2-081714.webp",
@@ -251,358 +274,280 @@
       "/uploads/combo-calathea-red-10-4-081714.webp",
       "/uploads/combo-calathea-red-10-5-081714.webp"
     ],
-    "shortDescription": "Calathea Red/Copper is an attractive foliage plant that adds rich colour and a lush tropical feel to landscaping. Ideal for shaded borders, garden beds, and grouped planting.",
-    "status": "published",
-    "isFeatured": true,
-    "sku": "7S-CMB-7742",
-    "price": 550,
-    "slug": "calathea-red-10",
-    "originalPrice": 699,
-    "reviewCount": 18,
-    "maxImages": 5,
-    "benefits": [
-      "Filters household toxins & boosts indoor oxygen",
-      "Packed in specialized 5-ply ventilated protective carton"
-    ],
-    "items": [
-      {
-        "productName": "Calathea Red/ Copper",
-        "priceShare": 100,
-        "image": "/uploads/combo-item-calathea-red-10-1.jpg",
-        "productId": "item-1791811078201",
-        "itemType": "plant",
-        "quantity": 10
-      }
-    ]
+    "careSummary": "Calathea Red/Copper care: Grow in partial shade or bright, indirect light, avoiding harsh afternoon sun. Keep the soil evenly moist without waterlogging. Use well-draining soil, feed lightly during active growth, and remove dry or damaged leaves."
   },
   {
     "_id": "combo-1791811502417",
+    "shortDescription": "Hydrangea plug plants in 3 varieties, ready to grow into beautiful shrubs with large, showy blooms—perfect for pots, garden borders, and landscaping.",
+    "price": 249,
+    "sku": "7S-CMB-2785",
+    "maxImages": 5,
     "sellableStates": [
       "Kerala",
       "Tamil Nadu",
       "Karnataka"
     ],
-    "maxImages": 5,
-    "originalPrice": 299,
-    "category": "Flowering & Ornamental",
+    "id": "combo-1791811502417",
     "reviewCount": 18,
+    "careSummary": "Position in bright to moderate indirect sunlight. Water individually when topsoil feels dry.",
+    "createdAt": "2026-10-12T13:25:02.417Z",
+    "savings": 50,
+    "weight": 0.8,
+    "rating": 4.9,
+    "isFeatured": true,
     "tags": [
       "combo",
       "bundle",
       "nursery",
       "kerala"
     ],
+    "benefits": [
+      "High air purification",
+      "Specialized safe packing"
+    ],
+    "slug": "hydrangea-6",
+    "category": "Flowering & Ornamental",
     "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
-    "weight": 0.8,
-    "rating": 4.9,
     "items": [
       {
         "image": "/uploads/combo-item-hydrangea-6-1.jpg",
-        "productId": "item-1791811164988",
-        "productName": "Hydrangea",
         "quantity": 6,
+        "productId": "item-1791811164988",
         "priceShare": 30,
-        "itemType": "plant"
+        "itemType": "plant",
+        "productName": "Hydrangea"
       }
     ],
-    "id": "combo-1791811502417",
-    "status": "published",
-    "discountPercentage": 17,
-    "isFeatured": true,
+    "description": "",
     "images": [
       "/uploads/combo-hydrangea-6-1-502417.webp",
       "/uploads/combo-hydrangea-6-2-502417.webp",
       "/uploads/combo-hydrangea-6-3-502417.webp"
     ],
-    "sku": "7S-CMB-2785",
-    "price": 249,
-    "stock": 95,
-    "slug": "hydrangea-6",
-    "createdAt": "2026-10-12T13:25:02.417Z",
+    "status": "published",
+    "discountPercentage": 17,
+    "originalPrice": 299,
+    "name": "Hydrangea (6)",
+    "stock": 94
+  },
+  {
+    "_id": "combo-1792150238289",
+    "weight": 0.9,
+    "maxImages": 5,
+    "reviewCount": 18,
+    "careSummary": "",
+    "slug": "6-inch-pot-pack-of-10",
+    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
+    "originalPrice": 200,
+    "price": 149,
+    "discountPercentage": 26,
+    "tags": [
+      "combo",
+      "bundle",
+      "nursery",
+      "kerala"
+    ],
+    "category": "POTS",
+    "createdAt": "2026-10-16T11:30:38.289Z",
+    "name": "6 INCH POT ( PACK OF 10 )",
     "benefits": [
       "High air purification",
       "Specialized safe packing"
     ],
-    "description": "",
-    "shortDescription": "Hydrangea plug plants in 3 varieties, ready to grow into beautiful shrubs with large, showy blooms—perfect for pots, garden borders, and landscaping.",
-    "name": "Hydrangea (6)",
-    "careSummary": "Position in bright to moderate indirect sunlight. Water individually when topsoil feels dry.",
-    "savings": 50
-  },
-  {
-    "_id": "combo-1792150238289",
-    "category": "POTS",
-    "slug": "6-inch-pot-pack-of-10",
-    "createdAt": "2026-10-16T11:30:38.289Z",
-    "description": "",
-    "originalPrice": 200,
-    "discountPercentage": 26,
-    "isFeatured": true,
-    "stock": 45,
+    "savings": 51,
     "sellableStates": [
       "Kerala",
       "Tamil Nadu",
       "Karnataka"
     ],
-    "careSummary": "",
-    "name": "6 INCH POT ( PACK OF 10 )",
-    "savings": 51,
-    "items": [
-      {
-        "quantity": 10,
-        "itemType": "pot",
-        "image": "/uploads/combo-item-6-inch-pot-pack-of-10-1.jpg",
-        "productName": "6 INCH POT",
-        "productId": "item-1792149961035",
-        "priceShare": 20
-      }
-    ],
+    "sku": "7S-CMB-3039",
     "status": "published",
-    "maxImages": 5,
-    "benefits": [
-      "High air purification",
-      "Specialized safe packing"
-    ],
     "images": [
       "/uploads/combo-6-inch-pot-pack-of-10-1-238289.webp",
       "/uploads/combo-6-inch-pot-pack-of-10-2-238289.webp",
       "/uploads/combo-6-inch-pot-pack-of-10-3-238289.webp",
       "/uploads/combo-6-inch-pot-pack-of-10-4-238289.webp"
     ],
-    "price": 149,
-    "rating": 4.9,
-    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
-    "reviewCount": 18,
-    "weight": 0.9,
+    "stock": 43,
     "shortDescription": "Premium virgin plastic pots sourced directly from manufacturers—the same quality we use in our own nursery. Strong, durable, and designed with drainage holes for healthy plant growth, these pots are ideal for nursery and home gardening.",
-    "sku": "7S-CMB-3039",
+    "isFeatured": true,
     "id": "combo-1792150238289",
-    "tags": [
-      "combo",
-      "bundle",
-      "nursery",
-      "kerala"
-    ]
+    "description": "",
+    "items": [
+      {
+        "image": "/uploads/combo-item-6-inch-pot-pack-of-10-1.jpg",
+        "productName": "6 INCH POT",
+        "itemType": "pot",
+        "productId": "item-1792149961035",
+        "priceShare": 20,
+        "quantity": 10
+      }
+    ],
+    "rating": 4.9
   },
   {
     "_id": "combo-1792150493881",
-    "id": "combo-1792150493881",
+    "createdAt": "2026-10-16T11:34:53.881Z",
+    "sku": "7S-CMB-6143",
     "status": "published",
+    "isFeatured": true,
     "images": [
       "/uploads/combo-8-inch-pot-pack-of-5-1-493881.webp",
       "/uploads/combo-8-inch-pot-pack-of-5-2-493881.webp",
       "/uploads/combo-8-inch-pot-pack-of-5-3-493881.webp",
       "/uploads/combo-8-inch-pot-pack-of-5-4-493881.webp"
     ],
-    "originalPrice": 150,
-    "benefits": [
-      "High air purification",
-      "Specialized safe packing"
+    "price": 129,
+    "savings": 21,
+    "description": "",
+    "maxImages": 5,
+    "sellableStates": [
+      "Kerala",
+      "Tamil Nadu",
+      "Karnataka"
     ],
-    "careSummary": "",
-    "weight": 0.9,
-    "isFeatured": true,
     "rating": 4.9,
-    "sku": "7S-CMB-6143",
+    "weight": 0.9,
+    "name": "8 INCH POT ( PACK OF 5 )",
+    "originalPrice": 150,
+    "careSummary": "",
+    "reviewCount": 18,
+    "discountPercentage": 14,
+    "stock": 34,
+    "deliveryInfo": "",
+    "slug": "8-inch-pot-pack-of-5",
+    "category": "POTS",
+    "id": "combo-1792150493881",
+    "items": [
+      {
+        "quantity": 5,
+        "priceShare": 30,
+        "productId": "item-1792150360267",
+        "image": "/uploads/combo-item-8-inch-pot-pack-of-5-1.jpg",
+        "itemType": "pot",
+        "productName": "8 INCH POT"
+      }
+    ],
+    "shortDescription": "Premium virgin plastic pots sourced directly from manufacturers—the same quality we use in our own nursery. Strong, durable, and designed with drainage holes for healthy plant growth, these pots are ideal for nursery and home gardening.",
     "tags": [
       "combo",
       "bundle",
       "nursery",
       "kerala"
     ],
-    "items": [
-      {
-        "itemType": "pot",
-        "image": "/uploads/combo-item-8-inch-pot-pack-of-5-1.jpg",
-        "quantity": 5,
-        "productId": "item-1792150360267",
-        "priceShare": 30,
-        "productName": "8 INCH POT"
-      }
-    ],
-    "createdAt": "2026-10-16T11:34:53.881Z",
-    "description": "",
-    "sellableStates": [
-      "Kerala",
-      "Tamil Nadu",
-      "Karnataka"
-    ],
-    "price": 129,
-    "category": "POTS",
-    "stock": 40,
-    "deliveryInfo": "",
-    "savings": 21,
-    "slug": "8-inch-pot-pack-of-5",
-    "shortDescription": "Premium virgin plastic pots sourced directly from manufacturers—the same quality we use in our own nursery. Strong, durable, and designed with drainage holes for healthy plant growth, these pots are ideal for nursery and home gardening.",
-    "maxImages": 5,
-    "discountPercentage": 14,
-    "name": "8 INCH POT ( PACK OF 5 )",
-    "reviewCount": 18
+    "benefits": [
+      "High air purification",
+      "Specialized safe packing"
+    ]
   },
   {
     "_id": "combo-1792233984552",
-    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
+    "savings": 150,
+    "price": 199,
+    "shortDescription": "Brighten your garden with our Puja Special Chrysanthemum Combo! Featuring six beautiful colours, these freely flowering varieties bring a cheerful festive touch to pots, balconies, and garden beds.",
+    "weight": 0.5,
     "sku": "7S-CMB-3654",
-    "slug": "chrysanthemum-15",
-    "reviewCount": 18,
     "originalPrice": 349,
-    "stock": 92,
+    "description": "",
+    "isFeatured": true,
+    "id": "combo-1792233984552",
     "benefits": [
       "High air purification",
       "Specialized safe packing"
     ],
-    "isFeatured": true,
-    "shortDescription": "Brighten your garden with our Puja Special Chrysanthemum Combo! Featuring six beautiful colours, these freely flowering varieties bring a cheerful festive touch to pots, balconies, and garden beds.",
-    "discountPercentage": 43,
     "maxImages": 5,
-    "name": "Chrysanthemum (15)",
-    "items": [
-      {
-        "itemType": "plant",
-        "productName": "CHRYSANTHEMUM",
-        "priceShare": 15,
-        "quantity": 15,
-        "image": "/uploads/combo-item-chrysanthemum-15-1.jpg",
-        "productId": "item-1792233949420"
-      }
+    "tags": [
+      "combo",
+      "bundle",
+      "nursery",
+      "kerala"
     ],
     "status": "published",
+    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
+    "category": "Flowering & Ornamental",
+    "discountPercentage": 43,
     "sellableStates": [
       "Kerala",
       "Tamil Nadu",
       "Karnataka"
     ],
-    "description": "",
+    "careSummary": "",
+    "slug": "chrysanthemum-15",
+    "reviewCount": 18,
     "images": [
       "/uploads/combo-chrysanthemum-15-1-984552.webp",
       "/uploads/combo-chrysanthemum-15-2-984552.webp",
       "/uploads/combo-chrysanthemum-15-3-984552.webp",
       "/uploads/combo-chrysanthemum-15-4-984552.webp"
     ],
-    "id": "combo-1792233984552",
-    "price": 199,
-    "rating": 4.9,
-    "weight": 0.5,
-    "category": "Flowering & Ornamental",
+    "items": [
+      {
+        "image": "/uploads/combo-item-chrysanthemum-15-1.jpg",
+        "itemType": "plant",
+        "priceShare": 15,
+        "productId": "item-1792233949420",
+        "productName": "CHRYSANTHEMUM",
+        "quantity": 15
+      }
+    ],
     "createdAt": "2026-10-17T10:46:24.552Z",
-    "careSummary": "",
-    "savings": 150,
+    "rating": 4.9,
+    "name": "Chrysanthemum (15)",
+    "stock": 88
+  },
+  {
+    "_id": "combo-1792661064097",
+    "createdAt": "2026-10-22T09:24:24.097Z",
+    "name": "Calathea Wheat (5)",
+    "price": 275,
+    "weight": 1.8,
+    "isFeatured": true,
+    "description": "",
+    "benefits": [
+      "High air purification",
+      "Specialized safe packing"
+    ],
+    "category": "Landscape",
+    "slug": "calathea-wheat-5",
+    "discountPercentage": 31,
+    "maxImages": 5,
     "tags": [
       "combo",
       "bundle",
       "nursery",
       "kerala"
-    ]
-  },
-  {
-    "_id": "combo-1792661064097",
-    "category": "Landscape",
+    ],
+    "shortDescription": "",
+    "sellableStates": [
+      "Kerala",
+      "Tamil Nadu",
+      "Karnataka"
+    ],
+    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
     "status": "published",
-    "maxImages": 5,
+    "savings": 125,
     "images": [
       "/uploads/combo-calathea-wheat-5-1-064097.webp",
       "/uploads/combo-calathea-wheat-5-2-064097.webp",
       "/uploads/combo-calathea-wheat-5-3-064097.webp",
       "/uploads/combo-calathea-wheat-5-4-064097.webp"
     ],
-    "originalPrice": 400,
-    "weight": 1.8,
-    "rating": 4.9,
-    "id": "combo-1792661064097",
+    "careSummary": "",
     "reviewCount": 18,
-    "tags": [
-      "combo",
-      "bundle",
-      "nursery",
-      "kerala"
-    ],
     "items": [
       {
-        "productName": "Calathea Wheat",
-        "priceShare": 80,
-        "image": "/uploads/combo-item-calathea-wheat-5-1.jpg",
         "quantity": 5,
+        "image": "/uploads/combo-item-calathea-wheat-5-1.jpg",
+        "productName": "Calathea Wheat",
         "itemType": "plant",
+        "priceShare": 80,
         "productId": "item-1792661060620"
       }
     ],
-    "price": 275,
+    "stock": 72,
     "sku": "7S-CMB-5661",
-    "careSummary": "",
-    "stock": 74,
-    "benefits": [
-      "High air purification",
-      "Specialized safe packing"
-    ],
-    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
-    "createdAt": "2026-10-22T09:24:24.097Z",
-    "savings": 125,
-    "slug": "calathea-wheat-5",
-    "shortDescription": "",
-    "isFeatured": true,
-    "name": "Calathea Wheat (5)",
-    "description": "",
-    "discountPercentage": 31,
-    "sellableStates": [
-      "Kerala",
-      "Tamil Nadu",
-      "Karnataka"
-    ]
-  },
-  {
-    "_id": "combo-1792725989397",
-    "reviewCount": 18,
-    "discountPercentage": 95,
-    "stock": 0,
-    "savings": 189,
-    "originalPrice": 199,
-    "name": "Chrysanthemum (10)",
-    "status": "published",
-    "benefits": [
-      "High air purification",
-      "Specialized safe packing"
-    ],
-    "createdAt": "2026-10-23T03:26:29.397Z",
-    "images": [
-      "/uploads/combo-chrysanthemum-10-1-989397.webp",
-      "/uploads/combo-chrysanthemum-10-2-989397.webp",
-      "/uploads/combo-chrysanthemum-10-3-989397.webp",
-      "/uploads/combo-chrysanthemum-10-4-989397.webp"
-    ],
-    "weight": 0.5,
-    "slug": "chrysanthemum-10",
     "rating": 4.9,
-    "description": "Carefully paired at Mannaratharayil Gardens LLP for synchronized care rhythms, lush greenery, and effortless indoor styling. Shipped in sturdy 5-ply cartons directly across Kerala, Tamil Nadu & Karnataka.",
-    "tags": [
-      "combo",
-      "bundle",
-      "nursery",
-      "kerala"
-    ],
-    "sellableStates": [
-      "Kerala",
-      "Tamil Nadu",
-      "Karnataka"
-    ],
-    "careSummary": "",
-    "sku": "7S-CMB-9772",
-    "category": "Flowering & Ornamental",
-    "id": "combo-1792725989397",
-    "items": [
-      {
-        "quantity": 1,
-        "itemType": "plant",
-        "productId": "item-1792725865447",
-        "image": "/uploads/combo-item-chrysanthemum-10-1.jpg",
-        "priceShare": 15,
-        "productName": "Chrysanthemum"
-      }
-    ],
-    "maxImages": 5,
-    "deliveryInfo": "Shipped in reinforced 5-ply ventilated nursery crates with 100% damage protection across Kerala, Tamil Nadu & Karnataka.",
-    "isFeatured": true,
-    "shortDescription": "",
-    "price": 10,
-    "onePerAccount": false
+    "id": "combo-1792661064097",
+    "originalPrice": 400
   }
 ]

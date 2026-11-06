@@ -34,12 +34,13 @@ import {
   Phone,
   Check,
   ArrowUpDown,
+  Truck,
 } from 'lucide-react';
 import { db, isFirestoreQuotaExceeded, handleFirestoreQuotaError } from '../../lib/firebase';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { useStore } from '../../context/StoreContext';
 import { UserLoginLog, AuthEventType, User, Order } from '../../types';
-import { BulkEmailModal } from './BulkEmailModal';
+import { BulkEmailModal, AudienceType } from './BulkEmailModal';
 
 export const UserLogsTab: React.FC = () => {
   const {
@@ -64,6 +65,12 @@ export const UserLogsTab: React.FC = () => {
   // Bulk Email State
   const [isBulkEmailOpen, setIsBulkEmailOpen] = useState(false);
   const [bulkEmailPreselected, setBulkEmailPreselected] = useState<User[]>([]);
+  const [bulkEmailInitialAudience, setBulkEmailInitialAudience] = useState<AudienceType>('all');
+  const [bulkEmailInitialStatuses, setBulkEmailInitialStatuses] = useState<string[]>([
+    'Order Placed',
+    'Processing',
+    'Shipped',
+  ]);
 
   // Accounts List State
   const [accountSearch, setAccountSearch] = useState('');
@@ -215,6 +222,7 @@ export const UserLogsTab: React.FC = () => {
   // Open Bulk Email for single user
   const handleOpenEmailForUser = (user: User) => {
     setBulkEmailPreselected([user]);
+    setBulkEmailInitialAudience('selected');
     setIsBulkEmailOpen(true);
   };
 
@@ -222,8 +230,22 @@ export const UserLogsTab: React.FC = () => {
   const handleOpenEmailForSelected = () => {
     if (selectedUsersList.length > 0) {
       setBulkEmailPreselected(selectedUsersList);
+      setBulkEmailInitialAudience('selected');
     } else {
       setBulkEmailPreselected([]);
+      setBulkEmailInitialAudience('all');
+    }
+    setIsBulkEmailOpen(true);
+  };
+
+  // Open Bulk Email filtered by order status
+  const handleOpenEmailByOrderStatus = (statuses?: string[]) => {
+    setBulkEmailPreselected([]);
+    setBulkEmailInitialAudience('by-order-status');
+    if (statuses && statuses.length > 0) {
+      setBulkEmailInitialStatuses(statuses);
+    } else {
+      setBulkEmailInitialStatuses(['Order Placed', 'Processing', 'Shipped']);
     }
     setIsBulkEmailOpen(true);
   };
@@ -435,6 +457,17 @@ export const UserLogsTab: React.FC = () => {
           >
             <Mail className="w-4 h-4 text-emerald-100" />
             <span>Send Bulk Email to Customers</span>
+          </button>
+
+          {/* Email by Order Status Button */}
+          <button
+            type="button"
+            onClick={() => handleOpenEmailByOrderStatus()}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white px-5 py-3 rounded-2xl text-xs font-black shadow-lg hover:shadow-teal-900/40 hover:scale-[1.02] active:scale-98 transition-all cursor-pointer border border-teal-400/30"
+            title="Send bulk emails to customers filtered by order status (Placed, Processing, Shipped, Delivered, Cancelled)"
+          >
+            <Truck className="w-4 h-4 text-teal-200" />
+            <span>Email by Order Status</span>
           </button>
 
           <button
@@ -1152,6 +1185,8 @@ export const UserLogsTab: React.FC = () => {
       <BulkEmailModal
         isOpen={isBulkEmailOpen}
         onClose={() => setIsBulkEmailOpen(false)}
+        initialAudience={bulkEmailInitialAudience}
+        initialOrderStatuses={bulkEmailInitialStatuses}
         selectedUsers={bulkEmailPreselected.filter(
           (u) =>
             isCurrentSuperAdmin ||

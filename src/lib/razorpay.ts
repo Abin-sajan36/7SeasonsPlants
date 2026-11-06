@@ -52,6 +52,7 @@ export interface RazorpayCheckoutParams {
     contact?: string;
   };
   notes?: Record<string, string>;
+  orderPayload?: any;
   themeColor?: string;
   onSuccess: (verifyResult: RazorpayVerifyResponse, paymentPayload: RazorpayPaymentSuccessPayload) => void;
   onError: (errorMessage: string) => void;
@@ -280,6 +281,7 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
     receipt,
     prefill,
     notes,
+    orderPayload,
     themeColor = '#047857',
     onSuccess,
     onError,
@@ -306,6 +308,7 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
           currency,
           receipt: receipt || `rcpt_${Date.now()}`,
           notes: notes || {},
+          orderPayload: orderPayload || null,
           keyId: liveKey,
         }),
       });
@@ -330,6 +333,7 @@ export async function startRazorpayCheckout(params: RazorpayCheckoutParams): Pro
             currency,
             receipt: receipt || `rcpt_${Date.now()}`,
             notes: notes || {},
+            orderPayload: orderPayload || null,
             keyId: liveKey,
           }),
         });

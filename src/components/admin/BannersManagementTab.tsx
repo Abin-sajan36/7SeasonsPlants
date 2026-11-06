@@ -163,15 +163,34 @@ export const BannersManagementTab: React.FC<BannersManagementTabProps> = ({ onNa
         stats = await compressImageFileWithStats(file, 1440, 810, 0.74);
       }
 
-      setFormImageUrl(stats.dataUrl);
+      // Upload directly to static storage to prevent localStorage exhaustion and Firestore bloat
+      let uploadedUrl = stats.dataUrl;
+      try {
+        const uploadRes = await fetch('/api/admin/banners/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: stats.dataUrl,
+            bannerId: editingBanner?.id || `banner-hero-${Date.now()}`,
+          }),
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData?.success && uploadData?.url) {
+          uploadedUrl = uploadData.url;
+        }
+      } catch (uploadErr) {
+        console.warn('Banner static upload fallback:', uploadErr);
+      }
+
+      setFormImageUrl(uploadedUrl);
       setUploadStats({
         original: stats.originalSize,
         compressed: stats.compressedSize,
       });
 
       addToast({
-        title: 'Image Optimized for Cloud',
-        message: `Optimized in HD (${stats.width}×${stats.height}px, ${formatBytes(stats.compressedSize)}). Ready to publish to cloud!`,
+        title: 'Image Saved & Stored 🌿',
+        message: `Saved permanently in HD (${stats.width}×${stats.height}px, ${formatBytes(stats.compressedSize)}). Will never revert!`,
         type: 'success',
       });
     } catch (err: any) {

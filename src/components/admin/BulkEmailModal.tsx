@@ -13,21 +13,74 @@ import {
   Crown,
   Eye,
   Check,
+  Truck,
+  Package,
+  Clock,
+  Filter,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck,
 } from 'lucide-react';
 import { User, Order } from '../../types';
 import { useStore } from '../../context/StoreContext';
 
-interface BulkEmailModalProps {
+export type AudienceType = 'selected' | 'all' | 'with-orders' | 'by-order-status' | 'zero-orders';
+
+export interface BulkEmailModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedUsers?: User[];
   allUsers: User[];
   orders: Order[];
+  initialAudience?: AudienceType;
+  initialOrderStatuses?: string[];
 }
 
-type AudienceType = 'selected' | 'all' | 'with-orders' | 'zero-orders';
-
 const PRESET_TEMPLATES = [
+  {
+    id: 'order-update-prep',
+    label: '📦 Order Confirmed & Packing',
+    badge: 'Nursery Order Update',
+    subject: '🌿 Order Confirmed: Your Plants are Being Selected & Packed at 7Seasons!',
+    headline: 'Hand-Picking Healthy Acclimated Specimens for Your Garden',
+    body: `Thank you for shopping with 7Seasons Nursery! We are currently hand-picking your live specimens directly from our nursery benches in Kerala.
+
+Each plant undergoes quality inspection, gentle hydration, and root stabilization before being packed in custom 5-ply ventilated cartons with protective moisture retention collars.
+
+We will notify you with courier tracking information the moment your package is dispatched!`,
+    ctaText: 'Track Your Order Status',
+    ctaUrl: 'https://www.7seasonsplants.com/#track',
+  },
+  {
+    id: 'order-transit',
+    label: '🚚 Dispatched in Transit Notice',
+    badge: 'Express Dispatch Notice',
+    subject: '🚚 In Transit: Your 7Seasons Live Plant Order Has Been Dispatched!',
+    headline: 'Express Courier Dispatch for Kerala, Tamil Nadu & Karnataka',
+    body: `Exciting news! Your live plant parcel has been safely dispatched from our nursery and is now in transit with our express logistics partner.
+
+Our parcels are labeled with priority live plant handling instructions. You can track your package progress directly using your order number or registered mobile number.
+
+Please ensure someone is available at your doorstep to receive and unpack your plants promptly upon arrival.`,
+    ctaText: 'Track Plant Delivery in Real-Time',
+    ctaUrl: 'https://www.7seasonsplants.com/#track',
+  },
+  {
+    id: 'order-care-delivered',
+    label: '🪴 Plant Care Guide (Post-Delivery)',
+    badge: 'Plant Care Advice',
+    subject: '🌱 Welcome Your New Plants Home: Essential Post-Delivery Care Tips',
+    headline: 'Simple Steps to Help Your Foliage Acclimate & Flourish',
+    body: `We hope your new green additions have arrived in vibrant health! Plants may feel a little tired after transit, which is completely normal. Here are 3 simple steps to help them thrive:
+
+1. Unbox gently and place plants in a bright spot with indirect natural light for the first 48 hours. Avoid direct scorching sun immediately.
+2. Check the potting mix: if the top 1 inch feels dry, give a thorough drink of water until it drains from the base.
+3. Allow the plants 7-10 days to acclimate before repotting or fertilizing.
+
+Need personalized care help or leaf inspection? Reply directly to this email or message our nursery team on WhatsApp.`,
+    ctaText: 'View Complete Botanical Care Library',
+    ctaUrl: 'https://www.7seasonsplants.com/#care',
+  },
   {
     id: 'seasonal-sale',
     label: '🌿 Seasonal Sale & New Combos',
@@ -42,7 +95,7 @@ Use coupon code GREEN10 at checkout for an extra 10% discount on your order this
   },
   {
     id: 'care-guide',
-    label: '🪴 Plant Care & Unboxing Guide',
+    label: '🪴 Nursery Care Advice',
     badge: 'Nursery Care Advice',
     subject: '🌱 Caring for Your 7Seasons Plants: Simple Tips for Healthy Foliage',
     headline: 'Keep Your Foliage Thriving with Expert Nursery Advice',
@@ -86,6 +139,8 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
   selectedUsers = [],
   allUsers = [],
   orders = [],
+  initialAudience,
+  initialOrderStatuses,
 }) => {
   const { storeSettings, addToast, recordUserLog, currentUser, currentAdmin, isCurrentSuperAdmin, adminAccounts } = useStore();
   const companyEmail = storeSettings?.email || 'mannaratharayil@gmail.com';
@@ -100,15 +155,35 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
     return set;
   }, [adminAccounts]);
 
-  const [audience, setAudience] = useState<AudienceType>('all');
-  const [selectedTemplate, setSelectedTemplate] = useState('seasonal-sale');
+  const [audience, setAudience] = useState<AudienceType>(initialAudience || 'all');
+  const [selectedOrderStatuses, setSelectedOrderStatuses] = useState<string[]>(
+    initialOrderStatuses && initialOrderStatuses.length > 0
+      ? initialOrderStatuses
+      : ['Order Placed', 'Processing', 'Shipped']
+  );
+  const [showRecipientPreview, setShowRecipientPreview] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(
+    initialAudience === 'by-order-status' ? 'order-update-prep' : 'seasonal-sale'
+  );
 
-  const [badgeText, setBadgeText] = useState('Special Nursery Offer');
-  const [subject, setSubject] = useState(PRESET_TEMPLATES[0].subject);
-  const [headline, setHeadline] = useState(PRESET_TEMPLATES[0].headline);
-  const [message, setMessage] = useState(PRESET_TEMPLATES[0].body);
-  const [ctaText, setCtaText] = useState(PRESET_TEMPLATES[0].ctaText);
-  const [ctaUrl, setCtaUrl] = useState(PRESET_TEMPLATES[0].ctaUrl);
+  const [badgeText, setBadgeText] = useState(
+    initialAudience === 'by-order-status' ? PRESET_TEMPLATES[0].badge : PRESET_TEMPLATES[3].badge
+  );
+  const [subject, setSubject] = useState(
+    initialAudience === 'by-order-status' ? PRESET_TEMPLATES[0].subject : PRESET_TEMPLATES[3].subject
+  );
+  const [headline, setHeadline] = useState(
+    initialAudience === 'by-order-status' ? PRESET_TEMPLATES[0].headline : PRESET_TEMPLATES[3].headline
+  );
+  const [message, setMessage] = useState(
+    initialAudience === 'by-order-status' ? PRESET_TEMPLATES[0].body : PRESET_TEMPLATES[3].body
+  );
+  const [ctaText, setCtaText] = useState(
+    initialAudience === 'by-order-status' ? PRESET_TEMPLATES[0].ctaText : PRESET_TEMPLATES[3].ctaText
+  );
+  const [ctaUrl, setCtaUrl] = useState(
+    initialAudience === 'by-order-status' ? PRESET_TEMPLATES[0].ctaUrl : PRESET_TEMPLATES[3].ctaUrl
+  );
   const [includeCta, setIncludeCta] = useState(true);
 
   const [isSending, setIsSending] = useState(false);
@@ -118,15 +193,30 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
     totalCount: number;
   } | null>(null);
 
-  // Set default audience if users were pre-selected
+  // Set default audience if users were pre-selected or initialAudience provided
   useEffect(() => {
-    if (selectedUsers && selectedUsers.length > 0) {
+    if (initialAudience) {
+      setAudience(initialAudience);
+      if (initialAudience === 'by-order-status') {
+        setSelectedTemplate('order-update-prep');
+        const tmpl = PRESET_TEMPLATES[0];
+        setBadgeText(tmpl.badge);
+        setSubject(tmpl.subject);
+        setHeadline(tmpl.headline);
+        setMessage(tmpl.body);
+        setCtaText(tmpl.ctaText);
+        setCtaUrl(tmpl.ctaUrl);
+      }
+    } else if (selectedUsers && selectedUsers.length > 0) {
       setAudience('selected');
     } else {
       setAudience('all');
     }
+    if (initialOrderStatuses && initialOrderStatuses.length > 0) {
+      setSelectedOrderStatuses(initialOrderStatuses);
+    }
     setSendResult(null);
-  }, [isOpen, selectedUsers]);
+  }, [isOpen, selectedUsers, initialAudience, initialOrderStatuses]);
 
   // Compute orders map per user email
   const userOrderCounts = useMemo(() => {
@@ -142,6 +232,147 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
     });
     return counts;
   }, [orders]);
+
+  // Helper to match an order against selected status filters
+  const isOrderMatchingStatuses = (order: Order, statuses: string[]) => {
+    if (!order || statuses.length === 0) return false;
+    const s = (order.orderStatus || '').toLowerCase().trim();
+    return statuses.some((targetStatus) => {
+      const t = targetStatus.toLowerCase().trim();
+      if (t === 'all-active') {
+        return (
+          s.includes('placed') ||
+          s.includes('confirm') ||
+          s.includes('process') ||
+          s.includes('pack') ||
+          s.includes('ship') ||
+          s.includes('dispatch') ||
+          s.includes('transit')
+        );
+      }
+      if (t === 'order placed') {
+        return s.includes('placed') || s.includes('confirm') || s === 'pending';
+      }
+      if (t === 'processing') {
+        return s.includes('process') || s.includes('pack');
+      }
+      if (t === 'shipped') {
+        return s.includes('ship') || s.includes('dispatch') || s.includes('transit') || s.includes('out for delivery');
+      }
+      if (t === 'delivered') {
+        return s.includes('deliver');
+      }
+      if (t === 'cancelled') {
+        return s.includes('cancel') || s.includes('refund') || s.includes('return');
+      }
+      return s === t;
+    });
+  };
+
+  // Orders matching chosen statuses
+  const matchingOrderStatusOrders = useMemo(() => {
+    if (audience !== 'by-order-status' || selectedOrderStatuses.length === 0) {
+      return [];
+    }
+    return orders.filter((o) => isOrderMatchingStatuses(o, selectedOrderStatuses));
+  }, [orders, audience, selectedOrderStatuses]);
+
+  // Order status recipients: Combines registered accounts & guest checkouts with deduplication
+  const orderStatusRecipients = useMemo(() => {
+    if (audience !== 'by-order-status') return [];
+
+    const emailMap = new Map<
+      string,
+      {
+        email: string;
+        name: string;
+        orderIds: string[];
+        orderNumbers: string[];
+        statuses: string[];
+        user?: User;
+      }
+    >();
+
+    const userByEmail = new Map<string, User>();
+    allUsers.forEach((u) => {
+      if (u.email) {
+        userByEmail.set(u.email.toLowerCase().trim(), u);
+      }
+    });
+
+    matchingOrderStatusOrders.forEach((o) => {
+      const rawEmail = (
+        o.customer?.email ||
+        (o as any).customerEmail ||
+        (o as any).email ||
+        (o.customer?.shippingAddress as any)?.email ||
+        (o as any).shippingAddress?.email ||
+        ''
+      )
+        .toString()
+        .trim()
+        .toLowerCase();
+
+      if (!rawEmail || !rawEmail.includes('@')) return;
+
+      if (
+        !isCurrentSuperAdmin &&
+        (superAdminEmails.has(rawEmail) || userByEmail.get(rawEmail)?.role === 'super_admin')
+      ) {
+        return;
+      }
+
+      const rawName = (
+        o.customer?.name ||
+        (o as any).customerName ||
+        o.customer?.shippingAddress?.fullName ||
+        (o as any).shippingAddress?.fullName ||
+        userByEmail.get(rawEmail)?.name ||
+        'Valued Customer'
+      )
+        .toString()
+        .trim();
+
+      const orderNum = o.orderNumber || o.id;
+      const statusLabel = o.orderStatus || 'Order Placed';
+
+      if (!emailMap.has(rawEmail)) {
+        emailMap.set(rawEmail, {
+          email: rawEmail,
+          name: rawName || 'Valued Customer',
+          orderIds: [o.id],
+          orderNumbers: [orderNum],
+          statuses: [statusLabel],
+          user: userByEmail.get(rawEmail),
+        });
+      } else {
+        const item = emailMap.get(rawEmail)!;
+        if (!item.orderIds.includes(o.id)) {
+          item.orderIds.push(o.id);
+          item.orderNumbers.push(orderNum);
+        }
+        if (!item.statuses.includes(statusLabel)) {
+          item.statuses.push(statusLabel);
+        }
+      }
+    });
+
+    return Array.from(emailMap.values()).map((entry) => {
+      return {
+        ...(entry.user || {
+          id: `cust-${entry.email.replace(/[^a-z0-9]/gi, '')}`,
+          email: entry.email,
+          name: entry.name,
+          role: 'customer' as const,
+          createdAt: new Date().toISOString(),
+        }),
+        name: entry.name,
+        email: entry.email,
+        matchingOrderNumbers: entry.orderNumbers,
+        matchingOrderStatuses: entry.statuses,
+      } as User & { matchingOrderNumbers?: string[]; matchingOrderStatuses?: string[] };
+    });
+  }, [audience, matchingOrderStatusOrders, allUsers, isCurrentSuperAdmin, superAdminEmails]);
 
   // Determine target recipient list based on chosen audience - strictly excludes Super Admin for regular admins
   const recipientList = useMemo(() => {
@@ -172,6 +403,8 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
           const ordCount = (userOrderCounts.get(u.email.toLowerCase().trim()) || 0) + (u.id ? (userOrderCounts.get(u.id) || 0) : 0);
           return ordCount > 0;
         });
+      case 'by-order-status':
+        return orderStatusRecipients;
       case 'zero-orders':
         return validUsers.filter((u) => {
           const ordCount = (userOrderCounts.get(u.email.toLowerCase().trim()) || 0) + (u.id ? (userOrderCounts.get(u.id) || 0) : 0);
@@ -181,7 +414,7 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
       default:
         return validUsers;
     }
-  }, [audience, selectedUsers, allUsers, userOrderCounts, isCurrentSuperAdmin, superAdminEmails]);
+  }, [audience, selectedUsers, allUsers, userOrderCounts, orderStatusRecipients, isCurrentSuperAdmin, superAdminEmails]);
 
   // Apply template
   const handleTemplateChange = (templateId: string) => {
@@ -387,7 +620,7 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
                   {selectedUsers.length > 0 && (
                     <button
                       type="button"
@@ -441,6 +674,31 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
 
                   <button
                     type="button"
+                    onClick={() => {
+                      setAudience('by-order-status');
+                      if (selectedOrderStatuses.length === 0) {
+                        setSelectedOrderStatuses(['Order Placed', 'Processing', 'Shipped']);
+                      }
+                    }}
+                    className={`p-2.5 rounded-xl border text-left font-bold transition-all cursor-pointer relative ${
+                      audience === 'by-order-status'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-white dark:bg-[#0a1f18] text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-emerald-400'
+                    }`}
+                  >
+                    <div className="text-[11px] flex items-center justify-between">
+                      <span>By Order Status</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-teal-500/20 text-teal-200 font-bold uppercase">
+                        New
+                      </span>
+                    </div>
+                    <div className="text-base font-black">
+                      {orderStatusRecipients.length}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setAudience('zero-orders')}
                     className={`p-2.5 rounded-xl border text-left font-bold transition-all cursor-pointer ${
                       audience === 'zero-orders'
@@ -461,22 +719,231 @@ export const BulkEmailModal: React.FC<BulkEmailModalProps> = ({
                   </button>
                 </div>
 
-                {/* Recipient Chips Preview */}
-                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-1">
-                  {recipientList.slice(0, 15).map((u) => (
-                    <span
-                      key={u.id || u.email}
-                      className="inline-flex items-center gap-1 text-[11px] bg-white dark:bg-[#0a1f18] border border-emerald-900/15 dark:border-emerald-800/40 text-emerald-950 dark:text-emerald-100 px-2.5 py-0.5 rounded-full font-medium"
-                    >
-                      <Mail className="w-2.5 h-2.5 text-emerald-600" />
-                      <span>{u.email}</span>
-                    </span>
-                  ))}
-                  {recipientList.length > 15 && (
-                    <span className="text-[11px] text-gray-500 font-bold px-2 py-0.5">
-                      +{recipientList.length - 15} more
-                    </span>
-                  )}
+                {/* Sub-Panel: Order Status Filter Controls (Only shown when by-order-status is selected) */}
+                {audience === 'by-order-status' && (
+                  <div className="p-4 bg-white dark:bg-[#091812] rounded-2xl border border-emerald-900/15 dark:border-emerald-800/40 space-y-3.5 animate-fadeIn">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-800 pb-2.5">
+                      <div>
+                        <span className="text-xs font-black uppercase tracking-wider text-emerald-950 dark:text-emerald-50 flex items-center gap-1.5">
+                          <Filter className="w-3.5 h-3.5 text-emerald-700" />
+                          Filter by Order Status
+                        </span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                          Aggregates both registered accounts and guest checkout customers. Deduplicated by email.
+                        </p>
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedOrderStatuses(['Order Placed', 'Processing', 'Shipped']);
+                            handleTemplateChange('order-update-prep');
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-200 font-bold hover:bg-emerald-100 cursor-pointer"
+                        >
+                          All Active Orders
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedOrderStatuses(['Shipped']);
+                            handleTemplateChange('order-transit');
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 font-bold hover:bg-blue-100 cursor-pointer"
+                        >
+                          Shipped (In Transit)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedOrderStatuses(['Delivered']);
+                            handleTemplateChange('order-care-delivered');
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-200 border border-teal-200 font-bold hover:bg-teal-100 cursor-pointer"
+                        >
+                          Delivered Only
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedOrderStatuses(['Order Placed', 'Processing', 'Shipped', 'Delivered', 'Cancelled']);
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-200 cursor-pointer"
+                        >
+                          Select All
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Status Checkbox Chips */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                      {[
+                        {
+                          key: 'Order Placed',
+                          label: 'Order Placed',
+                          badge: 'New Order',
+                          color: 'text-amber-800 bg-amber-50 border-amber-200',
+                          count: orders.filter((o) => (o.orderStatus || '').toLowerCase().includes('placed') || (o.orderStatus || '').toLowerCase().includes('confirm') || (o.orderStatus || '').toLowerCase().includes('pending')).length,
+                        },
+                        {
+                          key: 'Processing',
+                          label: 'Processing',
+                          badge: 'Nursery Packing',
+                          color: 'text-blue-800 bg-blue-50 border-blue-200',
+                          count: orders.filter((o) => (o.orderStatus || '').toLowerCase().includes('process') || (o.orderStatus || '').toLowerCase().includes('pack')).length,
+                        },
+                        {
+                          key: 'Shipped',
+                          label: 'Shipped',
+                          badge: 'In Transit',
+                          color: 'text-indigo-800 bg-indigo-50 border-indigo-200',
+                          count: orders.filter((o) => (o.orderStatus || '').toLowerCase().includes('ship') || (o.orderStatus || '').toLowerCase().includes('dispatch') || (o.orderStatus || '').toLowerCase().includes('transit')).length,
+                        },
+                        {
+                          key: 'Delivered',
+                          label: 'Delivered',
+                          badge: 'Doorstep Arrival',
+                          color: 'text-emerald-800 bg-emerald-50 border-emerald-200',
+                          count: orders.filter((o) => (o.orderStatus || '').toLowerCase().includes('deliver')).length,
+                        },
+                        {
+                          key: 'Cancelled',
+                          label: 'Cancelled',
+                          badge: 'Void / Refund',
+                          color: 'text-rose-800 bg-rose-50 border-rose-200',
+                          count: orders.filter((o) => (o.orderStatus || '').toLowerCase().includes('cancel') || (o.orderStatus || '').toLowerCase().includes('refund')).length,
+                        },
+                      ].map((item) => {
+                        const isChecked = selectedOrderStatuses.includes(item.key);
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={() => {
+                              setSelectedOrderStatuses((prev) => {
+                                if (prev.includes(item.key)) {
+                                  return prev.filter((s) => s !== item.key);
+                                } else {
+                                  return [...prev, item.key];
+                                }
+                              });
+                            }}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                              isChecked
+                                ? 'bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-600 ring-2 ring-emerald-500/20'
+                                : 'bg-gray-50/60 dark:bg-[#071711] border-gray-200 dark:border-gray-800 opacity-75 hover:opacity-100'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-bold text-xs text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                                <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] ${isChecked ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-300 bg-white'}`}>
+                                  {isChecked && <Check className="w-2.5 h-2.5" />}
+                                </span>
+                                <span>{item.label}</span>
+                              </span>
+                              <span className="text-[11px] font-black text-gray-600 dark:text-gray-300">
+                                {item.count}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-gray-500 mt-1 truncate">
+                              {item.badge}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Live Metric Banner & Expandable Preview Toggle */}
+                    <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span className="text-emerald-950 dark:text-emerald-100 font-semibold">
+                          Targeting <strong>{orderStatusRecipients.length}</strong> unique customer{orderStatusRecipients.length === 1 ? '' : 's'} across <strong>{matchingOrderStatusOrders.length}</strong> matching order{matchingOrderStatusOrders.length === 1 ? '' : 's'}.
+                        </span>
+                      </div>
+
+                      {orderStatusRecipients.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowRecipientPreview(!showRecipientPreview)}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 hover:underline cursor-pointer shrink-0"
+                        >
+                          <span>{showRecipientPreview ? 'Hide Recipient List' : 'Inspect Recipient Preview'}</span>
+                          {showRecipientPreview ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Expandable Recipient Detail Drawer */}
+                    {showRecipientPreview && orderStatusRecipients.length > 0 && (
+                      <div className="max-h-48 overflow-y-auto border border-emerald-200 dark:border-emerald-800/50 rounded-xl bg-white dark:bg-[#071711] p-2 space-y-1 text-xs">
+                        {orderStatusRecipients.map((r: any, idx) => (
+                          <div
+                            key={r.email || idx}
+                            className="p-2 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-gray-100 dark:border-gray-800 last:border-0"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <strong className="text-gray-900 dark:text-gray-100">{r.name}</strong>
+                                <span className="text-gray-500 text-[11px] ml-1.5 font-mono">({r.email})</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1 text-[11px]">
+                              {Array.isArray(r.matchingOrderNumbers) && r.matchingOrderNumbers.map((num: string) => (
+                                <span
+                                  key={num}
+                                  className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-[10px] font-bold"
+                                >
+                                  #{num}
+                                </span>
+                              ))}
+                              {Array.isArray(r.matchingOrderStatuses) && r.matchingOrderStatuses.map((st: string) => (
+                                <span
+                                  key={st}
+                                  className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold"
+                                >
+                                  {st}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Recipient Chips Preview (for non order-status or quick overview) */}
+                {audience !== 'by-order-status' && (
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-1">
+                    {recipientList.slice(0, 15).map((u) => (
+                      <span
+                        key={u.id || u.email}
+                        className="inline-flex items-center gap-1 text-[11px] bg-white dark:bg-[#0a1f18] border border-emerald-900/15 dark:border-emerald-800/40 text-emerald-950 dark:text-emerald-100 px-2.5 py-0.5 rounded-full font-medium"
+                      >
+                        <Mail className="w-2.5 h-2.5 text-emerald-600" />
+                        <span>{u.email}</span>
+                      </span>
+                    ))}
+                    {recipientList.length > 15 && (
+                      <span className="text-[11px] text-gray-500 font-bold px-2 py-0.5">
+                        +{recipientList.length - 15} more
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Anti-Spam Deliverability Safeguard Badge */}
+                <div className="p-2.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/70 dark:border-emerald-800/40 flex items-center gap-2 text-[11px] text-emerald-900 dark:text-emerald-200">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>
+                    <strong>Anti-Spam Protected:</strong> Includes RFC 8058 One-Click Unsubscribe, verified sender alignment (<code className="font-mono">mannaratharayil@gmail.com</code>), and delivery throttling (180ms delay per email) to ensure primary inbox delivery.
+                  </span>
                 </div>
               </div>
 

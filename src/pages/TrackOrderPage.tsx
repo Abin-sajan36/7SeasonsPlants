@@ -26,72 +26,110 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ initialOrderId, 
   const { orders } = useStore();
   const [searchInput, setSearchInput] = useState(initialOrderId || '');
   const [searchedOrder, setSearchedOrder] = useState<Order | null>(null);
+  const [matchedOrders, setMatchedOrders] = useState<Order[]>([]);
+  const [selectedOrderIndex, setSelectedOrderIndex] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
   const normalizePhone = (val?: string) => (val || '').replace(/\D/g, '').slice(-10);
 
-  const findOrderAsync = async (queryStr: string): Promise<Order | null> => {
+  const findOrdersAsync = async (queryStr: string): Promise<Order[]> => {
     const q = queryStr.trim();
-    if (!q) return null;
+    if (!q) return [];
     const qLower = q.toLowerCase();
+    const qStripped = qLower.replace(/^#/, '').trim();
     const qPhone = normalizePhone(q);
 
-    // 1. Check local state first
-    const match = orders.find((o) => {
+    // 1. Try server-side universal search endpoint first
+    try {
+      const resp = await fetch('/api/customer/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.success && Array.isArray(data.orders) && data.orders.length > 0) {
+          return data.orders;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend order lookup fallback to local/client search:', e);
+    }
+
+    // 2. Check local state
+    const localMatches = orders.filter((o) => {
       if (!o) return false;
-      if (o.id.toLowerCase() === qLower) return true;
-      if (o.orderNumber && o.orderNumber.toLowerCase() === qLower) return true;
-      if (o.trackingNumber && o.trackingNumber.toLowerCase() === qLower) return true;
+      const orderNum = (o.orderNumber || '').toLowerCase();
+      const idLower = (o.id || '').toLowerCase();
+      const trackLower = (o.trackingNumber || '').toLowerCase();
+
+      if (idLower === qLower || idLower === qStripped) return true;
+      if (orderNum === qLower || orderNum === qStripped) return true;
+      if (trackLower === qLower || trackLower === qStripped) return true;
+      if (qStripped.length >= 4 && (orderNum.endsWith(qStripped) || idLower.endsWith(qStripped))) return true;
+
       if (qPhone && qPhone.length >= 7) {
         const p1 = normalizePhone(o.customer?.phone || (o as any).phone);
         const p2 = normalizePhone(o.customer?.shippingAddress?.phoneNumber || o.shippingAddress?.phoneNumber);
         if (p1 === qPhone || p2 === qPhone) return true;
       }
+
+      if (qLower.includes('@')) {
+        const e1 = (o.customer?.email || '').toLowerCase().trim();
+        const e2 = ((o.customer?.shippingAddress as any)?.email || (o as any).email || '').toLowerCase().trim();
+        if (e1 === qLower || e2 === qLower) return true;
+      }
       return false;
     });
 
-    if (match) return match;
+    if (localMatches.length > 0) {
+      return localMatches;
+    }
 
-    // If quota is exceeded, do not hit backend
-    if (isFirestoreQuotaExceeded()) return null;
+    // If quota is exceeded, do not hit direct Firestore
+    if (isFirestoreQuotaExceeded()) return [];
 
-    // 2. Query Firestore directly by Document ID
+    const firestoreResults: Order[] = [];
+
+    // 3. Query Firestore directly by Document ID
     try {
       const docRef = doc(db, 'orders', q);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        return { ...(docSnap.data() as Order), id: docSnap.id };
+        firestoreResults.push({ ...(docSnap.data() as Order), id: docSnap.id });
       }
     } catch (err) {
       handleFirestoreQuotaError(err, 'findOrderDoc');
     }
 
-    // 3. Query Firestore by orderNumber
+    // 4. Query Firestore by orderNumber (exact and stripped #)
     try {
       const qSnap = await getDocs(query(collection(db, 'orders'), where('orderNumber', '==', q)));
-      if (!qSnap.empty) {
-        return { ...(qSnap.docs[0].data() as Order), id: qSnap.docs[0].id };
+      qSnap.forEach((d) => firestoreResults.push({ ...(d.data() as Order), id: d.id }));
+      if (firestoreResults.length === 0 && qStripped !== qLower) {
+        const qSnap2 = await getDocs(query(collection(db, 'orders'), where('orderNumber', '==', qStripped.toUpperCase())));
+        qSnap2.forEach((d) => firestoreResults.push({ ...(d.data() as Order), id: d.id }));
       }
     } catch (_) {}
 
-    // 4. Query Firestore case-insensitive or tracking number
+    // 5. Query Firestore tracking number
     try {
       const trackSnap = await getDocs(query(collection(db, 'orders'), where('trackingNumber', '==', q)));
-      if (!trackSnap.empty) {
-        return { ...(trackSnap.docs[0].data() as Order), id: trackSnap.docs[0].id };
-      }
+      trackSnap.forEach((d) => firestoreResults.push({ ...(d.data() as Order), id: d.id }));
     } catch (_) {}
 
-    return null;
+    return firestoreResults;
   };
 
   useEffect(() => {
     if (initialOrderId) {
       setIsSearching(true);
-      findOrderAsync(initialOrderId).then((found) => {
-        if (found) {
-          setSearchedOrder(found);
+      findOrdersAsync(initialOrderId).then((found) => {
+        if (found && found.length > 0) {
+          setMatchedOrders(found);
+          setSearchedOrder(found[0]);
+          setSelectedOrderIndex(0);
           setHasSearched(true);
         }
         setIsSearching(false);
@@ -106,8 +144,14 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ initialOrderId, 
     setIsSearching(true);
     setHasSearched(true);
     try {
-      const found = await findOrderAsync(searchInput);
-      setSearchedOrder(found);
+      const found = await findOrdersAsync(searchInput);
+      setMatchedOrders(found);
+      if (found.length > 0) {
+        setSearchedOrder(found[0]);
+        setSelectedOrderIndex(0);
+      } else {
+        setSearchedOrder(null);
+      }
     } finally {
       setIsSearching(false);
     }
@@ -142,7 +186,7 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ initialOrderId, 
             Track Your Plant Delivery
           </h1>
           <p className="text-xs sm:text-sm text-gray-600 max-w-md mx-auto">
-            Enter your Order ID (e.g. 7S-2026-1001), Order Number, or registered mobile number.
+            Enter your Order ID (e.g. 7S-2026-7741), 10-digit mobile number, or registered email.
           </p>
         </div>
 
@@ -155,50 +199,89 @@ export const TrackOrderPage: React.FC<TrackOrderPageProps> = ({ initialOrderId, 
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Enter Order ID, Order # or Mobile Number"
+                placeholder="Enter Order ID, 10-digit Mobile, or Email"
                 className="w-full pl-10 pr-3 py-3 bg-[#F4FAF5] text-xs font-semibold text-emerald-950 rounded-full border border-emerald-900/15 focus:bg-white focus:border-emerald-600 outline-hidden"
               />
             </div>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white rounded-full text-xs font-black shadow-sm transition-colors cursor-pointer"
+              disabled={isSearching}
+              className="px-6 py-3 bg-gradient-to-r from-emerald-700 to-green-600 hover:from-emerald-800 hover:to-green-700 text-white rounded-full text-xs font-black shadow-sm transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
             >
-              Track
+              {isSearching ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Searching...</span>
+                </>
+              ) : (
+                <span>Track</span>
+              )}
             </button>
           </form>
 
           {/* Sample quick search pills */}
           <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-gray-500">
-            <span>Try sample order:</span>
+            <span>Quick search:</span>
             <button
               onClick={() => {
                 setSearchInput('7S-2026-1001');
-                const match = orders.find((o) => o.orderNumber === '7S-2026-1001' || o.id === 'ord-7s-1001');
-                if (match) {
-                  setSearchedOrder(match);
+                findOrdersAsync('7S-2026-1001').then((res) => {
+                  setMatchedOrders(res);
+                  setSearchedOrder(res[0] || null);
+                  setSelectedOrderIndex(0);
                   setHasSearched(true);
-                }
+                });
               }}
               className="text-emerald-700 font-bold hover:underline cursor-pointer"
             >
-              7S-2026-1001 (Kochi)
+              7S-2026-1001
             </button>
             <span>•</span>
             <button
               onClick={() => {
-                setSearchInput('7S-2026-1002');
-                const match = orders.find((o) => o.orderNumber === '7S-2026-1002' || o.id === 'ord-7s-1002');
-                if (match) {
-                  setSearchedOrder(match);
+                setSearchInput('7S-2026-7741');
+                findOrdersAsync('7S-2026-7741').then((res) => {
+                  setMatchedOrders(res);
+                  setSearchedOrder(res[0] || null);
+                  setSelectedOrderIndex(0);
                   setHasSearched(true);
-                }
+                });
               }}
               className="text-emerald-700 font-bold hover:underline cursor-pointer"
             >
-              7S-2026-1002 (Coimbatore)
+              #7S-2026-7741
             </button>
           </div>
         </div>
+
+        {/* Multi-order switcher if customer has multiple orders matching mobile or email */}
+        {hasSearched && matchedOrders.length > 1 && (
+          <div className="bg-white rounded-2xl p-3.5 border border-emerald-200 shadow-xs max-w-xl mx-auto space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
+              <span>Found {matchedOrders.length} orders for your search</span>
+              <span className="text-[11px] text-gray-500 font-normal">Select an order to view</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {matchedOrders.map((ord, idx) => (
+                <button
+                  key={ord.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedOrderIndex(idx);
+                    setSearchedOrder(ord);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    idx === selectedOrderIndex
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                >
+                  #{ord.orderNumber || ord.id.slice(-6)} • ₹{ord.total} ({ord.orderStatus || 'Confirmed'})
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Tracking Results Card */}
         {hasSearched && searchedOrder && (

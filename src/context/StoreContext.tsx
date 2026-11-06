@@ -1161,8 +1161,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => unsubscribe();
   }, []);
 
-  // Real-time synchronization of Banners from Firestore
+  // Real-time synchronization of Banners from Firestore & Disk
   useEffect(() => {
+    // Initial fetch from disk API to ensure instant, stable banner loading
+    fetch('/api/banners')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.banners) && data.banners.length > 0) {
+          const deletedIds: string[] = JSON.parse(
+            localStorage.getItem(`${STORAGE_KEY}_deleted_banner_ids`) || '[]'
+          );
+          const deletedSet = new Set(deletedIds);
+          const valid = data.banners.filter((b: HeroBanner) => !deletedSet.has(b.id));
+          if (valid.length > 0) {
+            setBanners(valid);
+            try {
+              safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(valid));
+            } catch (e) {}
+          }
+        }
+      })
+      .catch(() => {});
+
     if (isFirestoreQuotaExceeded()) return;
     const unsubscribe = onSnapshot(
       collection(db, 'banners'),
@@ -1187,6 +1207,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setBanners(list);
           try {
             safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(list));
+            fetch('/api/banners', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ banners: list }),
+            }).catch(() => {});
           } catch (e) {}
         }
         // Do NOT auto-seed initialBanners if empty: respect user deletions & custom settings
@@ -2473,7 +2498,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ],
     };
 
-    // Authoritative stock verification before creating order to prevent overselling sold-out combos
+    // Authoritative stock verification before creating order
+    // If payment was already verified/paid, never throw an error that aborts order creation!
     for (const item of orderPayload.items || []) {
       if (item.type === 'combo') {
         try {
@@ -2482,18 +2508,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (comboDoc.exists()) {
               const currentStock = comboDoc.data()?.stock ?? 0;
               if (currentStock <= 0) {
-                throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
+                if (orderPayload.paymentStatus === 'paid') {
+                  console.warn(`[Inventory Notice] "${item.name}" was at 0 stock when order was placed. Fulfilling from nursery reserve.`);
+                  newOrder.notes = (newOrder.notes ? newOrder.notes + ' | ' : '') + `[Fulfillment Alert: "${item.name}" zero-stock at payment, fulfill from nursery reserve]`;
+                } else {
+                  throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
+                }
               }
             }
           } else {
             // Local fallback stock check
             const localCombo = combos.find((c) => c.id === item.id);
             if (localCombo && (localCombo.stock ?? 0) <= 0) {
-              throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
+              if (orderPayload.paymentStatus === 'paid') {
+                newOrder.notes = (newOrder.notes ? newOrder.notes + ' | ' : '') + `[Fulfillment Alert: "${item.name}" low stock at payment]`;
+              } else {
+                throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
+              }
             }
           }
         } catch (stockErr: any) {
-          if (handleFirestoreQuotaError(stockErr, 'comboStockCheck')) {
+          if (orderPayload.paymentStatus === 'paid') {
+            console.warn('[Post-payment Stock Check Warning]:', stockErr.message);
+          } else if (handleFirestoreQuotaError(stockErr, 'comboStockCheck')) {
             const localCombo = combos.find((c) => c.id === item.id);
             if (localCombo && (localCombo.stock ?? 0) <= 0) {
               throw new Error(`"${item.name}" has sold out and cannot be ordered.`);
@@ -4362,6 +4399,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return merged;
           });
 
+          // Automatically link any past guest orders to user account in Firestore
+          if (userToFetch && userToFetch.id) {
+            const currentIds = Array.isArray(userToFetch.orderIds) ? userToFetch.orderIds : [];
+            const newDiscoveredIds = fetched.flatMap((o) => [o.id, o.orderNumber]).filter(Boolean);
+            const nextOrderIds = Array.from(new Set([...currentIds, ...newDiscoveredIds]));
+            if (nextOrderIds.length > currentIds.length) {
+              const updatedUser = { ...userToFetch, orderIds: nextOrderIds };
+              setCurrentUser(updatedUser);
+              safeSetItem(`${STORAGE_KEY}_user`, JSON.stringify(sanitizeUserForStorage(updatedUser)));
+              if (!isFirestoreQuotaExceeded()) {
+                setDoc(doc(db, 'users', userToFetch.id), { orderIds: nextOrderIds }, { merge: true }).catch(() => {});
+              }
+            }
+          }
+
           return fetched;
         }
       }
@@ -4411,6 +4463,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             safeSetItem(`${STORAGE_KEY}_orders`, JSON.stringify(merged));
             return merged;
           });
+
+          // Automatically link past guest orders to user account in Firestore
+          if (userToFetch && userToFetch.id) {
+            const currentIds = Array.isArray(userToFetch.orderIds) ? userToFetch.orderIds : [];
+            const newDiscoveredIds = directOrders.flatMap((o) => [o.id, o.orderNumber]).filter(Boolean);
+            const nextOrderIds = Array.from(new Set([...currentIds, ...newDiscoveredIds]));
+            if (nextOrderIds.length > currentIds.length) {
+              const updatedUser = { ...userToFetch, orderIds: nextOrderIds };
+              setCurrentUser(updatedUser);
+              safeSetItem(`${STORAGE_KEY}_user`, JSON.stringify(sanitizeUserForStorage(updatedUser)));
+              if (!isFirestoreQuotaExceeded()) {
+                setDoc(doc(db, 'users', userToFetch.id), { orderIds: nextOrderIds }, { merge: true }).catch(() => {});
+              }
+            }
+          }
 
           return directOrders;
         }
@@ -5398,12 +5465,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Banners
   const addBanner = async (banner: Omit<HeroBanner, 'id'>) => {
-    const newBanner: HeroBanner = { ...banner, id: `banner-${Date.now()}` };
+    let finalImageUrl = banner.imageUrl;
+    const bannerId = `banner-${Date.now()}`;
+
+    // If an image is passed as a base64 string, upload it to static storage to avoid localStorage/Firestore bloat
+    if (finalImageUrl && finalImageUrl.startsWith('data:image/')) {
+      try {
+        const uploadRes = await fetch('/api/admin/banners/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: finalImageUrl, bannerId }),
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData?.success && uploadData?.url) {
+          finalImageUrl = uploadData.url;
+        }
+      } catch (err) {
+        console.warn('Banner upload to static storage fallback:', err);
+      }
+    }
+
+    const newBanner: HeroBanner = { ...banner, imageUrl: finalImageUrl, id: bannerId };
+    let updatedList: HeroBanner[] = [];
     setBanners((prev) => {
-      const updated = [...prev, newBanner];
-      safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(updated));
-      return updated;
+      updatedList = [...prev, newBanner];
+      safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(updatedList));
+      return updatedList;
     });
+
+    // Sync to disk
+    fetch('/api/banners', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banners: updatedList }),
+    }).catch(() => {});
+
     try {
       await setDoc(doc(db, 'banners', newBanner.id), removeUndefined(newBanner));
     } catch (e: any) {
@@ -5418,13 +5514,42 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateBanner = async (updated: HeroBanner) => {
+    let finalImageUrl = updated.imageUrl;
+
+    // If an image is passed as a base64 string, upload it to static storage to avoid localStorage/Firestore bloat
+    if (finalImageUrl && finalImageUrl.startsWith('data:image/')) {
+      try {
+        const uploadRes = await fetch('/api/admin/banners/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: finalImageUrl, bannerId: updated.id }),
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData?.success && uploadData?.url) {
+          finalImageUrl = uploadData.url;
+        }
+      } catch (err) {
+        console.warn('Banner upload to static storage fallback:', err);
+      }
+    }
+
+    const normalized: HeroBanner = { ...updated, imageUrl: finalImageUrl };
+    let nextList: HeroBanner[] = [];
     setBanners((prev) => {
-      const next = prev.map((b) => (b.id === updated.id ? updated : b));
-      safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(next));
-      return next;
+      nextList = prev.map((b) => (b.id === normalized.id ? normalized : b));
+      safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(nextList));
+      return nextList;
     });
+
+    // Sync to disk
+    fetch('/api/banners', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banners: nextList }),
+    }).catch(() => {});
+
     try {
-      await setDoc(doc(db, 'banners', updated.id), removeUndefined(updated), { merge: true });
+      await setDoc(doc(db, 'banners', normalized.id), removeUndefined(normalized), { merge: true });
     } catch (e: any) {
       console.error('Could not update banner in Firestore:', e);
       addToast({
@@ -5451,11 +5576,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     } catch (e) {}
 
+    let nextList: HeroBanner[] = [];
     setBanners((prev) => {
-      const next = prev.filter((b) => b.id !== id);
-      safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(next));
-      return next;
+      nextList = prev.filter((b) => b.id !== id);
+      safeSetItem(`${STORAGE_KEY}_banners`, JSON.stringify(nextList));
+      return nextList;
     });
+
+    // Sync to disk
+    fetch('/api/banners', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banners: nextList }),
+    }).catch(() => {});
+
     try {
       await deleteDoc(doc(db, 'banners', id));
     } catch (e) {

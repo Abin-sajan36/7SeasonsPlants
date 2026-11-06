@@ -20,7 +20,7 @@ import {
   restoreDatabaseToFirestore,
   getDb,
 } from "./server/firestoreRestore.js";
-import { doc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, query, where } from "firebase/firestore";
 import {
   fetchInstagramMetadata,
   generateInstagramAiCopy,
@@ -81,6 +81,12 @@ if (!fs.existsSync(backupDir)) {
   fs.mkdirSync(backupDir, { recursive: true });
 }
 app.use("/backup", express.static(backupDir));
+
+const bannersDir = path.join(process.cwd(), "public", "banners");
+if (!fs.existsSync(bannersDir)) {
+  fs.mkdirSync(bannersDir, { recursive: true });
+}
+app.use("/banners", express.static(bannersDir, { maxAge: "7d" }));
 
 // Global CORS & Preflight handler to prevent 405 / CORS blocks in iFrames & previews
 app.use((req, res, next) => {
@@ -426,6 +432,108 @@ app.post("/api/upload-image", async (req, res) => {
   } catch (error: any) {
     console.error("Error saving uploaded image:", error);
     return res.status(500).json({ success: false, error: error.message || "Failed to save image" });
+  }
+});
+
+// Dedicated Hero Banner Upload & Persistence Endpoint
+app.post("/api/admin/banners/upload", async (req, res) => {
+  try {
+    const { image, name, bannerId } = req.body || {};
+    if (!image) {
+      return res.status(400).json({ success: false, error: "Image data is required" });
+    }
+    if (
+      typeof image === "string" &&
+      (image.startsWith("http://") ||
+        image.startsWith("https://") ||
+        image.startsWith("/banners/") ||
+        image.startsWith("/uploads/"))
+    ) {
+      return res.json({ success: true, url: image });
+    }
+
+    const match = image.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+    if (!match) {
+      return res.status(400).json({ success: false, error: "Invalid image format" });
+    }
+
+    const rawExt = match[1].toLowerCase();
+    const ext = rawExt === "jpeg" ? "jpg" : rawExt.replace("+xml", "");
+    const base64Data = match[2];
+    const buffer = Buffer.from(base64Data, "base64");
+    const targetBannerId = (bannerId || name || `banner-${Date.now()}`)
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "");
+    const filename = `${targetBannerId}.${ext}`;
+    const filePath = path.join(bannersDir, filename);
+
+    fs.writeFileSync(filePath, buffer);
+    const fileUrl = `/banners/${filename}`;
+
+    // Also persist in Firestore uploaded_images for cloud backup
+    if (image.length <= 900000) {
+      try {
+        const db = getDb();
+        setDoc(doc(db, "uploaded_images", filename), {
+          filename,
+          dataUrl: image,
+          contentType: `image/${rawExt === "jpg" ? "jpeg" : rawExt}`,
+          size: buffer.length,
+          createdAt: new Date().toISOString(),
+        }).catch(() => {});
+      } catch (_) {}
+    }
+
+    return res.json({ success: true, url: fileUrl });
+  } catch (err: any) {
+    console.error("Banner upload error:", err);
+    res.status(500).json({ success: false, error: err.message || "Failed to upload banner image" });
+  }
+});
+
+// Save & retrieve persistent hero banners
+app.get("/api/banners", async (req, res) => {
+  try {
+    const bannersJsonPath = path.join(bannersDir, "banners.json");
+    if (fs.existsSync(bannersJsonPath)) {
+      const data = JSON.parse(fs.readFileSync(bannersJsonPath, "utf8"));
+      return res.json({ success: true, banners: data });
+    }
+    const db = getDb();
+    const snap = await getDocs(collection(db, "banners"));
+    if (!snap.empty) {
+      const list: any[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+      return res.json({ success: true, banners: list });
+    }
+    return res.json({ success: true, banners: [] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/banners", async (req, res) => {
+  try {
+    const { banners } = req.body;
+    if (!Array.isArray(banners)) {
+      return res.status(400).json({ success: false, error: "Banners array is required" });
+    }
+    const bannersJsonPath = path.join(bannersDir, "banners.json");
+    fs.writeFileSync(bannersJsonPath, JSON.stringify(banners, null, 2));
+
+    try {
+      const db = getDb();
+      for (const ban of banners) {
+        if (ban.id) {
+          setDoc(doc(db, "banners", ban.id), ban, { merge: true }).catch(() => {});
+        }
+      }
+    } catch (_) {}
+
+    return res.json({ success: true, banners });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -800,16 +908,34 @@ app.post("/api/orders/send-status-update", async (req, res) => {
   }
 });
 
-// Dedicated Customer Orders Endpoint: Fetches matching orders for a customer by email, phone, userId, or orderIds
+// Dedicated Customer Orders Endpoint: Fetches matching orders for a customer by email, phone, userId, orderIds, or search query
 app.post("/api/customer/orders", async (req, res) => {
   try {
-    const { email, phone, userId, orderIds } = req.body || {};
-    const cleanEmail = (email || "").toString().trim().toLowerCase();
-    const cleanPhone = (phone || "").toString().replace(/\D/g, "").slice(-10);
+    const { email, phone, userId, orderIds, query: rawQuery, search } = req.body || {};
+    let cleanEmail = (email || "").toString().trim().toLowerCase();
+    let cleanPhone = (phone || "").toString().replace(/\D/g, "").slice(-10);
     const cleanUserId = (userId || "").toString().trim();
-    const cleanOrderIds = Array.isArray(orderIds)
+    let cleanOrderIds: string[] = Array.isArray(orderIds)
       ? orderIds.map((id: any) => String(id).trim().toLowerCase())
       : [];
+
+    const searchInput = (rawQuery || search || "").toString().trim();
+    if (searchInput) {
+      const searchClean = searchInput.toLowerCase();
+      const strippedHash = searchClean.replace(/^#/, "").trim();
+      cleanOrderIds.push(searchClean);
+      if (strippedHash && strippedHash !== searchClean) {
+        cleanOrderIds.push(strippedHash);
+      }
+
+      if (searchInput.includes("@")) {
+        cleanEmail = searchClean;
+      }
+      const digits = searchInput.replace(/\D/g, "").slice(-10);
+      if (digits.length >= 7) {
+        cleanPhone = digits;
+      }
+    }
 
     if (!cleanEmail && !cleanPhone && !cleanUserId && cleanOrderIds.length === 0) {
       return res.json({ success: true, orders: [] });
@@ -824,9 +950,21 @@ app.post("/api/customer/orders", async (req, res) => {
       const docId = docSnap.id;
       const orderIdLower = docId.toLowerCase();
       const orderNumberLower = (data.orderNumber || "").toString().toLowerCase();
+      const trackingNumberLower = (data.trackingNumber || "").toString().toLowerCase();
 
-      // 1. Direct ID / orderNumber match
-      if (cleanOrderIds.includes(orderIdLower) || cleanOrderIds.includes(orderNumberLower)) {
+      // 1. Direct ID, orderNumber, or trackingNumber match
+      const hasIdMatch = cleanOrderIds.some((targetId) => {
+        if (!targetId) return false;
+        if (targetId === orderIdLower || targetId === orderNumberLower) return true;
+        if (trackingNumberLower && targetId === trackingNumberLower) return true;
+        // Match suffix like "7741" in "7s-2026-7741"
+        if (targetId.length >= 4 && (orderNumberLower.endsWith(targetId) || orderIdLower.endsWith(targetId))) {
+          return true;
+        }
+        return false;
+      });
+
+      if (hasIdMatch) {
         matchingOrders.push({ ...data, id: docId });
         return;
       }
@@ -1107,14 +1245,48 @@ app.post("/api/admin/send-bulk-email", async (req, res) => {
     for (const [email, name] of uniqueMap.entries()) {
       try {
         if (transporter) {
+          const plainTextContent = [
+            `Hello ${name},`,
+            '',
+            message.trim(),
+            '',
+            callToActionUrl ? `${callToActionText || 'View Order & Details'}: ${callToActionUrl}` : '',
+            '',
+            '---',
+            '7Seasons Nursery | Mannaratharayil Gardens LLP',
+            'Calicut-Palakkad Highway, Kerala, India',
+            'WhatsApp Helpline: +91 88482 76403 | Email: mannaratharayil@gmail.com',
+            'You are receiving this notice regarding your 7Seasons order or customer account.',
+            'To unsubscribe from bulk notifications, reply directly with "unsubscribe".',
+          ].filter(Boolean).join('\n');
+
           await transporter.sendMail({
             from: fromAddress,
             to: email,
+            replyTo: '"7Seasons Nursery Care" <mannaratharayil@gmail.com>',
+            sender: 'mannaratharayil@gmail.com',
+            envelope: {
+              from: 'mannaratharayil@gmail.com',
+              to: email,
+            },
             subject: subject.trim(),
-            text: `Hello ${name},\n\n${message}\n\nVisit: ${callToActionUrl}\n\nHappy Gardening,\nMannaratharayil Gardens LLP Team`,
+            text: plainTextContent,
+            headers: {
+              'List-Unsubscribe': '<mailto:mannaratharayil@gmail.com?subject=Unsubscribe%20Order%20Updates>, <https://www.7seasonsplants.com/#contact>',
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+              'Precedence': 'bulk',
+              'X-Auto-Response-Suppress': 'OOF, AutoReply',
+              'Feedback-ID': 'order-updates:7seasons:nursery',
+              'X-Entity-Ref-ID': `bulk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            },
             html: `
             <!DOCTYPE html>
             <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>${subject.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
+            </head>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4FAF5; margin: 0; padding: 24px; color: #064e3b;">
               <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; border: 1.5px solid #d1fae5; box-shadow: 0 10px 25px rgba(6, 78, 59, 0.08);">
                 <div style="background: linear-gradient(135deg, #062416 0%, #064e3b 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
@@ -1148,12 +1320,16 @@ app.post("/api/admin/send-bulk-email", async (req, res) => {
                       : ""
                   }
 
-                  <div style="border-top: 1px dashed #e2e8f0; padding-top: 20px; margin-top: 24px; font-size: 12px; color: #64748b; line-height: 1.5; text-align: center;">
-                    <p style="margin: 0 0 4px; font-weight: 600; color: #064e3b;">
-                      Mannaratharayil Gardens LLP • Calicut-Palakkad Highway, Kerala, India
+                  <div style="border-top: 1px solid #e2e8f0; padding-top: 18px; margin-top: 24px; font-size: 11px; color: #64748b; line-height: 1.6; text-align: center;">
+                    <p style="margin: 0 0 4px; font-weight: 700; color: #064e3b;">
+                      7Seasons Nursery • Mannaratharayil Gardens LLP
                     </p>
-                    <p style="margin: 0;">
-                      WhatsApp Helpline: <a href="https://wa.me/918848276403" style="color: #059669; text-decoration: none; font-weight: 700;">+91 88482 76403</a> • Email: mannaratharayil@gmail.com
+                    <p style="margin: 0 0 6px;">
+                      Calicut-Palakkad Highway, Kerala, India • Reg. Nursery • WhatsApp: <a href="https://wa.me/918848276403" style="color: #059669; text-decoration: none; font-weight: 700;">+91 88482 76403</a>
+                    </p>
+                    <p style="margin: 0; color: #94a3b8; font-size: 10px;">
+                      You are receiving this notification regarding your 7Seasons order or customer account.<br />
+                      To manage preferences or unsubscribe, reply directly to this email with "Unsubscribe".
                     </p>
                   </div>
                 </div>
@@ -1164,6 +1340,8 @@ app.post("/api/admin/send-bulk-email", async (req, res) => {
           });
         }
         sentCount++;
+        // Paced throttle delay (180ms) to ensure smooth SMTP delivery and prevent burst spam classification
+        await new Promise((resolve) => setTimeout(resolve, 180));
       } catch (err: any) {
         console.warn(`[Bulk Email] Failed sending to ${email}:`, err?.message || err);
         errors.push(`${email}: ${err?.message || "Send failed"}`);
@@ -2343,11 +2521,28 @@ app.post("/api/razorpay/update-credentials", async (req, res) => {
   }
 });
 
+// Pending checkout orders cache to safeguard against browser closes/reloads during mobile UPI app-switching
+interface PendingCheckoutPayload {
+  orderPayload: any;
+  createdAt: number;
+}
+const pendingOrdersCache = new Map<string, PendingCheckoutPayload>();
+
+// Periodic pruning of entries older than 2 hours
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of pendingOrdersCache.entries()) {
+    if (now - val.createdAt > 2 * 60 * 60 * 1000) {
+      pendingOrdersCache.delete(key);
+    }
+  }
+}, 30 * 60 * 1000);
+
 // STEP 1: BACKEND - Create Order
 // Endpoint: POST /api/create-order (and /api/razorpay/create-order)
 const handleCreateOrder = async (req: express.Request, res: express.Response) => {
   try {
-    const { amount, currency = "INR", receipt, notes } = req.body;
+    const { amount, currency = "INR", receipt, notes, orderPayload } = req.body;
 
     // Validate amount is present and a number
     if (typeof amount !== "number" || isNaN(amount)) {
@@ -2397,6 +2592,13 @@ const handleCreateOrder = async (req: express.Request, res: express.Response) =>
           notes: notes || {},
         });
 
+        if (orderPayload && order?.id) {
+          pendingOrdersCache.set(order.id, {
+            orderPayload,
+            createdAt: Date.now(),
+          });
+        }
+
         return res.json({
           success: true,
           order_id: order.id,
@@ -2412,6 +2614,12 @@ const handleCreateOrder = async (req: express.Request, res: express.Response) =>
         // If not in live mode and test credentials failed, use resilient sandbox fallback
         if (!isLive) {
           const sandboxOrderId = `order_sandbox_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+          if (orderPayload) {
+            pendingOrdersCache.set(sandboxOrderId, {
+              orderPayload,
+              createdAt: Date.now(),
+            });
+          }
           return res.json({
             success: true,
             order_id: sandboxOrderId,
@@ -2436,6 +2644,12 @@ const handleCreateOrder = async (req: express.Request, res: express.Response) =>
 
     // If Razorpay credentials not configured or placeholder, create simulated sandbox order directly
     const sandboxOrderId = `order_sandbox_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+    if (orderPayload) {
+      pendingOrdersCache.set(sandboxOrderId, {
+        orderPayload,
+        createdAt: Date.now(),
+      });
+    }
     return res.json({
       success: true,
       order_id: sandboxOrderId,
@@ -2600,6 +2814,205 @@ app.all("/api/razorpay/verify-payment", (req, res) => {
   res.status(200).json({
     success: false,
     error: `Method ${req.method} received. Please send a POST request with verification fields.`,
+  });
+});
+
+// STEP 4: BACKEND - Razorpay Webhook Auto-Recovery
+// Automatically records orders and sends email if the customer's browser tab closed/reloaded during UPI app switching
+app.post("/api/razorpay/webhook", async (req, res) => {
+  try {
+    const secret = (process.env.RAZORPAY_WEBHOOK_SECRET || "").trim();
+    const signature = (req.headers["x-razorpay-signature"] || "").toString();
+
+    // Verify webhook signature if secret is configured
+    if (secret && signature) {
+      try {
+        const expectedSig = crypto
+          .createHmac("sha256", secret)
+          .update(JSON.stringify(req.body))
+          .digest("hex");
+        if (expectedSig !== signature) {
+          console.warn("[Razorpay Webhook] Signature mismatch detected.");
+        }
+      } catch (sigErr) {
+        console.warn("[Razorpay Webhook] Signature verification note:", sigErr);
+      }
+    }
+
+    const event = req.body?.event;
+    console.log(`[Razorpay Webhook] Event received: ${event}`);
+
+    if (event === "payment.captured" || event === "order.paid") {
+      const paymentEntity = req.body?.payload?.payment?.entity || {};
+      const paymentId = (paymentEntity.id || "").toString();
+      const razorpayOrderId = (paymentEntity.order_id || "").toString();
+
+      if (!paymentId) {
+        return res.json({ success: true, message: "No payment ID in payload" });
+      }
+
+      const db = getDb();
+      // Check if order already recorded in Firestore
+      const ordersSnap = await getDocs(collection(db, "orders"));
+      let orderExists = false;
+      ordersSnap.forEach((d) => {
+        const o = d.data();
+        if (o.razorpayPaymentId === paymentId || (razorpayOrderId && o.razorpayOrderId === razorpayOrderId)) {
+          orderExists = true;
+        }
+      });
+
+      if (orderExists) {
+        console.log(`[Razorpay Webhook] Order for payment ${paymentId} is already recorded in database.`);
+        return res.json({ success: true, message: "Order already registered" });
+      }
+
+      console.log(`[Razorpay Webhook] Payment ${paymentId} captured without client registration! Auto-recovering order...`);
+
+      // Retrieve cached checkout payload or construct from notes
+      const cached = razorpayOrderId ? pendingOrdersCache.get(razorpayOrderId) : null;
+      const notes = paymentEntity.notes || {};
+      const timestamp = new Date().toISOString();
+      const orderNumber = `7S-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const orderDocId = `ord-${Date.now()}`;
+
+      let recoveredOrder: any = null;
+
+      if (cached && cached.orderPayload) {
+        recoveredOrder = {
+          ...cached.orderPayload,
+          id: orderDocId,
+          orderNumber: cached.orderPayload.orderNumber || orderNumber,
+          razorpayPaymentId: paymentId,
+          razorpayOrderId: razorpayOrderId,
+          paymentStatus: "paid",
+          paymentMethod: "razorpay",
+          orderStatus: "Order Placed",
+          createdAt: timestamp,
+          notes: (cached.orderPayload.notes || "") + " | Auto-recovered via server Webhook (UPI safety)",
+        };
+      } else {
+        // Construct from Razorpay payment entity and notes
+        const customerName = notes.customer_name || paymentEntity.name || "Customer";
+        const customerEmail = notes.customer_email || paymentEntity.email || "";
+        const customerPhone = notes.customer_phone || paymentEntity.contact || "";
+        const totalAmount = (paymentEntity.amount || 0) / 100;
+
+        recoveredOrder = {
+          id: orderDocId,
+          orderNumber,
+          customerId: `usr-webhook-${Date.now()}`,
+          customer: {
+            name: customerName,
+            email: customerEmail,
+            phone: customerPhone,
+            shippingAddress: {
+              fullName: customerName,
+              phoneNumber: customerPhone,
+              addressLine1: notes.address_line1 || "Customer Address (from payment notes)",
+              addressLine2: notes.address_line2 || "",
+              district: notes.district || "Kerala",
+              city: notes.district || "Kerala",
+              state: notes.state || "Kerala",
+              pincode: notes.pincode || "685509",
+              isDefault: true,
+            },
+          },
+          items: [
+            {
+              id: "combo-recovered",
+              name: notes.combo_name || "Plant Order Bundle",
+              price: totalAmount,
+              quantity: 1,
+              type: "combo",
+              image: "/SEASONS.png",
+            },
+          ],
+          subtotal: totalAmount,
+          deliveryFee: 0,
+          total: totalAmount,
+          paymentStatus: "paid",
+          paymentMethod: "razorpay",
+          razorpayOrderId,
+          razorpayPaymentId: paymentId,
+          orderStatus: "Order Placed",
+          courierPartner: notes.courier || "India Post (Standard Parcel)",
+          createdAt: timestamp,
+          statusHistory: [
+            { status: "Order Placed", timestamp, note: "Auto-registered from Razorpay webhook" },
+            { status: "Payment Confirmed", timestamp, note: `Payment verified via Razorpay (${paymentId})` },
+          ],
+          notes: "Auto-recovered order via Razorpay Webhook notification (UPI mobile safety)",
+        };
+      }
+
+      // Save to Firestore
+      await setDoc(doc(db, "orders", orderDocId), recoveredOrder);
+      console.log(`[Razorpay Webhook] Successfully created order ${recoveredOrder.orderNumber} in Firestore!`);
+
+      // Attempt to link to user document if registered
+      if (recoveredOrder.customer?.email) {
+        try {
+          const userQuery = query(collection(db, "users"), where("email", "==", recoveredOrder.customer.email.toLowerCase()));
+          const userSnap = await getDocs(userQuery);
+          if (!userSnap.empty) {
+            const userDoc = userSnap.docs[0];
+            const userData = userDoc.data();
+            const prevIds = Array.isArray(userData.orderIds) ? userData.orderIds : [];
+            const nextIds = Array.from(new Set([...prevIds, orderDocId, recoveredOrder.orderNumber]));
+            await setDoc(doc(db, "users", userDoc.id), { orderIds: nextIds }, { merge: true });
+            console.log(`[Razorpay Webhook] Linked order ${recoveredOrder.orderNumber} to user ${userDoc.id}`);
+          }
+        } catch (uErr) {
+          console.warn("[Razorpay Webhook] User link notice:", uErr);
+        }
+      }
+
+      // Send email confirmation
+      try {
+        const transporter = getMailTransporter();
+        if (transporter && recoveredOrder.customer?.email) {
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || '"7Seasonsplants" <mannaratharayil@gmail.com>',
+            to: recoveredOrder.customer.email,
+            subject: `Order Confirmed #${recoveredOrder.orderNumber} - 7Seasonsplants`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 16px;">
+                <h2 style="color: #047857;">Payment & Order Confirmed! 🌿</h2>
+                <p>Hello <strong>${recoveredOrder.customer.name}</strong>,</p>
+                <p>Your payment (ID: <code>${paymentId}</code>) was successfully received and your plant order <strong>#${recoveredOrder.orderNumber}</strong> has been secured at Mannaratharayil Gardens nursery.</p>
+                <div style="background-color: #f0fdf4; padding: 15px; border-radius: 12px; margin: 20px 0;">
+                  <p style="margin: 0;"><strong>Order Number:</strong> ${recoveredOrder.orderNumber}</p>
+                  <p style="margin: 5px 0 0 0;"><strong>Total Paid:</strong> ₹${recoveredOrder.total}</p>
+                  <p style="margin: 5px 0 0 0;"><strong>Status:</strong> Order Placed & Payment Confirmed</p>
+                </div>
+                <p>You can track your order anytime at our website using your Order Number (<strong>${recoveredOrder.orderNumber}</strong>) or your mobile number (<strong>${recoveredOrder.customer.phone}</strong>).</p>
+                <p style="color: #6b7280; font-size: 12px; margin-top: 25px;">7Seasonsplants (Mannaratharayil Gardens LLP) • Kerala</p>
+              </div>
+            `,
+          });
+          console.log(`[Razorpay Webhook] Confirmation email sent to ${recoveredOrder.customer.email}`);
+        }
+      } catch (mailErr) {
+        console.warn("[Razorpay Webhook] Email notice:", mailErr);
+      }
+
+      return res.json({ success: true, message: "Order recovered and created successfully", orderNumber: recoveredOrder.orderNumber });
+    }
+
+    res.json({ success: true, message: "Webhook event acknowledged" });
+  } catch (err: any) {
+    console.error("[Razorpay Webhook Error]:", err);
+    res.status(500).json({ success: false, error: err.message || "Webhook processing error" });
+  }
+});
+
+app.get("/api/razorpay/webhook", (req, res) => {
+  res.json({
+    success: true,
+    status: "active",
+    endpoint: "/api/razorpay/webhook",
+    instructions: "Configure this URL as your Razorpay Webhook with event 'payment.captured' and 'order.paid'.",
   });
 });
 
