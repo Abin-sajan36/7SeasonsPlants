@@ -2821,7 +2821,7 @@ app.all("/api/razorpay/verify-payment", (req, res) => {
 // Automatically records orders and sends email if the customer's browser tab closed/reloaded during UPI app switching
 app.post("/api/razorpay/webhook", async (req, res) => {
   try {
-    const secret = (process.env.RAZORPAY_WEBHOOK_SECRET || "").trim();
+    const secret = (process.env.RAZORPAY_WEBHOOK_SECRET || "Kbc2cWwsxpsT2ilMVDAoysmd").trim();
     const signature = (req.headers["x-razorpay-signature"] || "").toString();
 
     // Verify webhook signature if secret is configured
