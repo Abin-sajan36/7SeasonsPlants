@@ -56,13 +56,14 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
     const link = (rawLink || '').replace(/^\//, '').trim();
 
     return {
-      text: text || (isSecondary ? 'Today’s Flash Deals' : 'Explore Plant Combos'),
-      link: link || (isSecondary ? '#deals' : 'combos'),
+      text: text || (isSecondary ? '' : 'Explore Plant Combos'),
+      link: link || (isSecondary ? '' : 'combos'),
     };
   };
 
   const primaryCta = resolveCta(currentBanner.ctaText, currentBanner.ctaLink, false);
   const secondaryCta = resolveCta(currentBanner.secondaryCtaText, currentBanner.secondaryCtaLink, true);
+  const hasSecondaryCta = Boolean(currentBanner.secondaryCtaText && currentBanner.secondaryCtaText.trim().length > 0);
   const displaySubtitle = currentBanner.subtitle || '';
 
   const handleNext = () => {
@@ -133,7 +134,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onNavigate }) => {
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
 
-              {currentBanner.secondaryCtaText && (
+              {hasSecondaryCta && secondaryCta.text && (
                 <button
                   onClick={() => onNavigate(secondaryCta.link)}
                   className="w-full sm:w-auto justify-center px-5 sm:px-6 py-3 sm:py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold text-xs sm:text-sm border border-white/20 backdrop-blur-xs transition-all flex items-center gap-2 cursor-pointer"

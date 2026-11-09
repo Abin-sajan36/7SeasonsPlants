@@ -519,19 +519,24 @@ app.post("/api/banners", async (req, res) => {
     if (!Array.isArray(banners)) {
       return res.status(400).json({ success: false, error: "Banners array is required" });
     }
+    const sanitizedBanners = banners.map((ban: any) => ({
+      ...ban,
+      secondaryCtaText: ban.secondaryCtaText ? String(ban.secondaryCtaText).trim() : '',
+      secondaryCtaLink: ban.secondaryCtaLink ? String(ban.secondaryCtaLink).trim() : '',
+    }));
     const bannersJsonPath = path.join(bannersDir, "banners.json");
-    fs.writeFileSync(bannersJsonPath, JSON.stringify(banners, null, 2));
+    fs.writeFileSync(bannersJsonPath, JSON.stringify(sanitizedBanners, null, 2));
 
     try {
       const db = getDb();
-      for (const ban of banners) {
+      for (const ban of sanitizedBanners) {
         if (ban.id) {
           setDoc(doc(db, "banners", ban.id), ban, { merge: true }).catch(() => {});
         }
       }
     } catch (_) {}
 
-    return res.json({ success: true, banners });
+    return res.json({ success: true, banners: sanitizedBanners });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

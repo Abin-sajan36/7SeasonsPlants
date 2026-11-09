@@ -16,7 +16,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, query, where, writeBatch, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, collection, getDocs, deleteDoc, query, where, writeBatch, limit, deleteField } from 'firebase/firestore';
 import {
   Product,
   PlantCombo,
@@ -5549,7 +5549,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }).catch(() => {});
 
     try {
-      await setDoc(doc(db, 'banners', normalized.id), removeUndefined(normalized), { merge: true });
+      const firestorePayload: any = { ...removeUndefined(normalized) };
+      if (!normalized.secondaryCtaText || !normalized.secondaryCtaText.trim()) {
+        firestorePayload.secondaryCtaText = deleteField();
+      }
+      if (!normalized.secondaryCtaLink || !normalized.secondaryCtaLink.trim()) {
+        firestorePayload.secondaryCtaLink = deleteField();
+      }
+      await setDoc(doc(db, 'banners', normalized.id), firestorePayload, { merge: true });
     } catch (e: any) {
       console.error('Could not update banner in Firestore:', e);
       addToast({

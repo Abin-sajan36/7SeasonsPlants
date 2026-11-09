@@ -233,8 +233,8 @@ export const BannersManagementTab: React.FC<BannersManagementTabProps> = ({ onNa
       badge: formBadge.trim(),
       ctaText: formCtaText.trim() || 'Explore Plant Combos',
       ctaLink: formCtaLink.trim() || '/combos',
-      secondaryCtaText: formSecondaryCtaText.trim() || undefined,
-      secondaryCtaLink: formSecondaryCtaLink.trim() || undefined,
+      secondaryCtaText: formSecondaryCtaText.trim() ? formSecondaryCtaText.trim() : '',
+      secondaryCtaLink: formSecondaryCtaLink.trim() ? formSecondaryCtaLink.trim() : '',
       imageUrl: formImageUrl.trim(),
       displayOrder: Number(formDisplayOrder) || 1,
       isActive: Boolean(formIsActive),
@@ -527,7 +527,7 @@ export const BannersManagementTab: React.FC<BannersManagementTabProps> = ({ onNa
                         <span className="text-gray-400 font-mono text-[11px]">→ {banner.ctaLink}</span>
                       </div>
 
-                      {banner.secondaryCtaText && (
+                      {Boolean(banner.secondaryCtaText && banner.secondaryCtaText.trim()) && (
                         <div className="bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
                           <span className="text-gray-400 text-[10px] uppercase font-bold">Secondary:</span>
                           <span>"{banner.secondaryCtaText}"</span>
