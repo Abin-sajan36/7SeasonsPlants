@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   MapPin,
   Check,
-  Truck,
   ShieldCheck,
   ChevronRight,
   Leaf,
@@ -13,9 +12,7 @@ import { useStore } from '../../context/StoreContext';
 interface StateOption {
   name: 'Kerala' | 'Tamil Nadu' | 'Karnataka';
   tagline: string;
-  badge: string;
   badgeColor: string;
-  transitTime: string;
   description: string;
   highlightDistricts: string;
 }
@@ -24,27 +21,21 @@ const SUPPORTED_STATES: StateOption[] = [
   {
     name: 'Kerala',
     tagline: 'Home Nursery Dispatch',
-    badge: '1 - 2 Days Express',
     badgeColor: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700',
-    transitTime: '1 - 2 Days Express Transit',
     description: 'Direct dispatch from our botanical nursery in Kerala with zero transit stress and 100% fresh arrival guarantee.',
     highlightDistricts: 'Ernakulam, Thrissur, Kozhikode, Trivandrum, Wayanad & all 14 districts',
   },
   {
     name: 'Tamil Nadu',
     tagline: 'Direct Ground Express',
-    badge: '2 - 3 Days Transit',
     badgeColor: 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700',
-    transitTime: '2 - 3 Days Ground Transit',
     description: 'Acclimated tropical varieties packed in specialized moisture-lock packaging for direct doorstep delivery.',
     highlightDistricts: 'Coimbatore, Chennai, Madurai, Salem, Tiruchirappalli & all districts',
   },
   {
     name: 'Karnataka',
-    tagline: 'Priority Interstate Transit',
-    badge: '2 - 3 Days Transit',
+    tagline: 'Priority Interstate Delivery',
     badgeColor: 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700',
-    transitTime: '2 - 3 Days Express Transit',
     description: 'Curated balcony & indoor plant combos protected by shock-absorbing corrugated boxes for fast, safe arrival.',
     highlightDistricts: 'Bengaluru, Mysuru, Mangaluru, Belagavi, Hubballi & all districts',
   },
@@ -158,9 +149,8 @@ export const StateSelectionModal: React.FC = () => {
 
           {/* 3 State Option Cards */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">
+            <div className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">
               <span>Choose Your State</span>
-              <span>Transit Time</span>
             </div>
 
             <div className="grid grid-cols-1 gap-3">
@@ -198,7 +188,7 @@ export const StateSelectionModal: React.FC = () => {
                             {state.name}
                           </span>
                           <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${state.badgeColor}`}>
-                            {state.badge}
+                            {state.tagline}
                           </span>
                           {isSelected && (
                             <span className="text-[10px] bg-emerald-700 text-white px-2 py-0.5 rounded-full font-bold">
@@ -223,13 +213,6 @@ export const StateSelectionModal: React.FC = () => {
                           </span>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="text-right shrink-0 hidden sm:block">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/70 px-2.5 py-1 rounded-full">
-                        <Truck className="w-3 h-3 text-emerald-600" />
-                        {state.badge}
-                      </span>
                     </div>
                   </button>
                 );

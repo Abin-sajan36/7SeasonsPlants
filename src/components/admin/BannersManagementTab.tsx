@@ -408,48 +408,6 @@ export const BannersManagementTab: React.FC<BannersManagementTabProps> = ({ onNa
         </div>
       </div>
 
-      {/* Preset Quick-Picks Banner Section */}
-      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-700" />
-            <h3 className="font-bold text-emerald-950 text-sm">
-              Quick Pick: Botanical Nursery Photography
-            </h3>
-          </div>
-          <span className="text-[11px] text-gray-500 font-medium hidden sm:inline">
-            Click any photo below to instantly draft a new banner
-          </span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {PRESET_BANNER_PHOTOS.map((preset, idx) => (
-            <div
-              key={idx}
-              onClick={() => {
-                handleOpenAddModal();
-                setFormImageUrl(preset.url);
-                setFormTitle(preset.title);
-                setFormBadge('7SEASONS BOTANICAL CURATION');
-              }}
-              className="group relative rounded-2xl overflow-hidden aspect-video border border-gray-200 hover:border-emerald-500 shadow-2xs cursor-pointer transition-all hover:scale-[1.02]"
-            >
-              <img
-                src={preset.url}
-                alt={preset.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2 flex flex-col justify-end">
-                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block">
-                  {preset.category}
-                </span>
-                <span className="text-[11px] font-bold text-white line-clamp-1">
-                  {preset.title}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Slides Cards List */}
       <div className="space-y-4">
