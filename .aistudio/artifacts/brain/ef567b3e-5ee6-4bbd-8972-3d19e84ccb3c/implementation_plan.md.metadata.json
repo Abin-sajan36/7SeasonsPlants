@@ -1,6 +1,0 @@
-{
-  "summary": "Revised implementation plan incorporating comprehensive anti-spam deliverability standards (RFC 8058 headers, SMTP pacing, synchronized multipart MIME, verified sender alignment, and clean physical footers) to ensure bulk order emails land in the customer's Primary Inbox.",
-  "updatedAt": "2026-11-06T06:13:10.829707872Z",
-  "requestFeedback": true,
-  "userFacing": true
-}

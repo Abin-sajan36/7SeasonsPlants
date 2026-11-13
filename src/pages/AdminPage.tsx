@@ -2791,15 +2791,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
             ) : (
               <div className="space-y-4">
                 {filteredOrders.map((ord) => {
+                  const shippingAddr = ord.customer?.shippingAddress || ord.shippingAddress;
                   const customerName =
                     ord.customer?.name ||
-                    ord.customer?.shippingAddress?.fullName ||
+                    shippingAddr?.fullName ||
                     'Customer';
                   const customerPhone =
                     ord.customer?.phone ||
-                    ord.customer?.shippingAddress?.phoneNumber ||
+                    shippingAddr?.phoneNumber ||
+                    shippingAddr?.phone ||
                     'N/A';
-                  const shippingAddr = ord.customer?.shippingAddress;
                   const formattedDate = ord.createdAt
                     ? new Date(ord.createdAt).toLocaleDateString('en-IN', {
                         day: 'numeric',
@@ -2883,17 +2884,45 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
                             <MapPin className="w-3.5 h-3.5 text-emerald-700" />
                             Delivery Destination:
                           </strong>
-                          {shippingAddr ? (
-                            <p className="text-gray-600 leading-relaxed">
-                              {shippingAddr.street}, {shippingAddr.district || shippingAddr.city},{' '}
-                              {shippingAddr.state} – {shippingAddr.pincode}
-                              {shippingAddr.nearbyLandmark && (
-                                <span className="block text-[11px] text-gray-400">
-                                  Near: {shippingAddr.nearbyLandmark}
-                                </span>
-                              )}
-                            </p>
-                          ) : (
+                          {shippingAddr ? (() => {
+                            const primaryLine = shippingAddr.addressLine1 || shippingAddr.street || '';
+                            const landmarkParts = Array.from(
+                              new Set(
+                                [
+                                  shippingAddr.addressLine2,
+                                  shippingAddr.landmark,
+                                  shippingAddr.nearbyLandmark,
+                                ]
+                                  .map((v) => (v || '').trim())
+                                  .filter((v) => v && v !== primaryLine.trim())
+                              )
+                            );
+                            const cityPart = (shippingAddr.city || '').trim();
+                            const districtPart = (shippingAddr.district || '').trim();
+                            const regionParts = Array.from(
+                              new Set([cityPart, districtPart].filter(Boolean))
+                            );
+                            const statePin = [
+                              shippingAddr.state,
+                              shippingAddr.pincode ? `– ${shippingAddr.pincode}` : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ');
+                            const mainLine = [primaryLine, ...regionParts, statePin]
+                              .filter(Boolean)
+                              .join(', ');
+
+                            return (
+                              <p className="text-gray-600 leading-relaxed">
+                                {mainLine || 'Address details unavailable'}
+                                {landmarkParts.length > 0 && (
+                                  <span className="block text-[11px] text-gray-500 mt-0.5">
+                                    Landmark: {landmarkParts.join(', ')}
+                                  </span>
+                                )}
+                              </p>
+                            );
+                          })() : (
                             <p className="text-gray-400 italic">No address provided</p>
                           )}
                         </div>
@@ -5049,39 +5078,82 @@ export const AdminPage: React.FC<AdminPageProps> = ({ initialTab, onNavigate }) 
             </div>
 
             {/* Customer & Shipping Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 bg-gray-50 rounded-2xl space-y-1.5 border border-gray-100">
-                <span className="font-bold text-gray-400 uppercase text-[10px]">Customer Info</span>
-                <p className="font-bold text-gray-900 text-sm">
-                  {selectedOrderDetails.customer?.name || selectedOrderDetails.customer?.shippingAddress?.fullName}
-                </p>
-                <p className="text-gray-600 flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-emerald-700" />
-                  {selectedOrderDetails.customer?.phone || selectedOrderDetails.customer?.shippingAddress?.phoneNumber}
-                </p>
-                {selectedOrderDetails.customer?.email && (
-                  <p className="text-gray-600 flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-emerald-700" />
-                    {selectedOrderDetails.customer.email}
-                  </p>
-                )}
-              </div>
+            {(() => {
+              const invoiceAddr =
+                selectedOrderDetails.customer?.shippingAddress ||
+                selectedOrderDetails.shippingAddress;
+              const primaryLine = invoiceAddr?.addressLine1 || invoiceAddr?.street || '';
+              const secondaryParts = Array.from(
+                new Set(
+                  [
+                    invoiceAddr?.addressLine2,
+                    invoiceAddr?.landmark,
+                    invoiceAddr?.nearbyLandmark,
+                  ]
+                    .map((v) => (v || '').trim())
+                    .filter((v) => v && v !== primaryLine.trim())
+                )
+              );
+              const regionParts = Array.from(
+                new Set(
+                  [invoiceAddr?.city, invoiceAddr?.district]
+                    .map((v) => (v || '').trim())
+                    .filter(Boolean)
+                )
+              );
 
-              <div className="p-4 bg-gray-50 rounded-2xl space-y-1.5 border border-gray-100">
-                <span className="font-bold text-gray-400 uppercase text-[10px]">Delivery Address</span>
-                {selectedOrderDetails.customer?.shippingAddress ? (
-                  <p className="text-gray-700 leading-relaxed">
-                    {selectedOrderDetails.customer.shippingAddress.street},{' '}
-                    {selectedOrderDetails.customer.shippingAddress.district ||
-                      selectedOrderDetails.customer.shippingAddress.city}
-                    , {selectedOrderDetails.customer.shippingAddress.state} –{' '}
-                    {selectedOrderDetails.customer.shippingAddress.pincode}
-                  </p>
-                ) : (
-                  <p className="text-gray-400 italic">No delivery address saved</p>
-                )}
-              </div>
-            </div>
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 bg-gray-50 rounded-2xl space-y-1.5 border border-gray-100">
+                    <span className="font-bold text-gray-400 uppercase text-[10px]">Customer Info</span>
+                    <p className="font-bold text-gray-900 text-sm">
+                      {selectedOrderDetails.customer?.name || invoiceAddr?.fullName || 'Customer'}
+                    </p>
+                    <p className="text-gray-600 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-emerald-700" />
+                      {selectedOrderDetails.customer?.phone ||
+                        invoiceAddr?.phoneNumber ||
+                        invoiceAddr?.phone ||
+                        'N/A'}
+                    </p>
+                    {selectedOrderDetails.customer?.email && (
+                      <p className="text-gray-600 flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-emerald-700" />
+                        {selectedOrderDetails.customer.email}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-2xl space-y-1.5 border border-gray-100">
+                    <span className="font-bold text-gray-400 uppercase text-[10px]">Delivery Address</span>
+                    {invoiceAddr ? (
+                      <div className="text-gray-700 leading-relaxed space-y-0.5">
+                        {invoiceAddr.fullName && (
+                          <p className="font-semibold text-gray-900">{invoiceAddr.fullName}</p>
+                        )}
+                        {primaryLine && <p>{primaryLine}</p>}
+                        {secondaryParts.length > 0 && (
+                          <p className="text-gray-600">Landmark / Apt: {secondaryParts.join(', ')}</p>
+                        )}
+                        {(regionParts.length > 0 || invoiceAddr.state || invoiceAddr.pincode) && (
+                          <p>
+                            {[regionParts.join(', '), invoiceAddr.state].filter(Boolean).join(', ')}
+                            {invoiceAddr.pincode ? ` – ${invoiceAddr.pincode}` : ''}
+                          </p>
+                        )}
+                        {(invoiceAddr.phoneNumber || invoiceAddr.phone) && (
+                          <p className="text-gray-500 text-[11px] pt-0.5">
+                            Contact: {invoiceAddr.phoneNumber || invoiceAddr.phone}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 italic">No delivery address saved</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Order Items Table */}
             <div>
